@@ -61,7 +61,20 @@ export default function () {
                     function setter(newValue: any) {
                         if (IS_CLASSNAME_MODULE.test(String(newValue))) {
                             function className(this: any, module: any, exports: any, _require: any) {
-                                newValue.call(this, module, exports, _require);
+                                if (newValue.__BD__) {
+                                    newValue.__BD__.originalModule.call(this, module, exports, _require);
+                                }
+                                else {
+                                    newValue.call(this, module, exports, _require);
+                                }
+
+                                if (!Object.values(module.exports).every((item) => typeof item === "string")) {
+                                    if (newValue.__BD__) {
+                                        newValue.__BD__.runListeners.call(this, module, exports, _require);
+                                    }
+
+                                    return;
+                                }
 
                                 const definers: PropertyDescriptorMap = {
                                     [Symbol.for("BetterDiscord.Polyfilled.class")]: {
@@ -80,14 +93,19 @@ export default function () {
                                         if (!match) continue;
                                         if (match[1] in module.exports) continue;
 
-                                        definers[match[1]] = {value: element};
+                                        definers[match[1]] = {value: element, enumerable: true};
+                                        definers[key] = {value: element, enumerable: false};
                                     }
                                 }
 
                                 Object.defineProperties(module.exports, definers);
+
+                                if (newValue.__BD__) {
+                                    newValue.__BD__.runListeners.call(this, module, exports, _require);
+                                }
                             }
 
-                            className.toString = newValue.toString;
+                            className.toString = () => newValue.toString();
 
                             return className;
                         }
