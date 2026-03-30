@@ -38,6 +38,31 @@ export default class BetterDiscord {
         }
     }
 
+    static compatibilityWarning = {
+        shouldShow() {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const buildInfo = require(buildInfoFile);
+                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "compatibilityWarning.txt");
+
+                return fs.readFileSync(settingsFile, "utf-8") === "true";
+            }
+            catch {
+                return true;
+            }
+        },
+        stopShowing() {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const buildInfo = require(buildInfoFile);
+                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "compatibilityWarning.txt");
+
+                fs.writeFileSync(settingsFile, "true");
+            }
+            catch {/* empty */}
+        }
+    };
+
     static ensureDirectories() {
         const dataFolder = path.join(bdFolder, "data");
         if (!fs.existsSync(bdFolder)) fs.mkdirSync(bdFolder);
@@ -82,7 +107,7 @@ export default class BetterDiscord {
         }
 
         // @ts-expect-error adding new property, don't want to override object
-        process.env.DISCORD_PRELOAD = browserWindow.__originalPreload;
+        process.env.BD_DISCORD_PRELOAD = browserWindow.__originalPreload;
         process.env.DISCORD_APP_PATH = appPath;
         process.env.DISCORD_USER_DATA = electron.app.getPath("userData");
         process.env.BETTERDISCORD_DATA_PATH = bdFolder;
@@ -183,6 +208,6 @@ Object.defineProperty(global, "appSettings", {
 });
 
 declare global {
-    // eslint-disable-next-line no-var
+
     var appSettings: any;
 }

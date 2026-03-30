@@ -36,9 +36,12 @@ export default function () {
             // @ts-expect-error cba
             predefine(window, chunkName, instance => {
                 instance.push([[Symbol()], {}, (require: any) => {
+                    if (!require.b) return;
+
                     require.d = (target: object, exports: any) => {
                         for (const key in exports) {
                             if (!Reflect.has(exports, key)) continue;
+                            if (Reflect.has(target, key)) continue;
 
                             try {
                                 Object.defineProperty(target, key, {
@@ -60,6 +63,7 @@ export default function () {
 
                     function setter(newValue: any) {
                         if (IS_CLASSNAME_MODULE.test(String(newValue))) {
+
                             function className(this: any, module: any, exports: any, _require: any) {
                                 if (newValue.__BD__) {
                                     newValue.__BD__.originalModule.call(this, module, exports, _require);
@@ -67,6 +71,7 @@ export default function () {
                                 else {
                                     newValue.call(this, module, exports, _require);
                                 }
+
 
                                 if (!Object.values(module.exports).every((item) => typeof item === "string")) {
                                     if (newValue.__BD__) {
@@ -113,10 +118,32 @@ export default function () {
                         return newValue;
                     }
 
-                    for (const key in require.m) {
-                        if (!Object.hasOwn(require.m, key)) continue;
+                    const fakeModule = require.m.__BD_TEST__ = () => {};
+                    const isModulesProxied = fakeModule !== require.m.__BD_TEST__;
 
-                        require.m[key] = setter(require.m[key]);
+                    if (isModulesProxied) {
+                        const definers: PropertyDescriptorMap = {};
+
+                        for (const key in require.m) {
+                            if (!Object.hasOwn(require.m, key)) continue;
+                            if (Object.hasOwn(require.c, key)) continue;
+
+                            definers[key] = {
+                                value: setter(require.m[key]),
+                                configurable: true,
+                                writable: true
+                            };
+                        }
+
+                        Object.defineProperties(require.m, definers);
+                    }
+                    else {
+                        for (const key in require.m) {
+                            if (!Object.hasOwn(require.m, key)) continue;
+                            if (Object.hasOwn(require.c, key)) continue;
+
+                            require.m[key] = setter(require.m[key]);
+                        }
                     }
 
                     require.m = new Proxy(require.m, {
