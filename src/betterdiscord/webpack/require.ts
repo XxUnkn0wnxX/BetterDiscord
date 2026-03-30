@@ -26,10 +26,8 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
     for (const moduleId in modules) {
         const originalModule = modules[moduleId];
 
-        modules[moduleId] = (module, exports, require) => {
+        const runListeners: Webpack.RawModule = (module, exports, require) => {
             try {
-                Reflect.apply(originalModule, null, [module, exports, require]);
-
                 const listeners = [...lazyListeners];
                 for (let i = 0; i < listeners.length; i++) {
                     try {listeners[i](exports, module, module.id);}
@@ -46,8 +44,19 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
             }
         };
 
+        modules[moduleId] = (module, exports, require) => {
+            try {
+                Reflect.apply(originalModule, null, [module, exports, require]);
+            }
+            finally {
+                require.m[moduleId] = originalModule;
+                runListeners(module, exports, require);
+            }
+        };
+
         Object.assign(modules[moduleId], originalModule, {
-            toString: () => originalModule.toString()
+            toString: () => originalModule.toString(),
+            __BD__: {runListeners, originalModule}
         });
     }
 }
