@@ -16,6 +16,8 @@ import Modals from "@ui/modals";
 import {GithubIcon, TwitterIcon} from "lucide-react";
 import type {MouseEvent, ReactNode} from "react";
 import {getByKeys} from "@webpack";
+import RemoteAPI from "@polyfill/remote";
+import ipc from "@modules/ipc";
 
 const {useMemo} = React;
 
@@ -32,8 +34,19 @@ const joinSupportServer = (click: MouseEvent) => {
     DiscordModules.Dispatcher?.dispatch({type: "LAYER_POP"});
 };
 
+const toggleAllowingOtherClientMods = async (click: MouseEvent) => {
+    // if triple click toggle it
+    if (click.detail === 3) {
+        click.preventDefault();
+        click.stopPropagation();
+
+        await RemoteAPI.allowPreloadOverride.toggle();
+        ipc.relaunch();
+    }
+};
+
 const supportLink = <a className={`${AnchorClasses.anchor} ${AnchorClasses.anchorUnderlineOnHover}`} onClick={joinSupportServer}>Join our Discord Server.</a>;
-const defaultFooter = <Text>Need support? {supportLink}</Text>;
+const defaultFooter = <Text><span onClick={toggleAllowingOtherClientMods}>Need support?</span> {supportLink}</Text>;
 
 const twitter = <DiscordModules.Tooltip color="primary" position="top" text={t("Socials.twitter")}>
     {p => <a {...p} className="bd-social" href="https://x.com/_BetterDiscord_" rel="noopener noreferrer" target="_blank">

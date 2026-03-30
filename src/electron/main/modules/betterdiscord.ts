@@ -38,28 +38,51 @@ export default class BetterDiscord {
         }
     }
 
-    static compatibilityWarning = {
-        shouldShow() {
+    static clientModCompatibility = class ClientModCompatibility {
+        private static _settings: Record<string, any> | undefined = undefined;
+
+        private static getJSON() {
+            if (this._settings) return this._settings;
+
             try {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const buildInfo = require(buildInfoFile);
-                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "compatibilityWarning.txt");
+                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "clientModCompatibility.json");
 
-                return fs.readFileSync(settingsFile, "utf-8") === "true";
+                return this._settings = JSON.parse(fs.readFileSync(settingsFile, "utf-8"));
             }
             catch {
-                return true;
+                return this._settings = {};
             }
-        },
-        stopShowing() {
+        }
+
+        private static writeJSON() {
             try {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const buildInfo = require(buildInfoFile);
-                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "compatibilityWarning.txt");
+                const settingsFile = path.resolve(bdFolder, "data", buildInfo.releaseChannel, "clientModCompatibility.json");
 
-                fs.writeFileSync(settingsFile, "true");
+                fs.writeFileSync(settingsFile, JSON.stringify(this.getJSON()));
             }
             catch {/* empty */}
+        }
+
+        public static shouldShow(): boolean {
+            return this.getJSON().shouldShow ?? true;
+        }
+
+        public static allowPreloadOverride(): boolean {
+            return this.getJSON().allowPreloadOverride ?? false;
+        }
+
+        public static stopShowing() {
+            this.getJSON().shouldShow = false;
+            this.writeJSON();
+        }
+
+        public static setAllowPreloadOverride(allowPreloadOverride: boolean = false) {
+            this.getJSON().allowPreloadOverride = allowPreloadOverride;
+            this.writeJSON();
         }
     };
 
