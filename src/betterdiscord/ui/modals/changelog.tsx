@@ -16,7 +16,6 @@ import Modals from "@ui/modals";
 import {GithubIcon, TwitterIcon} from "lucide-react";
 import type {MouseEvent, ReactNode} from "react";
 import {getByKeys} from "@webpack";
-import RemoteAPI from "@polyfill/remote";
 import ipc from "@modules/ipc";
 
 const {useMemo} = React;
@@ -40,7 +39,7 @@ const toggleAllowingOtherClientMods = async (click: MouseEvent) => {
         click.preventDefault();
         click.stopPropagation();
 
-        await RemoteAPI.allowPreloadOverride.toggle();
+        await ipc.allowPreloadOverride.toggle();
         ipc.relaunch();
     }
 };

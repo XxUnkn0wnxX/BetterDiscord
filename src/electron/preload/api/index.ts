@@ -35,16 +35,3 @@ export function addProtocolListener(callback: (a: string) => void) {
 export function setDevToolsWarningState(value: boolean) {
     DiscordNativePatch.setDevToolsWarningState(value);
 }
-
-
-export const allowPreloadOverride = {
-    async set(value: boolean) {
-        await electron.ipcRenderer.invoke(IPCEvents.SET_ALLOW_PRELOAD_OVERRIDE, value);
-    },
-    async get(): Promise<boolean> {
-        return electron.ipcRenderer.invoke(IPCEvents.GET_ALLOW_PRELOAD_OVERRIDE);
-    },
-    async toggle() {
-        await electron.ipcRenderer.invoke(IPCEvents.SET_ALLOW_PRELOAD_OVERRIDE, !await this.get());
-    }
-};
