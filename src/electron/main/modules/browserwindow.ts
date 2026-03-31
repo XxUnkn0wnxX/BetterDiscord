@@ -37,8 +37,7 @@ class BrowserWindow extends electron.BrowserWindow {
                 message: "BetterDiscord has detected another client mod. This may cause issues with BetterDiscord and/or the other mod. Please remove any other client mods to ensure the best experience.",
                 checkboxLabel: "Don't show this again",
                 buttons: ["OK"],
-                defaultId: 0,
-                cancelId: 1
+                defaultId: 0
             }).then(result => {
                 if (result.checkboxChecked) {
                     BetterDiscord.clientModCompatibility.stopShowing();

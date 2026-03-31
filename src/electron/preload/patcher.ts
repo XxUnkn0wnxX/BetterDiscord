@@ -118,8 +118,10 @@ export default function () {
                         return newValue;
                     }
 
-                    const fakeModule = require.m.__BD_TEST__ = () => {};
-                    const isModulesProxied = fakeModule !== require.m.__BD_TEST__;
+                    const sym = Symbol.for("BetterDiscord.ModulesTest");
+
+                    const fakeModule = require.m[sym] = () => {};
+                    const isModulesProxied = fakeModule !== require.m[sym];
 
                     if (isModulesProxied) {
                         const definers: PropertyDescriptorMap = {};
@@ -131,7 +133,8 @@ export default function () {
                             definers[key] = {
                                 value: setter(require.m[key]),
                                 configurable: true,
-                                writable: true
+                                writable: true,
+                                enumerable: true
                             };
                         }
 

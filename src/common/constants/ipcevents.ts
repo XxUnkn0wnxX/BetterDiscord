@@ -24,5 +24,5 @@ export const EDITOR_OPEN                = "bd-editor-open";
 export const EDITOR_SHOULD_SHOW_WARNING = "bd-editor-show-warning";
 export const EDITOR_SETTINGS_GET        = "bd-editor-settings-get";
 export const EDITOR_SETTINGS_UPDATE     = "bd-editor-settings-update";
-export const SET_ALLOW_PRELOAD_OVERRIDE = "set-bd-allow-preload-override";
-export const GET_ALLOW_PRELOAD_OVERRIDE = "get-bd-allow-preload-override";
+export const SET_ALLOW_PRELOAD_OVERRIDE = "bd-set-allow-preload-override";
+export const GET_ALLOW_PRELOAD_OVERRIDE = "bd-get-allow-preload-override";
