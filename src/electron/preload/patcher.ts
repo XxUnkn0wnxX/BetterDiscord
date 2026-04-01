@@ -36,9 +36,12 @@ export default function () {
             // @ts-expect-error cba
             predefine(window, chunkName, instance => {
                 instance.push([[Symbol()], {}, (require: any) => {
+                    if (!require.b) return;
+
                     require.d = (target: object, exports: any) => {
                         for (const key in exports) {
                             if (!Reflect.has(exports, key)) continue;
+                            if (Reflect.has(target, key)) continue;
 
                             try {
                                 Object.defineProperty(target, key, {
@@ -60,8 +63,23 @@ export default function () {
 
                     function setter(newValue: any) {
                         if (IS_CLASSNAME_MODULE.test(String(newValue))) {
+
                             function className(this: any, module: any, exports: any, _require: any) {
-                                newValue.call(this, module, exports, _require);
+                                if (newValue.__BD__) {
+                                    newValue.__BD__.originalModule.call(this, module, exports, _require);
+                                }
+                                else {
+                                    newValue.call(this, module, exports, _require);
+                                }
+
+
+                                if (!Object.values(module.exports).every((item) => typeof item === "string")) {
+                                    if (newValue.__BD__) {
+                                        newValue.__BD__.runListeners.call(this, module, exports, _require);
+                                    }
+
+                                    return;
+                                }
 
                                 const definers: PropertyDescriptorMap = {
                                     [Symbol.for("BetterDiscord.Polyfilled.class")]: {
@@ -80,14 +98,19 @@ export default function () {
                                         if (!match) continue;
                                         if (match[1] in module.exports) continue;
 
-                                        definers[match[1]] = {value: element};
+                                        definers[match[1]] = {value: element, enumerable: true};
+                                        definers[key] = {value: element, enumerable: false};
                                     }
                                 }
 
                                 Object.defineProperties(module.exports, definers);
+
+                                if (newValue.__BD__) {
+                                    newValue.__BD__.runListeners.call(this, module, exports, _require);
+                                }
                             }
 
-                            className.toString = newValue.toString;
+                            className.toString = () => newValue.toString();
 
                             return className;
                         }
@@ -95,10 +118,35 @@ export default function () {
                         return newValue;
                     }
 
-                    for (const key in require.m) {
-                        if (!Object.hasOwn(require.m, key)) continue;
+                    const sym = Symbol.for("BetterDiscord.ModulesTest");
 
-                        require.m[key] = setter(require.m[key]);
+                    const fakeModule = require.m[sym] = () => {};
+                    const isModulesProxied = fakeModule !== require.m[sym];
+
+                    if (isModulesProxied) {
+                        const definers: PropertyDescriptorMap = {};
+
+                        for (const key in require.m) {
+                            if (!Object.hasOwn(require.m, key)) continue;
+                            if (Object.hasOwn(require.c, key)) continue;
+
+                            definers[key] = {
+                                value: setter(require.m[key]),
+                                configurable: true,
+                                writable: true,
+                                enumerable: true
+                            };
+                        }
+
+                        Object.defineProperties(require.m, definers);
+                    }
+                    else {
+                        for (const key in require.m) {
+                            if (!Object.hasOwn(require.m, key)) continue;
+                            if (Object.hasOwn(require.c, key)) continue;
+
+                            require.m[key] = setter(require.m[key]);
+                        }
                     }
 
                     require.m = new Proxy(require.m, {
