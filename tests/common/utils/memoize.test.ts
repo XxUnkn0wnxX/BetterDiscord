@@ -109,4 +109,20 @@ describe("Memoize Utility", () => {
         expect(firstResult).toBe(secondResult);
         expect(count).toBe(1);
     });
+
+    test("should not memoize undefined getter results", () => {
+        let count = 0;
+        const obj = {
+            get value() {
+                count++;
+                return count > 1 ? "ready" : undefined;
+            }
+        };
+
+        const memoized = memoize(obj);
+
+        expect(memoized.value).toBeUndefined();
+        expect(memoized.value).toBe("ready");
+        expect(count).toBe(2);
+    });
 });

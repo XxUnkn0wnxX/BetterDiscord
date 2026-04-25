@@ -3,7 +3,7 @@
 import type {Webpack} from "discord";
 import {bySource} from "./filter";
 import {getModule} from "./searching";
-import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
+import {getDefaultKey, getExportedValue, makeException, shouldSkipModule, wrapFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 
@@ -111,7 +111,7 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
     else if (searchDefault && (defaultKey = getDefaultKey(module))) exportKeys.push(defaultKey);
 
     for (const key of exportKeys) {
-        const exported = module.exports[key];
+        const exported = getExportedValue(module, key);
 
         if (shouldSkipModule(exported)) continue;
 

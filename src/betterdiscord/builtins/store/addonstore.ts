@@ -163,6 +163,7 @@ export default new class AddonStoreBuiltin extends Builtin {
         let protocols: string[] = [];
 
         const link = DiscordModules.LinkParser;
+        if (!link?.parse) return protocols;
 
         const includes = Array.prototype.includes;
         Array.prototype.includes = function (...args) {

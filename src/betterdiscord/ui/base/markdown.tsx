@@ -7,28 +7,28 @@ import type {ComponentClass, PropsWithChildren} from "react";
 let DiscordMarkdown: ComponentClass<PropsWithChildren<{className: string; parser: ReturnType<SimpleMarkdown["parserFor"]>; output: ReturnType<SimpleMarkdown["reactFor"]>;}>> & {rules: Rules;}, rules: Rules;
 
 function setupMarkdown() {
-    DiscordMarkdown = DiscordModules.DiscordMarkdown;
-    rules = {} as Rules;
-    if (DiscordMarkdown) {
-        rules = {
-            ...DiscordMarkdown.rules,
-            link: DiscordModules.SimpleMarkdownWrapper!.defaultRules.link
-        };
+    const markdown = DiscordModules.DiscordMarkdown;
+    if (!markdown) return;
 
-        const originalLink = rules.link?.react;
-        if (!originalLink) return;
-        rules.link.react = function (...args: any[]) {
-            const original = Reflect.apply(originalLink, undefined, args);
-            original.props.className = "bd-link";
-            original.props.target = "_blank";
-            original.props.rel = "noopener noreferrer";
-            return original;
-        };
-    }
+    DiscordMarkdown = markdown;
+    rules = {
+        ...DiscordMarkdown.rules,
+        link: DiscordModules.SimpleMarkdownWrapper!.defaultRules.link
+    };
+
+    const originalLink = rules.link?.react;
+    if (!originalLink) return;
+    rules.link.react = function (...args: any[]) {
+        const original = Reflect.apply(originalLink, undefined, args);
+        original.props.className = "bd-link";
+        original.props.target = "_blank";
+        original.props.rel = "noopener noreferrer";
+        return original;
+    };
 }
 
 export default function Markdown({className, children}: PropsWithChildren<{className?: string;}>) {
-    if (!DiscordMarkdown && !rules) setupMarkdown();
+    if (!DiscordMarkdown) setupMarkdown();
     if (!DiscordMarkdown) return <div className="bd-markdown-fallback">{children}</div>;
 
     return <DiscordMarkdown

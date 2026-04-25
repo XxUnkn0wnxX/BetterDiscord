@@ -1,5 +1,5 @@
 import type {Webpack} from "discord";
-import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
+import {getDefaultKey, getExportedValue, makeException, shouldSkipModule, wrapFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 
@@ -21,7 +21,7 @@ export function getMatched<T>(module: Webpack.Module<any>, filter: Webpack.Filte
 
     for (let i = 0; i < searchKeys.length; i++) {
         const key = searchKeys[i];
-        const exported = module.exports[key];
+        const exported = getExportedValue(module, key);
 
         if (shouldSkipModule(exported)) continue;
 
@@ -102,7 +102,7 @@ export function getAllModules<T extends unknown[]>(filter: Webpack.Filter, optio
 
         for (let j = 0; j < searchKeys.length; j++) {
             const key = searchKeys[j];
-            const exported = module.exports[key];
+            const exported = getExportedValue(module, key);
 
             if (shouldSkipModule(exported)) continue;
 

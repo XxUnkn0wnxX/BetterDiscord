@@ -1,7 +1,7 @@
 import type {Webpack} from "discord";
 import {getModule} from "./searching";
 import {lazyListeners, webpackRequire} from "./require";
-import {shouldSkipModule, getDefaultKey, wrapFilter, makeException} from "./shared";
+import {shouldSkipModule, getDefaultKey, getExportedValue, wrapFilter, makeException} from "./shared";
 
 const ChunkIdRegex = /n\.e\("(\d+)"\)/g;
 const FinalModuleIdRegex = /n\.bind\(n,\s*(\d+)\s*\)/g;
@@ -42,7 +42,7 @@ export function getLazy<T>(filter: Webpack.Filter, options: Webpack.LazyOptions 
 
             for (let i = 0; i < searchKeys.length; i++) {
                 const key = searchKeys[i];
-                const exported = module.exports[key];
+                const exported = getExportedValue(module, key);
 
                 if (shouldSkipModule(exported)) continue;
 

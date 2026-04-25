@@ -10,8 +10,10 @@ export default function memoizeObject<T extends Record<string | number | symbol,
             if (!Object.prototype.hasOwnProperty.call(obj, mod)) return undefined;
             if (Object.getOwnPropertyDescriptor(obj, mod)?.get) {
                 const value = obj[mod];
-                delete obj[mod];
-                obj[mod as keyof typeof obj] = value;
+                if (value !== undefined) {
+                    delete obj[mod];
+                    obj[mod as keyof typeof obj] = value;
+                }
             }
             return obj[mod];
         },
