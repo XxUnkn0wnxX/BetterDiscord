@@ -14,6 +14,7 @@ export default function memoizeObject<T extends Record<string | number | symbol,
                     delete obj[mod];
                     obj[mod as keyof typeof obj] = value;
                 }
+                return value;
             }
             return obj[mod];
         },
