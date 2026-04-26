@@ -64,6 +64,7 @@ export default function () {
             require(preload);
         }
         catch (error) {
+            // eslint-disable-next-line no-console
             console.error("BetterDiscord failed to load Discord's original preload.", error);
         }
         finally {
