@@ -4,14 +4,28 @@ import Module from "module";
 import {ipcRenderer as IPC} from "electron";
 import * as IPCEvents from "@common/constants/ipcevents";
 
+type ResolveFilename = (request: string, parent?: NodeJS.Module, isMain?: boolean, options?: unknown) => string;
+
 type NodeModuleResolver = typeof Module & {
-    _resolveFilename: (request: string, parent?: NodeJS.Module, isMain?: boolean, options?: unknown) => string;
+    _resolveFilename: ResolveFilename;
 };
 
-let hasPatchedDiscordModuleResolution = false;
+let restoreDiscordModuleResolution: (() => void) | undefined;
+
+function isBareDiscordNativeModule(request: string) {
+    return request.startsWith("discord_") && !request.startsWith("./") && !request.startsWith("../") && !path.isAbsolute(request) && !request.includes("/");
+}
+
+function isFromActiveDiscordVersion(parent: NodeJS.Module | undefined, activeVersionPath: string) {
+    const filename = parent?.filename;
+    if (!filename) return false;
+
+    const relativeFilename = path.relative(activeVersionPath, filename);
+    return relativeFilename !== "" && !relativeFilename.startsWith("..") && !path.isAbsolute(relativeFilename);
+}
 
 function patchDiscordModuleResolution(preload: string) {
-    if (hasPatchedDiscordModuleResolution || process.platform !== "darwin") return;
+    if (restoreDiscordModuleResolution || process.platform !== "darwin") return;
 
     const userData = process.env.DISCORD_USER_DATA;
     if (!userData) return;
@@ -22,30 +36,39 @@ function patchDiscordModuleResolution(preload: string) {
     const [versionDirectory] = relativePreload.split(path.sep);
     if (!versionDirectory?.startsWith("app-")) return;
 
-    const activeModulesPath = path.join(userData, versionDirectory, "modules");
+    const activeVersionPath = path.join(userData, versionDirectory);
+    const activeModulesPath = path.join(activeVersionPath, "modules");
     const legacyModulesPath = path.join(userData, versionDirectory.slice(4), "modules");
     if (!fs.existsSync(legacyModulesPath)) return;
 
     const nodeModule = Module as NodeModuleResolver;
-    const originalResolveFilename = nodeModule._resolveFilename.bind(nodeModule);
+    const originalResolveFilename = nodeModule._resolveFilename;
 
-    nodeModule._resolveFilename = function (request, parent, isMain, options) {
+    const patchedResolveFilename: ResolveFilename = function (request, parent, isMain, options) {
         try {
-            return originalResolveFilename(request, parent, isMain, options);
+            return originalResolveFilename.call(nodeModule, request, parent, isMain, options);
         }
         catch (error) {
-            if (!request.startsWith("discord_")) throw error;
-            if (request.startsWith("./") || request.startsWith("../") || path.isAbsolute(request) || request.includes("/")) throw error;
+            if (!isBareDiscordNativeModule(request)) throw error;
+            if (!isFromActiveDiscordVersion(parent, activeVersionPath)) throw error;
 
             const activeModulePath = path.join(activeModulesPath, request);
             const legacyModulePath = path.join(legacyModulesPath, request);
             if (fs.existsSync(activeModulePath) || !fs.existsSync(legacyModulePath)) throw error;
 
-            return originalResolveFilename(legacyModulePath, parent, isMain, options);
+            return originalResolveFilename.call(nodeModule, legacyModulePath, parent, isMain, options);
         }
     };
 
-    hasPatchedDiscordModuleResolution = true;
+    nodeModule._resolveFilename = patchedResolveFilename;
+
+    restoreDiscordModuleResolution = () => {
+        if (nodeModule._resolveFilename === patchedResolveFilename) nodeModule._resolveFilename = originalResolveFilename;
+        restoreDiscordModuleResolution = undefined;
+    };
+
+    // Keep the fallback for Discord's preload-created native module loader, but restore it when this window unloads.
+    globalThis.addEventListener?.("unload", restoreDiscordModuleResolution, {once: true});
 }
 
 export default function () {

@@ -95,7 +95,7 @@ const discordPath = await (async function () {
 doSanityChecks(distPath);
 buildPackage(distPath);
 if (useBdRelease && !fs.existsSync(bundlePath)) {
-    throw new Error("    ❌ File missing: betterdiscord.asar. Run the dist build before using release injection.");
+    throw new Error("    ❌ File missing: betterdiscord.asar. Run `NODE_ENV=production bun scripts/build.ts --minify` and `bun scripts/pack.ts` before using release injection.");
 }
 console.log("");
 
