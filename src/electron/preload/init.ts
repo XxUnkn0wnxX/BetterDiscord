@@ -54,6 +54,7 @@ function patchDiscordModuleResolution(preload: string) {
 
             const activeModulePath = path.join(activeModulesPath, request);
             const legacyModulePath = path.join(legacyModulesPath, request);
+            // Only fall back when the active app-* tree is missing the native module but the matching legacy tree still has it.
             if (fs.existsSync(activeModulePath) || !fs.existsSync(legacyModulePath)) throw error;
 
             return originalResolveFilename.call(nodeModule, legacyModulePath, parent, isMain, options);
