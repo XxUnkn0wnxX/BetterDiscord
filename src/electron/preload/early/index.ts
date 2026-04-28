@@ -10,7 +10,7 @@ function toStringFunction(fn: (...args: any[]) => any): string {
 
     if (!match || !match[1]) return stringed;
 
-    if (match[1].includes("=>") && !/^[\['"]/.test(match[1])) return stringed;
+    if (match[1].includes("=>") && !/^[['"]/.test(match[1])) return stringed;
 
     if (!match[1]) return stringed;
 
@@ -137,6 +137,7 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
 //# sourceURL=betterdiscord://BD/webpack-modules/patched/${path}`;
 
                 try {
+                    // eslint-disable-next-line no-eval
                     rawModule = (0, eval)(stringedModule);
                 }
                 catch (err) {
