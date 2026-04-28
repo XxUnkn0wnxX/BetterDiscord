@@ -176,7 +176,7 @@ const Webpack = {
 
     getStore(name: string) {return getStore(name);},
 
-    getById(id: PropertyKey) {return getById(id);}
+    getById(id: PropertyKey, options: WebpackOptions = {}) {return getById(id, options);}
 };
 
 Object.freeze(Webpack);
