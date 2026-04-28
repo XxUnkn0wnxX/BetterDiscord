@@ -5,7 +5,7 @@ import path from "path";
 import * as IPCEvents from "@common/constants/ipcevents";
 
 export default function () {
-    webFrame.executeJavaScript(`(() => {${fs.readFileSync(path.join(__dirname, "earlyRenderer.js"), "utf8")}})()`).catch(() => {});
+    webFrame.top?.executeJavaScript(`(() => {${fs.readFileSync(path.join(__dirname, "earlyRenderer.js"), "utf8")}})()`).catch(() => {});
 
     // Load Discord's original preload
     const preload = process.env.BD_DISCORD_PRELOAD;

@@ -53,77 +53,80 @@ function toStringFunction(fn: (...args: any[]) => any): string {
 
             const originalStr = String(original);
             const isClassModule = IS_CLASSNAME_MODULE.test(originalStr);
-            // const usesStemmerMatch = originalStr.match(USES_STEMMER);
 
-            let stringedModule = `(${toStringFunction(trueOriginal)})`;
+            let rawModule: RawModule | null = null;
+            function getRawModule() {
+                if (rawModule) return rawModule;
 
-            const ast = acorn.parse(stringedModule, {ecmaVersion: "latest", sourceType: "script"});
+                let stringedModule = `(${toStringFunction(trueOriginal)})`;
 
-            const kid = id.toString();
-            const nid = Number(id);
-            // When viewing the source tab having 100 thousand items render kills dom
-            // so this breaks it up into folders (roughly 1000 folders that hold 100 files)
-            const path = isNaN(nid) ? `misc/${kid}.js` : `${Math.floor(nid / 1_000)}/${kid}.js`;
+                const ast = acorn.parse(stringedModule, {ecmaVersion: "latest", sourceType: "script"});
 
-            const func: acorn.FunctionExpression = (ast.body[0] as acorn.ExpressionStatement).expression as acorn.FunctionExpression;
+                const kid = id.toString();
+                const nid = typeof id === "symbol" ? NaN : Number(id);
+                // When viewing the source tab having 100 thousand items render kills dom
+                // so this breaks it up into folders (roughly 1000 folders that hold 100 files)
+                const path = isNaN(nid) ? `misc/${kid}.js` : `${Math.floor(nid / 1_000)}/${kid}.js`;
 
-            const vars: acorn.Identifier[] = [];
+                const func: acorn.FunctionExpression = (ast.body[0] as acorn.ExpressionStatement).expression as acorn.FunctionExpression;
 
-            function stripVars(declaration: acorn.Pattern) {
-                switch (declaration.type) {
-                    case "Identifier":
-                        vars.push(declaration);
-                        break;
-                    case "ArrayPattern":
-                        for (const ele of declaration.elements) {
-                            if (ele) stripVars(ele);
-                        }
-                        break;
-                    case "AssignmentPattern":
-                        stripVars(declaration.left);
-                        break;
-                    case "ObjectPattern":
-                        for (const prop of declaration.properties) {
-                            if (prop.type === "RestElement") {
-                                stripVars(prop.argument);
+                const vars: acorn.Identifier[] = [];
+
+                function stripVars(declaration: acorn.Pattern) {
+                    switch (declaration.type) {
+                        case "Identifier":
+                            vars.push(declaration);
+                            break;
+                        case "ArrayPattern":
+                            for (const ele of declaration.elements) {
+                                if (ele) stripVars(ele);
                             }
-                            else {
-                                stripVars(prop.value);
+                            break;
+                        case "AssignmentPattern":
+                            stripVars(declaration.left);
+                            break;
+                        case "ObjectPattern":
+                            for (const prop of declaration.properties) {
+                                if (prop.type === "RestElement") {
+                                    stripVars(prop.argument);
+                                }
+                                else {
+                                    stripVars(prop.value);
+                                }
                             }
-                        }
-                        break;
-                    case "MemberExpression":
-                        // idk
-                        // vars.push(declaration.object as acorn.Identifier);
-                        break;
-                    case "RestElement":
-                        stripVars(declaration.argument);
-                        break;
+                            break;
+                        case "MemberExpression":
+                            // idk
+                            // vars.push(declaration.object as acorn.Identifier);
+                            break;
+                        case "RestElement":
+                            stripVars(declaration.argument);
+                            break;
 
-                    default:
-                        break;
-                }
-            }
-
-            for (let index = 0; index < func.body.body.length; index++) {
-                const element = func.body.body[index];
-
-                if (element.type === "FunctionDeclaration") {
-                    stripVars(element.id);
-                }
-                else if (element.type === "VariableDeclaration") {
-                    for (const declaration of element.declarations) {
-                        stripVars(declaration.id);
+                        default:
+                            break;
                     }
                 }
-            }
 
-            stringedModule = `(()=>
+                for (let index = 0; index < func.body.body.length; index++) {
+                    const element = func.body.body[index];
+
+                    if (element.type === "FunctionDeclaration") {
+                        stripVars(element.id);
+                    }
+                    else if (element.type === "VariableDeclaration") {
+                        for (const declaration of element.declarations) {
+                            stripVars(declaration.id);
+                        }
+                    }
+                }
+
+                stringedModule = `(()=>
 function(){
 /*
     Module Id: ${typeof id === "symbol" ? `Symbol(${id.description})` : id}
     Exposed ${vars.length} variables
-    Is Prolly Class Module: ${isClassModule}
+    Is Probably Class Module: ${isClassModule}
 */
 (${stringedModule.slice(0, func.end - 1)};
 {
@@ -133,19 +136,22 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
 })()
 //# sourceURL=betterdiscord://BD/webpack-modules/patched/${path}`;
 
-            let rawModule: RawModule;
-            try {
-                rawModule = (0, eval)(stringedModule);
-            }
-            catch (err) {
-                rawModule = original;
+                try {
+                    rawModule = (0, eval)(stringedModule);
+                }
+                catch (err) {
+                    rawModule = original;
 
-                Logger.error("WebpackModules", `Failed to parse module ${id.toString()} for patching, using original module instead.`, err instanceof Error ? err : new Error(String(err)));
+                    Logger.error("WebpackModules", `Failed to parse module ${id.toString()} for patching, using original module instead.`, err instanceof Error ? err : new Error(String(err)));
+                }
+
+                return rawModule!;
             }
+            // const usesStemmerMatch = originalStr.match(USES_STEMMER);
 
             function newModule(this: any, module: any, exports: any, _require: any) {
                 try {
-                    rawModule.call(this, module, exports, _require);
+                    getRawModule().call(this, module, exports, _require);
 
                     if (isClassModule) {
                         const definers: PropertyDescriptorMap = {
@@ -180,9 +186,12 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
                 }
             }
 
-            newModule.rawModule = rawModule;
             newModule.toString = () => originalStr;
             newModule.__early_patched__ = true;
+            Object.defineProperty(newModule, "__raw_module__", {
+                value: () => getRawModule(),
+                enumerable: true
+            });
 
             return newModule;
         }
