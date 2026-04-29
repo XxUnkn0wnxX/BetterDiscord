@@ -12,8 +12,6 @@ function toStringFunction(fn: (...args: any[]) => any): string {
 
     if (match[1].includes("=>") && !/^[['"]/.test(match[1])) return stringed;
 
-    if (!match[1]) return stringed;
-
     return stringed.replace(match[1], "function");
 }
 
@@ -69,7 +67,7 @@ function toStringFunction(fn: (...args: any[]) => any): string {
                     const path = isNaN(nid) ? `misc/${kid}.js` : `${Math.floor(nid / 1_000)}/${kid}.js`;
 
                     if (ast.body[0]?.type !== "ExpressionStatement" || ast.body[0].expression.type !== "FunctionExpression") {
-                        return rawModule = original;
+                        return rawModule = trueOriginal;
                     }
 
                     const func = ast.body[0].expression;
@@ -144,7 +142,7 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
                     rawModule = (0, eval)(stringedModule);
                 }
                 catch (err) {
-                    rawModule = original;
+                    rawModule = trueOriginal;
 
                     Logger.error("WebpackModules", `Failed to parse module ${id.toString()} for patching, using original module instead.`, err instanceof Error ? err : new Error(String(err)));
                 }
