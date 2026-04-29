@@ -58,70 +58,74 @@ function toStringFunction(fn: (...args: any[]) => any): string {
             function getRawModule() {
                 if (rawModule) return rawModule;
 
-                let stringedModule = `(${toStringFunction(trueOriginal)})`;
+                try {
+                    let stringedModule = `(${toStringFunction(trueOriginal)})`;
 
-                const ast = acorn.parse(stringedModule, {ecmaVersion: "latest", sourceType: "script"});
+                    const ast = acorn.parse(stringedModule, {ecmaVersion: "latest", sourceType: "script"});
 
-                const kid = id.toString();
-                const nid = typeof id === "symbol" ? NaN : Number(id);
-                // When viewing the source tab having 100 thousand items render kills dom
-                // so this breaks it up into folders (roughly 1000 folders that hold 100 files)
-                const path = isNaN(nid) ? `misc/${kid}.js` : `${Math.floor(nid / 1_000)}/${kid}.js`;
+                    const kid = id.toString();
+                    const nid = typeof id === "symbol" ? NaN : Number(id);
 
-                const func: acorn.FunctionExpression = (ast.body[0] as acorn.ExpressionStatement).expression as acorn.FunctionExpression;
+                    const path = isNaN(nid) ? `misc/${kid}.js` : `${Math.floor(nid / 1_000)}/${kid}.js`;
 
-                const vars: acorn.Identifier[] = [];
-
-                function stripVars(declaration: acorn.Pattern) {
-                    switch (declaration.type) {
-                        case "Identifier":
-                            vars.push(declaration);
-                            break;
-                        case "ArrayPattern":
-                            for (const ele of declaration.elements) {
-                                if (ele) stripVars(ele);
-                            }
-                            break;
-                        case "AssignmentPattern":
-                            stripVars(declaration.left);
-                            break;
-                        case "ObjectPattern":
-                            for (const prop of declaration.properties) {
-                                if (prop.type === "RestElement") {
-                                    stripVars(prop.argument);
-                                }
-                                else {
-                                    stripVars(prop.value);
-                                }
-                            }
-                            break;
-                        case "MemberExpression":
-                            // idk
-                            // vars.push(declaration.object as acorn.Identifier);
-                            break;
-                        case "RestElement":
-                            stripVars(declaration.argument);
-                            break;
-
-                        default:
-                            break;
+                    if (ast.body[0]?.type !== "ExpressionStatement" || ast.body[0].expression.type !== "FunctionExpression") {
+                        return rawModule = original;
                     }
-                }
 
-                for (let index = 0; index < func.body.body.length; index++) {
-                    const element = func.body.body[index];
+                    const func = ast.body[0].expression;
 
-                    if (element.type === "FunctionDeclaration") {
-                        stripVars(element.id);
-                    }
-                    else if (element.type === "VariableDeclaration") {
-                        for (const declaration of element.declarations) {
-                            stripVars(declaration.id);
+                    const vars: acorn.Identifier[] = [];
+
+                    function stripVars(declaration: acorn.Pattern) {
+                        switch (declaration.type) {
+                            case "Identifier":
+                                vars.push(declaration);
+                                break;
+                            case "ArrayPattern":
+                                for (const ele of declaration.elements) {
+                                    if (ele) stripVars(ele);
+                                }
+                                break;
+                            case "AssignmentPattern":
+                                stripVars(declaration.left);
+                                break;
+                            case "ObjectPattern":
+                                for (const prop of declaration.properties) {
+                                    if (prop.type === "RestElement") {
+                                        stripVars(prop.argument);
+                                    }
+                                    else {
+                                        stripVars(prop.value);
+                                    }
+                                }
+                                break;
+                            case "MemberExpression":
+                                // idk
+                                // vars.push(declaration.object as acorn.Identifier);
+                                break;
+                            case "RestElement":
+                                stripVars(declaration.argument);
+                                break;
+
+                            default:
+                                break;
                         }
                     }
-                }
 
-                stringedModule = `(()=>
+                    for (let index = 0; index < func.body.body.length; index++) {
+                        const element = func.body.body[index];
+
+                        if (element.type === "FunctionDeclaration") {
+                            stripVars(element.id);
+                        }
+                        else if (element.type === "VariableDeclaration") {
+                            for (const declaration of element.declarations) {
+                                stripVars(declaration.id);
+                            }
+                        }
+                    }
+
+                    stringedModule = `(()=>
 function(){
 /*
     Module Id: ${typeof id === "symbol" ? `Symbol(${id.description})` : id}
@@ -136,7 +140,6 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
 })()
 //# sourceURL=betterdiscord://BD/webpack-modules/patched/${path}`;
 
-                try {
                     // eslint-disable-next-line no-eval
                     rawModule = (0, eval)(stringedModule);
                 }
@@ -189,10 +192,7 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
 
             newModule.toString = () => originalStr;
             newModule.__early_patched__ = true;
-            Object.defineProperty(newModule, "__raw_module__", {
-                value: () => getRawModule(),
-                enumerable: true
-            });
+            newModule.__raw_module__ = getRawModule;
 
             return newModule;
         }

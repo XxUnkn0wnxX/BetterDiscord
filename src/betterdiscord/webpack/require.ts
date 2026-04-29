@@ -49,7 +49,7 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
 
         const stringed = String(originalModule);
 
-        modules[moduleId] = Object.assign((module, exports, require) => {
+        modules[moduleId] = Object.assign(((module, exports, require) => {
             try {
                 Reflect.apply(originalModule, null, [module, exports, require]);
             }
@@ -57,7 +57,7 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
                 require.m[moduleId] = originalModule;
                 runListeners(module, exports, require);
             }
-        }, originalModule, {
+        }) as RawModule, originalModule, {
             toString: () => stringed,
             __BD__: {runListeners, originalModule}
         });

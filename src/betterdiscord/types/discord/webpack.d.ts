@@ -13,7 +13,15 @@ export interface Module<T extends any = any> {
     loaded: boolean;
 }
 
-export type RawModule = (module: Module, exports: object, require: Require) => void;
+export type RawModule = ((module: Module, exports: object, require: Require) => void) & {
+    // BD specific properties
+    __BD__?: {
+        runListeners: (module: Module, exports: object, require: Require) => void;
+        originalModule: RawModule;
+    };
+    __early_patched__?: boolean;
+    __raw_module__?: () => RawModule;
+};
 
 export type Filter = (exported: any, module: Module, id: PropertyKey) => any;
 export type ExportedOnlyFilter = (exported: any) => any;
