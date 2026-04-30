@@ -89,7 +89,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
     }
 
     abstract startAddon(idOrAddon: string | T): void;
-    abstract stopAddon(idOrAddon: string | T, isReload: boolean): void;
+    abstract stopAddon(idOrAddon: string | T): void;
 
     loadState() {
         const saved = JsonStore.get(`${this.prefix}s` as Files);
@@ -275,7 +275,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         if (!addon) return false;
 
         if (this.state[addon.id]) {
-            if (isReload) this.stopAddon(addon, true);
+            if (isReload) this.stopAddon(addon);
             else this.disableAddon(addon);
         }
 
@@ -333,7 +333,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         this.state[addon.id] = false;
         this.trigger("disabled", addon);
 
-        const err = this.stopAddon(addon, false);
+        const err = this.stopAddon(addon);
         this.saveState();
         return err;
     }

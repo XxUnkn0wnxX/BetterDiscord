@@ -9,21 +9,13 @@ import Events from "./emitter";
 
 type PluginLoadPoint = "connection" | "idle";
 
-interface StartContext {
-    initial: boolean;
-}
-
-interface StopContext {
-    isReload: boolean;
-}
-
 export interface Plugin extends Addon {
     exports: any;
     instance: {
         icon?: any;
         load?(): void;
-        start(context: StartContext): void;
-        stop(context: StopContext): void;
+        start(): void;
+        stop(): void;
         observer?(m: MutationRecord): void;
         getSettingsPanel?(): any;
         onSwitch?(): void;
@@ -172,9 +164,7 @@ export default new class PluginManager extends AddonManager<Plugin> {
         if (!plugin) return;
 
         try {
-            plugin.instance.start({
-                initial: !this.hasInitialized
-            });
+            plugin.instance.start();
         }
         catch (err) {
             // Disable the addon if it can't be started
@@ -194,14 +184,12 @@ export default new class PluginManager extends AddonManager<Plugin> {
         else this.initialAddonsLoaded++;
     }
 
-    stopAddon(idOrAddon: string | Plugin, isReload: boolean) {
+    stopAddon(idOrAddon: string | Plugin) {
         const plugin = this.resolveAddon(idOrAddon);
         if (!plugin) return;
 
         try {
-            plugin.instance.stop({
-                isReload
-            });
+            plugin.instance.stop();
         }
         catch (err) {
             this.state[plugin.id] = false;
