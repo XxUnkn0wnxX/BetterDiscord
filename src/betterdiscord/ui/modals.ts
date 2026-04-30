@@ -27,7 +27,7 @@ import ModalStack, {generateKey} from "./modals/stack";
 import {Filters, getMangled} from "@webpack";
 import type {ComponentType, ReactElement, ReactNode, RefObject} from "react";
 import AddonError from "@structs/addonerror";
-import AddonErrorsStore from "@stores/addonerrors.js";
+import AddonErrorsStore from "@stores/addonerrors";
 
 
 const queue: Array<() => void> = [];

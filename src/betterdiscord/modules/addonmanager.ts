@@ -112,7 +112,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         fs.watch(this.addonFolder, {persistent: false}, async (eventType, filename) => {
             if (!eventType || !filename) return;
 
-            const absolutePath = path.resolve(this.addonFolder, filename);
+            let absolutePath = path.resolve(this.addonFolder, filename);
             if (!filename.endsWith(this.extension)) {
                 // Check to see if this filename has the duplicated file pattern `something(1).ext`
                 const match = filename.match(this.duplicatePattern);
@@ -132,6 +132,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 try {
                     fs.renameSync(absolutePath, absoluteNewFilename);
                     filename = newFilename;
+                    absolutePath = absoluteNewFilename;
                 }
                 catch (err) {
                     Logger.err(this.name, `Could not rename file: ${filename} ${newFilename}`, err);
@@ -149,8 +150,12 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 this.timeCache[filename] = stats.mtimeMs;
 
                 // Load/reload the addon if it's been created/updated
-                if (eventType == "rename") this.readAddon(filename, true);
-                else if (eventType == "change") this.reloadAddon(filename);
+                if (eventType == "rename") {
+                    this.unloadAddon(filename);
+                    this.readAddon(filename, true);
+                } else if (eventType == "change") {
+                    this.reloadAddon(filename);
+                }
             }
             catch (err) {
                 // Unload the addon if it's been deleted
