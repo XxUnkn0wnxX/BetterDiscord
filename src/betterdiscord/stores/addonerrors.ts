@@ -5,13 +5,13 @@ export default new class AddonErrorsStore extends Store {
     pluginErrors: AddonError[] = [];
     themeErrors: AddonError[] = [];
 
-    addPluginError(errors: AddonError) {
-        this.pluginErrors.push(errors);
+    addPluginError(error: AddonError) {
+        this.pluginErrors.push(error);
         this.emitChange();
     }
 
-    addThemeError(errors: AddonError) {
-        this.themeErrors.push(errors);
+    addThemeError(error: AddonError) {
+        this.themeErrors.push(error);
         this.emitChange();
     }
 

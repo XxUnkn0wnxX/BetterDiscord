@@ -130,9 +130,11 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 // Rename the file and let it go on
                 try {
                     fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
+                    filename = newFilename;
                 }
                 catch (err) {
                     Logger.err(this.name, `Could not rename file: ${filename} ${newFilename}`, err);
+                    return;
                 }
             }
 
@@ -161,11 +163,10 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
     readAllAddons() {
         const files = fs.readdirSync(this.addonFolder);
 
-        for (const filename of files) {
+        for (let filename of files) {
             const absolutePath = path.resolve(this.addonFolder, filename);
             const stats = fs.statSync(absolutePath);
             if (!stats || !stats.isFile()) continue;
-            this.timeCache[filename] = stats.mtimeMs;
 
             if (!filename.endsWith(this.extension)) {
                 // Lets check to see if this filename has the duplicated file pattern `something(1).ext`
@@ -182,8 +183,16 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 }
 
                 // Rename the file and let it go on
-                fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
+                try {
+                    fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
+                    filename = newFilename;
+                }
+                catch (err) {
+                    Logger.err("AddonManager", `Could not rename file: ${filename} ${newFilename}`, err);
+                }
             }
+
+            this.timeCache[filename] = stats.mtimeMs;
 
             const addon = this.readAddon(filename);
             if (addon) this.addonInfo.push(addon);
@@ -196,7 +205,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         const filePath = path.resolve(this.addonFolder, filename);
         let fileContent = fs.readFileSync(filePath, "utf8");
 
-        // Remove a BOM if it exists
+        // Remove the BOM if it exists
         if (fileContent.charCodeAt(0) === 0xFEFF) fileContent = fileContent.slice(1);
 
         let lineEndIndex = fileContent.indexOf("\n");
@@ -254,7 +263,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         if (this.hasInitialized) Toasts.success(t("Addons.wasLoaded", {name: addon.name, version: addon.version}));
 
         // Start the addon if it's enabled
-        if (this.state[initialized.name]) {
+        if (this.state[initialized.id]) {
             this.startAddon(initialized);
         }
     }

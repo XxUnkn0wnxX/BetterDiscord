@@ -208,7 +208,7 @@ export default new class PluginManager extends AddonManager<Plugin> {
             Toasts.warning(t("Addons.couldNotStop", {name: plugin.name, version: plugin.version}));
             Logger.stacktrace(this.name, `${plugin.name} v${plugin.version} could not be started.`, err as Error);
 
-            return this.showAddonError(plugin, t("Addons.enabled", {method: "stop()"}), {
+            return this.showAddonError(plugin, t("Addons.methodError", {method: "stop()"}), {
                 message: (err as Error).message,
                 stack: (err as Error).stack
             });
