@@ -120,16 +120,17 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 const ext = match[0];
                 const truncated = filename.replace(ext, "");
                 const newFilename = truncated + this.extension;
+                const absoluteNewFilename = path.resolve(this.addonFolder, newFilename);
 
                 // If this file already exists, give a warning and move on.
-                if (fs.existsSync(newFilename)) {
+                if (fs.existsSync(absoluteNewFilename)) {
                     Logger.warn(this.name, `Duplicate files found: ${filename} and ${newFilename}`);
                     return;
                 }
 
                 // Rename the file and let it go on
                 try {
-                    fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
+                    fs.renameSync(absolutePath, absoluteNewFilename);
                     filename = newFilename;
                 }
                 catch (err) {
@@ -175,16 +176,17 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
 
                 const truncated = filename.replace(match[0], "");
                 const newFilename = truncated + this.extension;
+                const absoluteNewFilename = path.resolve(this.addonFolder, newFilename);
 
                 // If this file already exists, give a warning and move on.
-                if (fs.existsSync(newFilename)) {
+                if (fs.existsSync(absoluteNewFilename)) {
                     Logger.warn("AddonManager", `Duplicate files found: ${filename} and ${newFilename}`);
                     continue;
                 }
 
                 // Rename the file and let it go on
                 try {
-                    fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
+                    fs.renameSync(absolutePath, absoluteNewFilename);
                     filename = newFilename;
                 }
                 catch (err) {

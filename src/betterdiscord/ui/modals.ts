@@ -222,19 +222,19 @@ export default class Modals {
         if (this.addonErrorsOpen) return;
         this.addonErrorsOpen = true;
 
-        this.openModal((props: any) => {
+        this.ModalActions.openModal((props: any) => {
             return React.createElement(
                 ErrorBoundary,
                 {id: "showAddonErrors", name: "Modals"},
                 React.createElement(AddonErrorModal, {
-                    ...props,
-                    onClose: () => {
-                        props.onClose?.();
-                        this.addonErrorsOpen = false;
-                        AddonErrorsStore.clearErrors();
-                    }
+                    ...props
                 })
             );
+        }, {
+            onCloseCallback: () => {
+                this.addonErrorsOpen = false;
+                AddonErrorsStore.clearErrors();
+            }
         });
     }
 
