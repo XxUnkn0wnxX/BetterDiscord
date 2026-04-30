@@ -20,4 +20,4 @@ export default new class AddonErrorsStore extends Store {
         this.themeErrors = [];
         this.emitChange();
     }
-}
+};

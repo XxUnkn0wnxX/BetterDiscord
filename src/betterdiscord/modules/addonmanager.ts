@@ -130,7 +130,8 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 // Rename the file and let it go on
                 try {
                     fs.renameSync(absolutePath, path.resolve(this.addonFolder, newFilename));
-                } catch (err) {
+                }
+                catch (err) {
                     Logger.err(this.name, `Could not rename file: ${filename} ${newFilename}`, err);
                 }
             }
@@ -147,7 +148,8 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 // Load/reload the addon if it's been created/updated
                 if (eventType == "rename") this.readAddon(filename, true);
                 else if (eventType == "change") this.reloadAddon(filename);
-            } catch (err) {
+            }
+            catch (err) {
                 // Unload the addon if it's been deleted
                 if ((err as SystemError).code !== "ENOENT" && !(err as SystemError)?.message.startsWith("ENOENT")) return;
                 delete this.timeCache[filename];
@@ -184,7 +186,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
             }
 
             const addon = this.readAddon(filename);
-            if(addon) this.addonInfo.push(addon);
+            if (addon) this.addonInfo.push(addon);
         }
 
         this.saveState();
@@ -229,7 +231,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         addon.size = stats.size;
         addon.fileContent = fileContent;
 
-        if(loadAfter) this.loadAddon(addon as Addon);
+        if (loadAfter) this.loadAddon(addon as Addon);
         return addon as Addon;
     }
 

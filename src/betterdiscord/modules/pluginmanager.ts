@@ -79,7 +79,8 @@ export default new class PluginManager extends AddonManager<Plugin> {
             plugin.exports = module.exports;
             delete plugin.fileContent;
             return plugin;
-        } catch (err) {
+        }
+        catch (err) {
             return this.showAddonError(addon, t("Addons.compileError"), {
                 message: (err as Error).message,
                 stack: (err as Error).stack
@@ -141,14 +142,16 @@ export default new class PluginManager extends AddonManager<Plugin> {
             try {
                 if (typeof instance.load === "function") instance.load();
                 return plugin;
-            } catch (err) {
+            }
+            catch (err) {
                 this.state[plugin.id] = false;
                 return this.showAddonError(addon, t("Addons.methodError", {method: "load()"}), {
                     message: (err as Error).message,
                     stack: (err as Error).stack
                 });
             }
-        } catch (err) {
+        }
+        catch (err) {
             return this.showAddonError(addon, t("Addons.methodError", {method: "Plugin constructor()"}), {
                 message: (err as Error).message,
                 stack: (err as Error).stack
@@ -162,7 +165,8 @@ export default new class PluginManager extends AddonManager<Plugin> {
 
         try {
             plugin.instance.start();
-        } catch (err) {
+        }
+        catch (err) {
             // Disable the addon if it can't be started
             this.state[plugin.id] = false;
             this.trigger("disabled", plugin);
@@ -186,7 +190,8 @@ export default new class PluginManager extends AddonManager<Plugin> {
 
         try {
             plugin.instance.stop();
-        } catch (err) {
+        }
+        catch (err) {
             this.state[plugin.id] = false;
             Toasts.warning(t("Addons.couldNotStop", {name: plugin.name, version: plugin.version}));
             Logger.stacktrace(this.name, `${plugin.name} v${plugin.version} could not be started.`, err as Error);

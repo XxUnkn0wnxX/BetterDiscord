@@ -212,10 +212,10 @@ export default class Modals {
 
     static addonErrorsOpen = false;
     static showAddonError(error: AddonError) {
-        if(!this.shouldShowAddonErrors) return;
+        if (!this.shouldShowAddonErrors) return;
 
         // Add the error to the store
-        if(error.type === "theme") AddonErrorsStore.addThemeError(error);
+        if (error.type === "theme") AddonErrorsStore.addThemeError(error);
         else AddonErrorsStore.addPluginError(error);
 
         // Don't have the modal open more than once, since the current one will just update
