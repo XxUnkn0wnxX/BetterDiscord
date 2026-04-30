@@ -7,7 +7,7 @@ import AddonManager, {type Addon} from "./addonmanager";
 import {t} from "@common/i18n";
 import Events from "./emitter";
 
-export type PluginLoadPoint = "immediate" | "connection" | "idle";
+export type PluginLoadPoint = "connection" | "idle";
 
 export interface Plugin extends Addon {
     exports: any;

@@ -49,10 +49,6 @@ export default new class Core {
         Logger.log("Startup", "Injecting BD Styles");
         DOMManager.injectStyle("bd-stylesheet", Styles.toString());
 
-        Logger.log("Startup", "Reading Plugins");
-        PluginManager.initialize();
-        PluginManager.loadAddons("immediate");
-
         Logger.log("Startup", "Initializing AddonStore");
         AddonStore.initialize();
 
@@ -89,6 +85,8 @@ export default new class Core {
             Builtins[module as keyof typeof Builtins].initialize();
         }
 
+        Logger.log("Startup", "Loading Plugins");
+        PluginManager.initialize();
         PluginManager.loadAddons("connection");
 
         Logger.log("Startup", "Loading Themes");

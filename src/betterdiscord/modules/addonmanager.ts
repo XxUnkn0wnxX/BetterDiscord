@@ -220,7 +220,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         if (!addon.author || typeof addon.author !== "string") addon.author = t("Addons.unknownAuthor");
         if (!addon.version || typeof addon.version !== "string") addon.version = "???";
         if (!addon.description || typeof addon.description !== "string") addon.description = t("Addons.noDescription");
-        if (addon.loadAt !== "immediate" && addon.loadAt !== "idle") addon.loadAt = "connection";
+        if (addon.loadAt !== "idle") addon.loadAt = "connection";
 
         // Set other metadata
         addon.id = addon.name || filename;
