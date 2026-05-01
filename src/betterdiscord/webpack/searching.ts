@@ -96,7 +96,10 @@ export function getAllModules<T extends unknown[]>(filter: Webpack.ModuleFilter,
         if (shouldSkipModule(module.exports)) continue;
 
         if (filter(module.exports, module, module.id)) {
-            if (options.declarationFilter) modules.push(getDeclaration(module, options.declarationFilter));
+            if (options.declarationFilter) {
+                const declared = getDeclaration(module, options.declarationFilter);
+                if(declared) modules.push(declared);
+            }
             else modules.push(raw ? module : module.exports);
         }
 
@@ -115,7 +118,8 @@ export function getAllModules<T extends unknown[]>(filter: Webpack.ModuleFilter,
 
             if (filter(exported, module, module.id)) {
                 if (options.declarationFilter) {
-                    modules.push(getDeclaration(module, options.declarationFilter));
+                    const declared = getDeclaration(module, options.declarationFilter);
+                    if(declared) modules.push(declared);
                     continue;
                 }
 
