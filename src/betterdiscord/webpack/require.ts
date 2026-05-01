@@ -1,6 +1,7 @@
 import type {Webpack} from "discord";
 import Logger from "@common/logger";
 import type {RawModule} from "../types/discord/webpack";
+import Patcher from "@modules/patcher";
 
 export let webpackRequire: Webpack.Require;
 
@@ -67,6 +68,20 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
     }
 }
 
+const {promise, resolve} = Promise.withResolvers<void>();
+export const allModulesLoaded = promise;
+
+let loadingModules = 0;
+function patchModuleLoading(webpackRequire: Webpack.Require) {
+    Patcher.after("WebpackRequire", webpackRequire, "e", (_, __, loadPromise) => {
+        loadingModules++;
+        loadPromise.finally(() => {
+            loadingModules--;
+            if (loadingModules === 0) resolve();
+        });
+    });
+}
+
 function handlePush(chunk: Webpack.ModuleWithoutEffect | Webpack.ModuleWithEffect) {
     const [, modules] = chunk;
     listenToModules(modules);
@@ -80,6 +95,7 @@ window.webpackChunkdiscord_app.push([
         if ("b" in __webpack_require__) {
             webpackRequire = __webpack_require__;
             listenToModules(__webpack_require__.m);
+            patchModuleLoading(__webpack_require__);
         }
     }
 ]);

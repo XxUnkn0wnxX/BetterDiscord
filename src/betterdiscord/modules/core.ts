@@ -27,7 +27,7 @@ import SettingsRenderer from "@ui/settings";
 import CommandManager from "./commandmanager";
 // import NotificationUI from "@ui/notifications";
 import InstallCSS from "@ui/customcss/mdinstallcss";
-import {getStore, Stores} from "@webpack";
+import {allModulesLoaded, getStore, Stores} from "@webpack";
 import Patcher from "./patcher";
 
 export default new class Core {
@@ -105,7 +105,7 @@ export default new class Core {
             JsonStore.set("misc", "version", Config.get("version"));
         }
 
-        requestIdleCallback(() => PluginManager.loadAddons("idle"));
+        allModulesLoaded.then(() => PluginManager.loadAddons("idle"));
     }
 
     waitForConnection() {
