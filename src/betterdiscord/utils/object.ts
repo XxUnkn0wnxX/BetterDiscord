@@ -1,6 +1,6 @@
 import type {Webpack} from "../types/discord";
 
-export function mapObject<T extends object>(module: any, mappers: Record<keyof T, Webpack.ValueFilter>): T {
+export function mapObject<T extends object>(module: any, mappers: Record<keyof T, Webpack.ExportedOnlyFilter>): T {
     const mapped = Object.create(null) as Partial<T>;
 
     const moduleKeys = Object.keys(module);

@@ -21,16 +21,16 @@ export const wrapModuleFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFi
     __originalFilter: filter
 });
 
-export const wrapDeclarationFilter = (filter: Webpack.ValueFilter) => Object.assign(((value, name) => {
+export const wrapDeclarationFilter = (filter: Webpack.ExportedOnlyFilter) => Object.assign(((value) => {
     try {
-        return filter(value, name);
+        return filter(value);
     }
     catch (error) {
         if (!hasThrown.has(filter)) Logger.warn("WebpackModules~getModule", "Declaration filter threw an exception.", error, {filter, module});
         hasThrown.add(filter);
         return false;
     }
-}) satisfies Webpack.ValueFilter, {
+}) satisfies Webpack.ExportedOnlyFilter, {
     __originalFilter: filter
 });
 

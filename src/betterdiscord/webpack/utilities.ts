@@ -8,13 +8,13 @@ import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 import {mapObject} from "@utils/object";
 
-export function* getWithKey(filter: Webpack.ValueFilter, {target = null, ...rest}: Webpack.WithKeyOptions = {}) {
+export function* getWithKey(filter: Webpack.ExportedOnlyFilter, {target = null, ...rest}: Webpack.WithKeyOptions = {}) {
     yield target ??= getModule(exports =>
-        Object.entries(exports).some(([name, value]) => filter(value, name)),
+        Object.values(exports).some(filter),
         rest
     );
 
-    yield target && Object.keys(target).find(k => filter(target[k], k));
+    yield target && Object.keys(target).find(k => filter(target[k]));
 }
 
 export function getById<T extends object>(id: PropertyKey, options: Webpack.Options = {}): T | undefined {
@@ -35,7 +35,7 @@ export function getById<T extends object>(id: PropertyKey, options: Webpack.Opti
 
 export function getMangled<T extends object>(
     filter: Webpack.ModuleFilter | string | RegExp | number,
-    mappers: Record<keyof T, Webpack.ValueFilter>,
+    mappers: Record<keyof T, Webpack.ExportedOnlyFilter>,
     options: Webpack.MangledOptions = {}
 ): T {
     if (typeof filter === "string" || filter instanceof RegExp) {
