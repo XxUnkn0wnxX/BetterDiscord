@@ -42,7 +42,7 @@ function toStringFunction(fn: (...args: any[]) => any): string {
         const IS_CLASSNAME_MODULE = /^\d+(?:e\d+)?\((.{1,3}),.{1,3},.{1,3}\){("use strict";)?\1.exports={.+}}$/;
         const EXTRACT_CLASS = /^(.+?)_/;
 
-        // const USES_STEMMER = /\((\d+)\)\.newStemmer\("[^"]+"\);/;
+        const USES_STEMMER = /\((\d+)\)\.newStemmer\("[^"]+"\);/;
 
         function setter(original: RawModule, id: string | symbol): RawModule {
             if ((original.__BD__?.originalModule || original).__early_patched__) return original;
@@ -51,6 +51,7 @@ function toStringFunction(fn: (...args: any[]) => any): string {
 
             const originalStr = String(original);
             const isClassModule = IS_CLASSNAME_MODULE.test(originalStr);
+            const useStemmerMatch = originalStr.match(USES_STEMMER);
 
             let rawModule: RawModule | null = null;
             function getRawModule() {
@@ -121,6 +122,9 @@ function toStringFunction(fn: (...args: any[]) => any): string {
                                 stripVars(declaration.id);
                             }
                         }
+                        else if (element.type === "ClassDeclaration" && element.id) {
+                            stripVars(element.id);
+                        }
                     }
 
                     stringedModule = `(()=>
@@ -151,9 +155,38 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
             }
             // const usesStemmerMatch = originalStr.match(USES_STEMMER);
 
-            function newModule(this: any, module: any, exports: any, _require: any) {
+            function newModule(this: any, module: any, exports: any, webpackRequire: any) {
                 try {
-                    getRawModule().call(this, module, exports, _require);
+                    if (useStemmerMatch) {
+                        const stemmerId = useStemmerMatch[1];
+
+                        if (!webpackRequire.m[stemmerId]) {
+                            Logger.debug("WebpackModules", `Injecting pseudo-stemmer module at id ${stemmerId} for module ${id.toString()}`);
+
+                            webpackRequire.m[stemmerId] = (stemmerModule: any) => {
+                                stemmerModule.exports.newStemmer = () => {
+                                    return {
+                                        stem(word: string) {
+                                            if (typeof word !== "string") return word;
+
+                                            // extremely basic "stemming"
+                                            const w = word.toLowerCase();
+
+                                            // common suffix stripping
+                                            if (w.length > 4 && w.endsWith("ing")) return w.slice(0, -3);
+                                            if (w.length > 3 && w.endsWith("ed")) return w.slice(0, -2);
+                                            if (w.length > 3 && w.endsWith("ly")) return w.slice(0, -2);
+                                            if (w.length > 2 && w.endsWith("s")) return w.slice(0, -1);
+
+                                            return w;
+                                        }
+                                    };
+                                };
+                            };
+                        }
+                    }
+
+                    getRawModule().call(this, module, exports, webpackRequire);
 
                     if (isClassModule) {
                         const definers: PropertyDescriptorMap = {
@@ -183,8 +216,23 @@ ${stringedModule.slice(func.end - 1)}).apply(this, arguments)
                 }
                 finally {
                     if (original.__BD__) {
-                        original.__BD__.runListeners.call(this, module, exports, _require);
+                        original.__BD__.runListeners.call(this, module, exports, webpackRequire);
                     }
+
+                    try {
+                        if (
+                            typeof module.exports === "object"
+                            && module.exports !== null
+                            && module.exports.createElement
+                        ) {
+                            requestIdleCallback(() => {
+                                window.BetterDiscordRunRenderer();
+                            });
+
+                            // setTimeout(() => window.BetterDiscordRunRenderer(), 1000);
+                        }
+                    }
+                    catch {/* empty */}
                 }
             }
 

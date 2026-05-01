@@ -10,6 +10,7 @@ export interface Require {
 export interface Module<T extends any = any> {
     id: PropertyKey,
     exports: T,
+    declarations: Record<string, any>;
     loaded: boolean;
 }
 
@@ -34,6 +35,10 @@ export type Options = {
     fatal?: boolean;
     firstId?: PropertyKey;
     cacheId?: string | null;
+};
+
+export type MangledOptions = Options & {
+    useDeclarations?: boolean;
 };
 
 export type BulkQueries = Options & {

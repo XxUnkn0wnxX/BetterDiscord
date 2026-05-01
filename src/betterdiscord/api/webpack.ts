@@ -1,4 +1,4 @@
-import type {Options, Filter, WithKeyOptions, ExportedOnlyFilter, BulkQueries, LazyOptions} from "discord/webpack";
+import type {Options, Filter, WithKeyOptions, ExportedOnlyFilter, BulkQueries, LazyOptions, MangledOptions} from "discord/webpack";
 import Logger from "@common/logger";
 import {Filters, getAllModules, getBulk, getBulkKeyed, getById, getLazy, getMangled, getModule, getStore, getWithKey, modules, Stores} from "@webpack";
 import ReactUtils from "./reactutils";
@@ -123,7 +123,7 @@ const Webpack = {
         return Webpack.getModule<T>(Filters.byRegex(regex), Object.assign({}, options, {first: false}));
     },
 
-    getMangled<T extends object>(filter: Filter | string | RegExp, mangled: Record<keyof T, ExportedOnlyFilter>, options: Options = {}) {
+    getMangled<T extends object>(filter: Filter | string | RegExp, mangled: Record<keyof T, ExportedOnlyFilter>, options: MangledOptions = {}) {
         const {defaultExport = false, searchExports = false, raw = false, fatal = false} = options;
         if (typeof (defaultExport) !== "boolean") return Logger.error("BdApi.Webpack~getMangled", "Invalid type for options.defaultExport", defaultExport, "Expected: boolean");
         if (typeof (searchExports) !== "boolean") return Logger.error("BdApi.Webpack~getMangled", "Invalid type for options.searchExports", searchExports, "Expected: boolean");
