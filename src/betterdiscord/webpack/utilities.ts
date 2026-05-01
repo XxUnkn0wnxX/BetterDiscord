@@ -3,7 +3,7 @@
 import type {Webpack} from "discord";
 import {bySource} from "./filter";
 import {getDeclaration, getModule} from "./searching";
-import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
+import {getDefaultKey, makeException, shouldSkipModule, wrapModuleFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 import {mapObject} from "@utils/object";
@@ -94,7 +94,7 @@ export function getBulk<T extends any[]>(...queries: Webpack.BulkQueries[]): T {
 
     queries = queries.map((query, i) => ({
         ...query,
-        filter: wrapFilter(query.filter),
+        filter: wrapModuleFilter(query.filter),
         cacheId: query.cacheId || (query.cacheId === null ? undefined : WebpackCache.getIdFromStack(i))
     }));
 

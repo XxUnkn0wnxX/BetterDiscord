@@ -1,11 +1,13 @@
 import type {Webpack} from "discord";
-import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
+import {getDefaultKey, makeException, shouldSkipModule, wrapDeclarationFilter, wrapModuleFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 
 export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.DeclarationFilter) {
+    const wrappedFilter = wrapDeclarationFilter(filter);
+
     for (const name in module.declarations) {
-        if (!filter(module.declarations[name], name)) continue;
+        if (!wrappedFilter(module.declarations[name], name)) continue;
         return module.declarations[name];
     }
 }
@@ -43,7 +45,7 @@ export function getMatched<T>(module: Webpack.Module<any>, filter: Webpack.Modul
 }
 
 export function getModule<T>(filter: Webpack.ModuleFilter, options: Webpack.Options = {}): T | undefined {
-    filter = wrapFilter(filter);
+    filter = wrapModuleFilter(filter);
 
     if (options.firstId) {
         const module = webpackRequire.c[options.firstId];
@@ -86,7 +88,7 @@ export function getModule<T>(filter: Webpack.ModuleFilter, options: Webpack.Opti
 export function getAllModules<T extends unknown[]>(filter: Webpack.ModuleFilter, options: Webpack.Options = {}): T {
     const {defaultExport = true, searchExports = false, searchDefault = true, raw = false, fatal = false} = options;
 
-    filter = wrapFilter(filter);
+    filter = wrapModuleFilter(filter);
     const modules = [] as unknown as T;
 
     const webpackModules = Object.values(webpackRequire.c);
@@ -98,9 +100,9 @@ export function getAllModules<T extends unknown[]>(filter: Webpack.ModuleFilter,
         if (filter(module.exports, module, module.id)) {
             if (options.declarationFilter) {
                 const declared = getDeclaration(module, options.declarationFilter);
-                if(declared) modules.push(declared);
+                if (declared) modules.push(declared);
             }
-            else modules.push(raw ? module : module.exports);
+            else {modules.push(raw ? module : module.exports);}
         }
 
         if (!searchExports && !searchDefault) continue;
@@ -119,7 +121,7 @@ export function getAllModules<T extends unknown[]>(filter: Webpack.ModuleFilter,
             if (filter(exported, module, module.id)) {
                 if (options.declarationFilter) {
                     const declared = getDeclaration(module, options.declarationFilter);
-                    if(declared) modules.push(declared);
+                    if (declared) modules.push(declared);
                     continue;
                 }
 

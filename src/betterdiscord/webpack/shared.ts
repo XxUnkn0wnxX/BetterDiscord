@@ -3,7 +3,7 @@ import Logger from "@common/logger";
 
 const hasThrown = new WeakSet();
 
-export const wrapFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFilter => Object.assign(((exports, module, moduleId) => {
+export const wrapModuleFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFilter => Object.assign(((exports, module, moduleId) => {
     try {
         if (exports instanceof Window) return false;
         if (exports?.default?.remove && exports?.default?.set && exports?.default?.clear && exports?.default?.get && !exports?.default?.sort) return false;
@@ -19,6 +19,19 @@ export const wrapFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFilter =
     }
 }) satisfies Webpack.ModuleFilter, {
     __originalFilter: filter
+});
+
+export const wrapDeclarationFilter = (filter: Webpack.DeclarationFilter) => Object.assign(((value, name) => {
+    try {
+        return filter(value, name);
+    }
+    catch (error) {
+        if (!hasThrown.has(filter)) Logger.warn("WebpackModules~getModule", "Declaration filter threw an exception.", error, {filter, module});
+        hasThrown.add(filter);
+        return false;
+    }
+}) satisfies Webpack.DeclarationFilter, {
+
 });
 
 const TypedArray = Object.getPrototypeOf(Uint8Array);
