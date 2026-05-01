@@ -21,7 +21,7 @@ export const wrapModuleFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFi
     __originalFilter: filter
 });
 
-export const wrapDeclarationFilter = (filter: Webpack.DeclarationFilter) => Object.assign(((value, name) => {
+export const wrapDeclarationFilter = (filter: Webpack.ValueFilter) => Object.assign(((value, name) => {
     try {
         return filter(value, name);
     }
@@ -30,8 +30,8 @@ export const wrapDeclarationFilter = (filter: Webpack.DeclarationFilter) => Obje
         hasThrown.add(filter);
         return false;
     }
-}) satisfies Webpack.DeclarationFilter, {
-
+}) satisfies Webpack.ValueFilter, {
+    __originalFilter: filter
 });
 
 const TypedArray = Object.getPrototypeOf(Uint8Array);

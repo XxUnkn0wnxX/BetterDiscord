@@ -3,7 +3,7 @@ import {getDefaultKey, makeException, shouldSkipModule, wrapDeclarationFilter, w
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 
-export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.DeclarationFilter) {
+export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.ValueFilter) {
     const wrappedFilter = wrapDeclarationFilter(filter);
 
     for (const name in module.declarations) {

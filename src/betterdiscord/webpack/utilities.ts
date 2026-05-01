@@ -8,13 +8,13 @@ import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 import {mapObject} from "@utils/object";
 
-export function* getWithKey(filter: Webpack.ExportedOnlyFilter, {target = null, ...rest}: Webpack.WithKeyOptions = {}) {
+export function* getWithKey(filter: Webpack.ValueFilter, {target = null, ...rest}: Webpack.WithKeyOptions = {}) {
     yield target ??= getModule(exports =>
-        Object.values(exports).some(filter),
+        Object.entries(exports).some(([name, value]) => filter(value, name)),
         rest
     );
 
-    yield target && Object.keys(target).find(k => filter(target[k]));
+    yield target && Object.keys(target).find(k => filter(target[k], k));
 }
 
 export function getById<T extends object>(id: PropertyKey, options: Webpack.Options = {}): T | undefined {
@@ -35,19 +35,19 @@ export function getById<T extends object>(id: PropertyKey, options: Webpack.Opti
 
 export function getMangled<T extends object>(
     filter: Webpack.ModuleFilter | string | RegExp | number,
-    mappers: Record<keyof T, Webpack.ExportedOnlyFilter>,
+    mappers: Record<keyof T, Webpack.ValueFilter>,
     options: Webpack.MangledOptions = {}
 ): T {
     if (typeof filter === "string" || filter instanceof RegExp) {
         filter = bySource(filter);
     }
 
-    options.raw ??= options.useDeclarations ?? false;
+    options.raw ??= options.mapDeclarations ?? false;
 
     let module = typeof filter === "number" ? getById(filter, options) : getModule<any>(filter, options);
     if (!module) return {} as T;
 
-    if (options.raw) module = module[options.useDeclarations ? "declarations" : "exports"];
+    if (options.raw) module = module[options.mapDeclarations ? "declarations" : "exports"];
 
     return mapObject(module, mappers);
 }
@@ -57,6 +57,7 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
 
     if (filter(module.exports, module, module.id)) {
         if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
+        if (options.mapDeclarations && options.map) return mapObject(module.declarations, options.map) as T;
         const trueItem = map ? mapObject(module.exports, map) : raw ? module : module.exports;
         return trueItem;
     }
@@ -73,9 +74,9 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
 
         if (filter(exported, module, module.id)) {
             if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
+            if (options.mapDeclarations && options.map) return mapObject(module.declarations, options.map) as T;
 
             let value: any;
-
             if (!defaultExport && defaultKey === key) {
                 value = map ? mapObject(module.exports, map) : raw ? module : module.exports;
             }

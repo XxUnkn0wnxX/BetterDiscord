@@ -1,4 +1,4 @@
-import type {Options, ModuleFilter, WithKeyOptions, ExportedOnlyFilter, BulkQueries, LazyOptions, MangledOptions} from "discord/webpack";
+import type {Options, ModuleFilter, WithKeyOptions, ValueFilter, BulkQueries, LazyOptions, MangledOptions} from "discord/webpack";
 import Logger from "@common/logger";
 import {Filters, getAllModules, getBulk, getBulkKeyed, getById, getLazy, getMangled, getModule, getStore, getWithKey, modules, Stores} from "@webpack";
 import ReactUtils from "./reactutils";
@@ -69,7 +69,7 @@ const Webpack = {
         not(filter: ModuleFilter): ModuleFilter {return Filters.not(filter);},
 
         /** Generates a filter to search React functional components. */
-        byComponentType(filter: ExportedOnlyFilter): ExportedOnlyFilter {
+        byComponentType(filter: ValueFilter): ValueFilter {
             return (exports) => {
                 const component = ReactUtils.getType(exports);
                 return typeof component === "function" && filter(component);
@@ -77,7 +77,7 @@ const Webpack = {
         }
     },
 
-    getWithKey(filter: ExportedOnlyFilter, options: WithKeyOptions = {}) {
+    getWithKey(filter: ValueFilter, options: WithKeyOptions = {}) {
         if (("first" in options)) return Logger.error("BdApi.Webpack~getWithKey", "Unsupported option first.");
         if (("defaultExport" in options) && typeof (options.defaultExport) !== "boolean") return Logger.error("BdApi.Webpack~getWithKey", "Invalid type for options.defaultExport", options.defaultExport, "Expected: boolean");
         if (("searchExports" in options) && typeof (options.searchExports) !== "boolean") return Logger.error("BdApi.Webpack~getWithKey", "Invalid type for options.searchExports", options.searchExports, "Expected: boolean");
@@ -123,7 +123,7 @@ const Webpack = {
         return Webpack.getModule<T>(Filters.byRegex(regex), Object.assign({}, options, {first: false}));
     },
 
-    getMangled<T extends object>(filter: ModuleFilter | string | RegExp, mangled: Record<keyof T, ExportedOnlyFilter>, options: MangledOptions = {}) {
+    getMangled<T extends object>(filter: ModuleFilter | string | RegExp, mangled: Record<keyof T, ValueFilter>, options: MangledOptions = {}) {
         const {defaultExport = false, searchExports = false, raw = false, fatal = false} = options;
         if (typeof (defaultExport) !== "boolean") return Logger.error("BdApi.Webpack~getMangled", "Invalid type for options.defaultExport", defaultExport, "Expected: boolean");
         if (typeof (searchExports) !== "boolean") return Logger.error("BdApi.Webpack~getMangled", "Invalid type for options.searchExports", searchExports, "Expected: boolean");

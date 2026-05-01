@@ -1,13 +1,13 @@
 import type {Webpack} from "discord";
 import {webpackRequire} from "./require";
 
-function assign<T extends Webpack.ModuleFilter | Webpack.ExportedOnlyFilter>(filter: T, args: any) {
+function assign<T extends Webpack.ModuleFilter | Webpack.ValueFilter>(filter: T, args: any) {
     return Object.assign(filter, {
         [Symbol.for("BetterDiscord.Filter")]: args
     });
 }
 
-export function byKeys(props: string[], filter: Webpack.ExportedOnlyFilter = m => m): Webpack.ExportedOnlyFilter {
+export function byKeys(props: string[], filter: Webpack.ValueFilter = m => m): Webpack.ValueFilter {
     return assign(module => {
         if (!module) return false;
         if (typeof (module) !== "object" && typeof (module) !== "function") return false;
@@ -23,7 +23,7 @@ export function byKeys(props: string[], filter: Webpack.ExportedOnlyFilter = m =
     });
 }
 
-export function byPrototypeKeys(fields: string[], filter: Webpack.ExportedOnlyFilter = m => m): Webpack.ExportedOnlyFilter {
+export function byPrototypeKeys(fields: string[], filter: Webpack.ValueFilter = m => m): Webpack.ValueFilter {
     return assign(module => {
         if (!module) return false;
         if (typeof (module) !== "object" && typeof (module) !== "function") return false;
@@ -40,7 +40,7 @@ export function byPrototypeKeys(fields: string[], filter: Webpack.ExportedOnlyFi
     });
 }
 
-export function byRegex(search: RegExp, filter: Webpack.ExportedOnlyFilter = m => m): Webpack.ExportedOnlyFilter {
+export function byRegex(search: RegExp, filter: Webpack.ValueFilter = m => m): Webpack.ValueFilter {
     return assign(module => {
         const method = filter(module);
         if (!method) return false;
@@ -87,7 +87,7 @@ export function bySource(...searches: Array<string | RegExp>): Webpack.ModuleFil
     });
 }
 
-export function byStrings(...strings: string[]): Webpack.ExportedOnlyFilter {
+export function byStrings(...strings: string[]): Webpack.ValueFilter {
     return assign(module => {
         if (typeof module !== "function") return false;
 
@@ -106,7 +106,7 @@ export function byStrings(...strings: string[]): Webpack.ExportedOnlyFilter {
     });
 }
 
-export function byDisplayName(name: string): Webpack.ExportedOnlyFilter {
+export function byDisplayName(name: string): Webpack.ValueFilter {
     return assign(module => {
         return module && module.displayName === name;
     }, {
@@ -114,7 +114,7 @@ export function byDisplayName(name: string): Webpack.ExportedOnlyFilter {
     });
 }
 
-export function byStoreName(name: string): Webpack.ExportedOnlyFilter {
+export function byStoreName(name: string): Webpack.ValueFilter {
     return assign(module => {
         return module?._dispatchToken && module?.getName?.() === name;
     }, {
@@ -122,8 +122,8 @@ export function byStoreName(name: string): Webpack.ExportedOnlyFilter {
     });
 }
 
-export function combine(...filters: Webpack.ExportedOnlyFilter[]): Webpack.ExportedOnlyFilter;
-export function combine(...filters: Array<Webpack.ExportedOnlyFilter | Webpack.ModuleFilter>): Webpack.ModuleFilter;
+export function combine(...filters: Webpack.ValueFilter[]): Webpack.ValueFilter;
+export function combine(...filters: Array<Webpack.ValueFilter | Webpack.ModuleFilter>): Webpack.ModuleFilter;
 export function combine(...filters: Webpack.ModuleFilter[]): Webpack.ModuleFilter {
     return assign((exports, module, id) => {
         return filters.every(filter => filter(exports, module, id));
@@ -132,8 +132,8 @@ export function combine(...filters: Webpack.ModuleFilter[]): Webpack.ModuleFilte
     });
 }
 
-export function not(filter: Webpack.ExportedOnlyFilter): Webpack.ExportedOnlyFilter;
-export function not(filter: Webpack.ExportedOnlyFilter | Webpack.ModuleFilter): Webpack.ModuleFilter;
+export function not(filter: Webpack.ValueFilter): Webpack.ValueFilter;
+export function not(filter: Webpack.ValueFilter | Webpack.ModuleFilter): Webpack.ModuleFilter;
 export function not(filter: Webpack.ModuleFilter): Webpack.ModuleFilter {
     return assign((exports, module, id) => !filter(exports, module, id), {
         filter
