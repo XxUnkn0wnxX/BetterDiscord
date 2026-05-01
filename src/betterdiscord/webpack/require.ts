@@ -6,7 +6,7 @@ export let webpackRequire: Webpack.Require;
 
 export const lazyListeners = new Set<Webpack.Filter>();
 
-let __ORIGINAL_PUSH__ = window.webpackChunkdiscord_app.push;
+let __ORIGINAL_PUSH__ = (window.webpackChunkdiscord_app ??= []).push;
 
 Object.defineProperty(window.webpackChunkdiscord_app, "push", {
     configurable: true,
@@ -47,7 +47,9 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
             }
         };
 
-        modules[moduleId] = (module, exports, require) => {
+        const stringed = String(originalModule);
+
+        modules[moduleId] = Object.assign(((module, exports, require) => {
             try {
                 Reflect.apply(originalModule, null, [module, exports, require]);
             }
@@ -55,12 +57,7 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
                 require.m[moduleId] = originalModule;
                 runListeners(module, exports, require);
             }
-        };
-
-
-        const stringed = String(originalModule);
-
-        Object.assign(modules[moduleId], originalModule, {
+        }) as RawModule, originalModule, {
             toString: () => stringed,
             __BD__: {runListeners, originalModule}
         });
