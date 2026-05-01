@@ -7,7 +7,7 @@ const ChunkIdRegex = /n\.e\("(\d+)"\)/g;
 const FinalModuleIdRegex = /n\.bind\(n,\s*(\d+)\s*\)/g;
 const CreatePromiseId = /createPromise:\s*\(\)\s*=>\s*([^}]+)\.then\(n\.bind\(n,\s*(\d+)\)\)/g;
 
-export function getLazy<T>(filter: Webpack.Filter, options: Webpack.LazyOptions = {}): Promise<T | undefined> {
+export function getLazy<T>(filter: Webpack.ModuleFilter, options: Webpack.LazyOptions = {}): Promise<T | undefined> {
     const {signal: abortSignal, defaultExport = true, searchDefault = true, searchExports = false, raw = false, fatal = false} = options;
     if (!options.cacheId) options.cacheId = null;
 
@@ -24,7 +24,7 @@ export function getLazy<T>(filter: Webpack.Filter, options: Webpack.LazyOptions 
     return new Promise((resolve, reject) => {
         const cancel = () => void lazyListeners.delete(listener);
 
-        const listener: Webpack.Filter = (_, module) => {
+        const listener: Webpack.ModuleFilter = (_, module) => {
             if (shouldSkipModule(module.exports)) return;
 
             if (filter(module.exports, module, module.id)) {

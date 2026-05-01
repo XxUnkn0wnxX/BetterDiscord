@@ -2,7 +2,7 @@
 
 import type {Webpack} from "discord";
 import {bySource} from "./filter";
-import {getModule} from "./searching";
+import {getDeclaration, getModule} from "./searching";
 import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
@@ -34,7 +34,7 @@ export function getById<T extends object>(id: PropertyKey, options: Webpack.Opti
 }
 
 export function getMangled<T extends object>(
-    filter: Webpack.Filter | string | RegExp | number,
+    filter: Webpack.ModuleFilter | string | RegExp | number,
     mappers: Record<keyof T, Webpack.ExportedOnlyFilter>,
     options: Webpack.MangledOptions = {}
 ): T {
@@ -56,6 +56,7 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
     const {filter, defaultExport = true, searchExports = false, searchDefault = true, raw = false, map} = options;
 
     if (filter(module.exports, module, module.id)) {
+        if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
         const trueItem = map ? mapObject(module.exports, map) : raw ? module : module.exports;
         return trueItem;
     }
@@ -71,6 +72,8 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
         if (shouldSkipModule(exported)) continue;
 
         if (filter(exported, module, module.id)) {
+            if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
+
             let value: any;
 
             if (!defaultExport && defaultKey === key) {

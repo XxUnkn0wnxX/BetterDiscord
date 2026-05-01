@@ -3,7 +3,7 @@ import Logger from "@common/logger";
 
 const hasThrown = new WeakSet();
 
-export const wrapFilter = (filter: Webpack.Filter): Webpack.Filter => Object.assign(((exports, module, moduleId) => {
+export const wrapFilter = (filter: Webpack.ModuleFilter): Webpack.ModuleFilter => Object.assign(((exports, module, moduleId) => {
     try {
         if (exports instanceof Window) return false;
         if (exports?.default?.remove && exports?.default?.set && exports?.default?.clear && exports?.default?.get && !exports?.default?.sort) return false;
@@ -17,7 +17,7 @@ export const wrapFilter = (filter: Webpack.Filter): Webpack.Filter => Object.ass
         hasThrown.add(filter);
         return false;
     }
-}) satisfies Webpack.Filter, {
+}) satisfies Webpack.ModuleFilter, {
     __originalFilter: filter
 });
 

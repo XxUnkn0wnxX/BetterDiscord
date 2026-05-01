@@ -24,7 +24,8 @@ export type RawModule = ((module: Module, exports: object, require: Require) => 
     __raw_module__?: () => RawModule;
 };
 
-export type Filter = (exported: any, module: Module, id: PropertyKey) => any;
+export type ModuleFilter = (exported: any, module: Module, id: PropertyKey) => any;
+export type DeclarationFilter = (value: any, name: string) => any;
 export type ExportedOnlyFilter = (exported: any) => any;
 
 export type Options = {
@@ -35,6 +36,7 @@ export type Options = {
     fatal?: boolean;
     firstId?: PropertyKey;
     cacheId?: string | null;
+    declarationFilter?: DeclarationFilter;
 };
 
 export type MangledOptions = Options & {
@@ -42,7 +44,7 @@ export type MangledOptions = Options & {
 };
 
 export type BulkQueries = Options & {
-    filter: Filter,
+    filter: ModuleFilter,
     all?: boolean,
     map?: Record<string, ExportedOnlyFilter>;
 };
