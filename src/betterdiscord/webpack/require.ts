@@ -80,6 +80,18 @@ function patchModuleLoading(webpackRequire: Webpack.Require) {
             if (loadingModules === 0) resolve();
         });
     });
+
+    Patcher.before("WebpackRequire", webpackRequire, "l", (_, args) => {
+        loadingModules++;
+
+        const onLoad = args[1];
+        args[1] = function() {
+            loadingModules--;
+            if (loadingModules === 0) resolve();
+
+            return onLoad.apply(this, arguments as any);
+        }
+    });
 }
 
 function handlePush(chunk: Webpack.ModuleWithoutEffect | Webpack.ModuleWithEffect) {

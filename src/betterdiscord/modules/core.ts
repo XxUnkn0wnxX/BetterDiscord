@@ -27,7 +27,7 @@ import SettingsRenderer from "@ui/settings";
 import CommandManager from "./commandmanager";
 // import NotificationUI from "@ui/notifications";
 import InstallCSS from "@ui/customcss/mdinstallcss";
-import {allModulesLoaded, getStore, Stores} from "@webpack";
+import {allModulesLoaded, getLazyBySource, getStore, Stores} from "@webpack";
 import Patcher from "./patcher";
 
 export default new class Core {
@@ -105,6 +105,8 @@ export default new class Core {
             JsonStore.set("misc", "version", Config.get("version"));
         }
 
+        getLazyBySource(["STAGE_INSTANCE_DELETE", "LIVE_CHANNEL_NOTICE_HIDE"]).then(() => console.log("Borg's point"));
+        allModulesLoaded.then(() => console.log("Lazy's point"));
         allModulesLoaded.then(() => PluginManager.loadAddons("idle"));
     }
 
