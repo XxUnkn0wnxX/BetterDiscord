@@ -58,7 +58,7 @@ export default new class PluginManager extends AddonManager<Plugin> {
         Logger.log("PluginManager", `Loading addons at point: ${point}`);
 
         for (const addon of this.addonInfo) {
-            if (addon.evalAt !== point) continue;
+            if (addon.runAt !== point) continue;
             this.loadAddon(addon);
         }
 
