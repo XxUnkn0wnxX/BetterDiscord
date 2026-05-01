@@ -2,7 +2,6 @@ import type {Webpack} from "discord";
 import Logger from "@common/logger";
 import type {RawModule} from "../types/discord/webpack";
 import Patcher from "@modules/patcher";
-import {debounce} from "@common/utils";
 
 export let webpackRequire: Webpack.Require;
 
@@ -72,26 +71,37 @@ function listenToModules(modules: Record<PropertyKey, RawModule>) {
 const {promise, resolve} = Promise.withResolvers<void>();
 export const allModulesLoaded = promise;
 
-const finishedLoading = debounce(resolve, 300);
-
 let loadingModules = 0;
+let moduleLoadTimeout: ReturnType<typeof setTimeout> | null = null;
+function onLoadStart() {
+    loadingModules++;
+    if (moduleLoadTimeout) {
+        clearTimeout(moduleLoadTimeout);
+        moduleLoadTimeout = null;
+    }
+}
+
+function onLoadEnd() {
+    loadingModules--;
+    if(loadingModules > 0) return;
+
+    if(moduleLoadTimeout) clearTimeout(moduleLoadTimeout);
+    moduleLoadTimeout = setTimeout(resolve, 300);
+    Patcher.unpatchAll("WebpackRequire");
+}
+
 function patchModuleLoading(webpackRequire: Webpack.Require) {
     Patcher.after("WebpackRequire", webpackRequire, "e", (_, __, loadPromise) => {
-        loadingModules++;
-        loadPromise.finally(() => {
-            loadingModules--;
-            if (loadingModules === 0) finishedLoading();
-        });
+        onLoadStart();
+        loadPromise.finally(onLoadEnd);
     });
 
     Patcher.before("WebpackRequire", webpackRequire, "l", (_, args) => {
-        loadingModules++;
+        onLoadStart();
 
         const onLoad = args[1];
         args[1] = function() {
-            loadingModules--;
-            if (loadingModules === 0) finishedLoading();
-
+            onLoadEnd();
             return onLoad.apply(this, arguments as any);
         }
     });
