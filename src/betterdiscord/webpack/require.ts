@@ -86,8 +86,10 @@ function onLoadEnd() {
     if (loadingModules > 0) return;
 
     if (moduleLoadTimeout) clearTimeout(moduleLoadTimeout);
-    moduleLoadTimeout = setTimeout(resolve, 300);
-    Patcher.unpatchAll("WebpackRequire");
+    moduleLoadTimeout = setTimeout(() => {
+        resolve();
+        Patcher.unpatchAll("WebpackRequire");
+    }, 300);
 }
 
 function patchModuleLoading(require: Webpack.Require) {
