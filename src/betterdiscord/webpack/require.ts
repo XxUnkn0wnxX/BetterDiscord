@@ -83,27 +83,27 @@ function onLoadStart() {
 
 function onLoadEnd() {
     loadingModules--;
-    if(loadingModules > 0) return;
+    if (loadingModules > 0) return;
 
-    if(moduleLoadTimeout) clearTimeout(moduleLoadTimeout);
+    if (moduleLoadTimeout) clearTimeout(moduleLoadTimeout);
     moduleLoadTimeout = setTimeout(resolve, 300);
     Patcher.unpatchAll("WebpackRequire");
 }
 
-function patchModuleLoading(webpackRequire: Webpack.Require) {
-    Patcher.after("WebpackRequire", webpackRequire, "e", (_, __, loadPromise) => {
+function patchModuleLoading(require: Webpack.Require) {
+    Patcher.after("WebpackRequire", require, "e", (_, __, loadPromise) => {
         onLoadStart();
         loadPromise.finally(onLoadEnd);
     });
 
-    Patcher.before("WebpackRequire", webpackRequire, "l", (_, args) => {
+    Patcher.before("WebpackRequire", require, "l", (_, args) => {
         onLoadStart();
 
         const onLoad = args[1];
-        args[1] = function() {
+        args[1] = function(event: Event) {
             onLoadEnd();
-            return onLoad.apply(this, arguments as any);
-        }
+            onLoad.call(this, event);
+        };
     });
 }
 
