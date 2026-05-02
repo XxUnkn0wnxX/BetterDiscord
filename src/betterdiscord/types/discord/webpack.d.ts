@@ -5,6 +5,7 @@ export interface Require {
     c: Record<PropertyKey, Module>;
     m: Record<PropertyKey, RawModule>;
     e(id: PropertyKey): Promise<unknown>;
+    l(url: string, onLoad: (event: Event) => void, key: string, id: string): void;
 }
 
 export interface Module<T extends any = any> {
