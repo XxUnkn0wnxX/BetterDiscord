@@ -22,7 +22,7 @@ export default {
             type: "added",
             items: [
                 "Added a system for exposing top-level module declarations",
-                "Added runAt meta tag to work around issues caused by lazy loading"
+                "Added `@runAt` meta tag to work around issues caused by lazy loading"
             ]
         }
     ]

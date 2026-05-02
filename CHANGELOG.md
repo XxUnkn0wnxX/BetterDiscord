@@ -8,7 +8,7 @@ This changelog starts with the restructured 1.0.0 release that happened after co
 
 ### Added
 - New system for exposing top-level module declarations
-- New runAt meta tag to work around issues caused by lazy loading
+- New `@runAt` meta tag to work around issues caused by lazy loading
 
 1.13.12
 ### Fixed
