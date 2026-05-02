@@ -2,8 +2,8 @@
 
 import type {Webpack} from "discord";
 import {bySource} from "./filter";
-import {getModule} from "./searching";
-import {getDefaultKey, makeException, shouldSkipModule, wrapFilter} from "./shared";
+import {getDeclaration, getModule} from "./searching";
+import {getDefaultKey, makeException, shouldSkipModule, wrapModuleFilter} from "./shared";
 import {webpackRequire} from "./require";
 import WebpackCache from "./cache";
 import {mapObject} from "@utils/object";
@@ -34,7 +34,7 @@ export function getById<T extends object>(id: PropertyKey, options: Webpack.Opti
 }
 
 export function getMangled<T extends object>(
-    filter: Webpack.Filter | string | RegExp | number,
+    filter: Webpack.ModuleFilter | string | RegExp | number,
     mappers: Record<keyof T, Webpack.ExportedOnlyFilter>,
     options: Webpack.MangledOptions = {}
 ): T {
@@ -42,12 +42,12 @@ export function getMangled<T extends object>(
         filter = bySource(filter);
     }
 
-    options.raw ??= options.useDeclarations ?? false;
+    options.raw ??= options.mapDeclarations ?? false;
 
     let module = typeof filter === "number" ? getById(filter, options) : getModule<any>(filter, options);
     if (!module) return {} as T;
 
-    if (options.raw) module = module[options.useDeclarations ? "declarations" : "exports"];
+    if (options.raw) module = module[options.mapDeclarations ? "declarations" : "exports"];
 
     return mapObject(module, mappers);
 }
@@ -56,6 +56,8 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
     const {filter, defaultExport = true, searchExports = false, searchDefault = true, raw = false, map} = options;
 
     if (filter(module.exports, module, module.id)) {
+        if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
+        if (options.mapDeclarations && options.map) return mapObject(module.declarations, options.map) as T;
         const trueItem = map ? mapObject(module.exports, map) : raw ? module : module.exports;
         return trueItem;
     }
@@ -71,8 +73,10 @@ export function bulkGetMatched<T>(module: Webpack.Module<any>, options: Webpack.
         if (shouldSkipModule(exported)) continue;
 
         if (filter(exported, module, module.id)) {
-            let value: any;
+            if (options.declarationFilter) return getDeclaration(module, options.declarationFilter);
+            if (options.mapDeclarations && options.map) return mapObject(module.declarations, options.map) as T;
 
+            let value: any;
             if (!defaultExport && defaultKey === key) {
                 value = map ? mapObject(module.exports, map) : raw ? module : module.exports;
             }
@@ -91,7 +95,7 @@ export function getBulk<T extends any[]>(...queries: Webpack.BulkQueries[]): T {
 
     queries = queries.map((query, i) => ({
         ...query,
-        filter: wrapFilter(query.filter),
+        filter: wrapModuleFilter(query.filter),
         cacheId: query.cacheId || (query.cacheId === null ? undefined : WebpackCache.getIdFromStack(i))
     }));
 

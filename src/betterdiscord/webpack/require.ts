@@ -4,7 +4,7 @@ import type {RawModule} from "../types/discord/webpack";
 
 export let webpackRequire: Webpack.Require;
 
-export const lazyListeners = new Set<Webpack.Filter>();
+export const lazyListeners = new Set<Webpack.ModuleFilter>();
 
 let __ORIGINAL_PUSH__ = (window.webpackChunkdiscord_app ??= []).push;
 
