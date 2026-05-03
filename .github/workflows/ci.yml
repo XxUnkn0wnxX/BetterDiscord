@@ -1,10 +1,14 @@
 name: BetterDiscord CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: ["development"]
+    branches: ["develop"]
   pull_request:
-    branches: ["development"]
+    branches: ["develop"]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -43,23 +47,19 @@ jobs:
           retention-days: 30
           path: dist/betterdiscord.asar
 
-      # Update the canary tag on push to development
-      - name: Update tag
-        uses: richardsimko/update-tag@v1
-        if: ${{github.event_name == 'push'}}
-        with:
-          tag_name: canary
+      # Keep a single rolling release for the latest develop commit.
+      - name: Reset rolling release
+        if: ${{github.event_name == 'push' || github.event_name == 'workflow_dispatch'}}
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: gh release delete develop-latest --yes --cleanup-tag || true
 
-      # Update the canary release on push to development
-      - name: Update canary release
-        uses: softprops/action-gh-release@v2
-        if: ${{github.event_name == 'push'}}
-        with:
-          prerelease: true
-          name: BetterDiscord Canary
-          body: This is the canary release for BetterDiscord automatically kept up to date using GitHub actions.
-          tag_name: canary
-          fail_on_unmatched_files: true
-          files: dist/betterdiscord.asar
+      - name: Publish rolling release
+        if: ${{github.event_name == 'push' || github.event_name == 'workflow_dispatch'}}
+        env:
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: |
+          gh release create develop-latest dist/betterdiscord.asar \
+            --target "${GITHUB_SHA}" \
+            --title "BD Dev Fork" \
+            --notes "Rolling release for the latest develop commit.\n\nCommit: ${GITHUB_SHA}"

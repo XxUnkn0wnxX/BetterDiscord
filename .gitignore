@@ -2,3 +2,8 @@ dist/
 node_modules
 .env
 .idea/
+tmp/
+AGENTS.md
+.venv/
+local-build.zsh
+local-inject.zsh
