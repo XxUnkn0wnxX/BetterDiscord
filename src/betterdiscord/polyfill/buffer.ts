@@ -1,10 +1,14 @@
 import Logger from "@common/logger";
 import {Buffer} from "../../../node_modules/buffer/index";
 
+let hasWarnedForGlobalBuffer = false;
 
 Object.defineProperty(window, "Buffer", {
     get() {
-        Logger.warn("Deprecated", `Usage of the Buffer global is deprecated. Consider using web standards such as Uint8Array and TextDecoder/TextEncoder.`);
+        if (!hasWarnedForGlobalBuffer) {
+            hasWarnedForGlobalBuffer = true;
+            Logger.warn("Deprecated", "Usage of the Buffer global is deprecated. Consider using web standards such as Uint8Array and TextDecoder/TextEncoder.");
+        }
         return Buffer;
     },
     configurable: true,

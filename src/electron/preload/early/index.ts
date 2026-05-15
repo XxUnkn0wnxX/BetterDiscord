@@ -1,8 +1,10 @@
 import Logger from "@common/logger";
 import type {RawModule} from "../../../betterdiscord/types/discord/webpack";
 import parseDeclarations from "@common/parseDeclarations";
+import findFunctionBodyStart from "@common/findFunctionBodyStart";
 
 const getPrefix = /^(.*?)\(/;
+const THIRD_PARTY_WEBPACK_BUNDLE = /WEBPACK_IMPORTED_MODULE_\d+__|__webpack_require__\(\s*\/\*!/;
 // Functions like ones from objects ({ a() {} }) will throw so we replace 'a' with 'function'
 function toStringFunction(stringed: string): string {
     const match = stringed.match(getPrefix);
@@ -58,6 +60,10 @@ function toStringFunction(stringed: string): string {
 
                 try {
                     const rawString = Function.prototype.toString.call(trueOriginal);
+                    if (THIRD_PARTY_WEBPACK_BUNDLE.test(rawString)) {
+                        rawModule = trueOriginal;
+                        return rawModule;
+                    }
 
                     // Get the path of the module
                     const nameEnd = rawString.indexOf("(");
@@ -67,7 +73,10 @@ function toStringFunction(stringed: string): string {
 
                     const moduleString = toStringFunction(rawString);
                     const vars = parseDeclarations(moduleString);
-                    const functionBody = moduleString.indexOf(")") + 2;
+                    const functionBody = findFunctionBodyStart(moduleString);
+                    if (functionBody === -1) {
+                        throw new Error(`Could not locate function body for module ${id.toString()}`);
+                    }
 
                     // Add getters and setters for declarations
                     const varGettersAndSetters = vars.map((name) => `get ${name}(){return ${name}},set ${name}(_${name}){${name}=_${name}}`);

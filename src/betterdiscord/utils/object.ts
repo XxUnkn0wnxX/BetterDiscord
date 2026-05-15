@@ -10,18 +10,34 @@ export function mapObject<T extends object>(module: any, mappers: Record<keyof T
         const searchKey = moduleKeys[i];
         if (!Object.prototype.hasOwnProperty.call(module, searchKey)) continue;
 
+        let searchValue;
+        try {
+            searchValue = module[searchKey];
+        }
+        catch {
+            continue;
+        }
+
         for (let j = 0; j < mapperKeys.length; j++) {
             const key = mapperKeys[j];
             if (!Object.prototype.hasOwnProperty.call(mappers, key)) continue;
             if (Object.prototype.hasOwnProperty.call(mapped, key)) continue;
 
-            if (mappers[key](module[searchKey], searchKey)) {
+            if (mappers[key](searchValue, searchKey)) {
                 Object.defineProperty(mapped, key, {
                     get() {
-                        return module[searchKey];
+                        try {
+                            return module[searchKey];
+                        }
+                        catch {
+                            return undefined;
+                        }
                     },
                     set(value) {
-                        module[searchKey] = value;
+                        try {
+                            module[searchKey] = value;
+                        }
+                        catch {/* empty */}
                     },
                     enumerable: true,
                     configurable: false

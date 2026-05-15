@@ -1,5 +1,6 @@
 import Logger from "@common/logger";
 import Remote from "./remote";
+import Buffer from "./buffer";
 import type {OutgoingHttpHeader, RequestOptions} from "node:http";
 
 

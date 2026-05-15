@@ -38,8 +38,17 @@ export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.Expo
     const wrappedFilter = wrapDeclarationFilter(filter);
 
     for (const name in module.declarations) {
-        if (!wrappedFilter(module.declarations[name])) continue;
-        return module.declarations[name];
+        let value;
+
+        try {
+            value = module.declarations[name];
+        }
+        catch {
+            continue;
+        }
+
+        if (!wrappedFilter(value)) continue;
+        return value;
     }
 }
 
