@@ -5,5 +5,4 @@ node_modules
 tmp/
 AGENTS.md
 .venv/
-local-build.zsh
-local-inject.zsh
+*.zsh
