@@ -11,6 +11,7 @@ type PluginLoadPoint = "connection" | "idle";
 
 export interface Plugin extends Addon {
     exports: any;
+    loaded?: boolean;
     instance: {
         icon?: any;
         load?(): void;
@@ -138,18 +139,25 @@ export default new class PluginManager extends AddonManager<Plugin> {
                 });
             }
 
-            // Run the plugin's load function
-            try {
-                if (typeof instance.load === "function") instance.load();
-                return plugin;
+            plugin.loaded = false;
+
+            // Only run load() for enabled plugins. Disabled plugins should stay inert
+            // until the user enables them, at which point startAddon() will run load().
+            if (this.state[plugin.id]) {
+                try {
+                    if (typeof instance.load === "function") instance.load();
+                    plugin.loaded = true;
+                }
+                catch (err) {
+                    this.state[plugin.id] = false;
+                    return this.showAddonError(addon, t("Addons.methodError", {method: "load()"}), {
+                        message: (err as Error).message,
+                        stack: (err as Error).stack
+                    });
+                }
             }
-            catch (err) {
-                this.state[plugin.id] = false;
-                return this.showAddonError(addon, t("Addons.methodError", {method: "load()"}), {
-                    message: (err as Error).message,
-                    stack: (err as Error).stack
-                });
-            }
+
+            return plugin;
         }
         catch (err) {
             return this.showAddonError(addon, t("Addons.methodError", {method: "Plugin constructor()"}), {
@@ -162,6 +170,23 @@ export default new class PluginManager extends AddonManager<Plugin> {
     startAddon(idOrAddon: string | Plugin) {
         const plugin = this.resolveAddon(idOrAddon);
         if (!plugin) return;
+
+        if (!plugin.loaded && typeof plugin.instance.load === "function") {
+            try {
+                plugin.instance.load();
+                plugin.loaded = true;
+            }
+            catch (err) {
+                this.state[plugin.id] = false;
+                this.trigger("disabled", plugin);
+                Toasts.warning(t("Addons.couldNotStart", {name: plugin.name, version: plugin.version}));
+
+                return this.showAddonError(plugin, t("Addons.methodError", {method: "load()"}), {
+                    message: (err as Error).message,
+                    stack: (err as Error).stack
+                });
+            }
+        }
 
         try {
             plugin.instance.start();
