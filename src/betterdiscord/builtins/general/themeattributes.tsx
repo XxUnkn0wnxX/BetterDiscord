@@ -57,6 +57,8 @@ export default new class ThemeAttributes extends Builtin {
             mapDeclarations: true
         });
 
+        if (typeof messageHook?.key !== "function") return;
+
         this.after(messageHook!, "key", (_, __, res) => {
             const node = findInTree(res, m => m["data-list-id"] === "chat-messages", {
                 walkable: ["props", "children"]

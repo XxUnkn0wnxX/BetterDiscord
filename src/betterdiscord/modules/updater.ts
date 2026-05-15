@@ -1,9 +1,8 @@
-// @ts-expect-error this is an internal package not yet converted to TS
-import request from "request";
 import fileSystem from "fs";
 import path from "path";
 
 import Logger from "@common/logger";
+import fetch from "../api/fetch";
 
 import Config from "@stores/config";
 
@@ -30,20 +29,38 @@ import type {BdWebAddon} from "betterdiscordweb";
 import {Logo} from "@ui/logo";
 import {RefreshCcwIcon} from "lucide-react";
 
-const getJSON = (url: string) => {
-    return new Promise(resolve => {
-        request({
-            url: url,
+const FETCH_TIMEOUT = 15000;
+
+const getJSON = async (url: string) => {
+    try {
+        const response = await fetch(url, {
             headers: {
                 "Cache-Control": "no-cache",
                 "Pragma": "no-cache"
-            }
-        }, (error: Error, _: Response, body: string) => {
-            if (error) return resolve([]);
-            resolve(JSON.parse(body));
+            },
+            timeout: FETCH_TIMEOUT
         });
-    });
+
+        if (!response.ok) return [];
+        return JSON.parse(await response.text());
+    }
+    catch {
+        return [];
+    }
 };
+
+async function fetchText(url: string, headers: Record<string, string> = {}) {
+    const response = await fetch(url, {
+        headers,
+        timeout: FETCH_TIMEOUT
+    });
+
+    if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
+}
 
 const reducer = (acc: Record<string, {name: string; version: string; id: number;}> | Record<string, never>, addon: BdWebAddon) => {
     if (addon.version === "Unknown") return acc;
@@ -210,17 +227,20 @@ export class CoreUpdater {
             const asar = this.apiData.assets.find(a => a.name === "betterdiscord.asar");
             if (!asar) return;
 
-            const buff = await new Promise((resolve, reject) =>
-                request(asar.url, {
-                    headers: {
-                        "Content-Type": "application/octet-stream",
-                        "User-Agent": "BetterDiscord Updater",
-                        "Accept": "application/octet-stream"
-                    }
-                }, (err: Error, resp: {statusCode: number; statusMessage: string;}, body: string) => {
-                    if (err || resp.statusCode != 200) return reject(err || `${resp.statusCode} ${resp.statusMessage}`);
-                    return resolve(body);
-                }));
+            const response = await fetch(asar.url, {
+                headers: {
+                    "Content-Type": "application/octet-stream",
+                    "User-Agent": "BetterDiscord Updater",
+                    "Accept": "application/octet-stream"
+                },
+                timeout: 30000
+            });
+
+            if (!response.ok) {
+                throw new Error(`${response.status} ${response.statusText}`);
+            }
+
+            const buff = new Uint8Array(await response.arrayBuffer());
 
             const asarPath = path.join(Config.get("dataPath"), "betterdiscord.asar");
             // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -310,25 +330,22 @@ export class AddonUpdater {
 
     async updateAddon(filename: string) {
         const info = this.cache[filename];
-        request({
-            url: Web.redirects.github(info.id.toString()),
-            headers: {
+        try {
+            const body = await fetchText(Web.redirects.github(info.id.toString()), {
                 "Cache-Control": "no-cache",
                 "Pragma": "no-cache"
-            }
-        }, (error: Error, response: {statusCode: number;}, body: string) => {
-            if (error || response.statusCode !== 200) {
-                Logger.stacktrace("AddonUpdater", `Failed to download body for ${info.id}:`, error);
-                Toasts.error(t("Updater.addonUpdateFailed", {name: info.name, version: info.version}));
-                return;
-            }
+            });
 
             const file = path.join(path.resolve(this.manager.addonFolder), filename);
-            fileSystem.writeFile(file, body.toString(), () => {
+            fileSystem.writeFile(file, body, () => {
                 Toasts.success(t("Updater.addonUpdated", {name: info.name, version: info.version}));
                 this.pending.splice(this.pending.indexOf(filename), 1);
             });
-        });
+        }
+        catch (error) {
+            Logger.stacktrace("AddonUpdater", `Failed to download body for ${info.id}:`, error as Error);
+            Toasts.error(t("Updater.addonUpdateFailed", {name: info.name, version: info.version}));
+        }
     }
 
     showUpdateNotice() {

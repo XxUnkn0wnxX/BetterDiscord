@@ -48,4 +48,14 @@ describe("declaration access", () => {
         expect(mapped.target).toEqual({type: "good"});
         expect(mapped.missing).toBeUndefined();
     });
+
+    test("mapObject returns undefined entries when module is missing", () => {
+        const mapped = mapObject<{target: undefined; missing: undefined}>(undefined, {
+            target: value => value?.type === "good",
+            missing: value => value?.type === "missing"
+        });
+
+        expect(mapped.target).toBeUndefined();
+        expect(mapped.missing).toBeUndefined();
+    });
 });

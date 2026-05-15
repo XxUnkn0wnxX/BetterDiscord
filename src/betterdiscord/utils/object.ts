@@ -2,9 +2,29 @@ import type {Webpack} from "../types/discord";
 
 export function mapObject<T extends object>(module: any, mappers: Record<keyof T, Webpack.ExportedOnlyFilter>): T {
     const mapped = Object.create(null) as Partial<T>;
+    const mapperKeys = Object.keys(mappers) as Array<keyof T>;
+
+    if (!module || (typeof module !== "object" && typeof module !== "function")) {
+        for (let i = 0; i < mapperKeys.length; i++) {
+            const key = mapperKeys[i];
+            if (!Object.prototype.hasOwnProperty.call(mapped, key)) {
+                Object.defineProperty(mapped, key, {
+                    value: undefined,
+                    enumerable: true,
+                    configurable: false
+                });
+            }
+        }
+
+        Object.defineProperty(mapped, Symbol("betterdiscord.mapObject"), {
+            value: {module, mappers},
+            configurable: false
+        });
+
+        return mapped as T;
+    }
 
     const moduleKeys = Object.keys(module);
-    const mapperKeys = Object.keys(mappers) as Array<keyof T>;
 
     for (let i = 0; i < moduleKeys.length; i++) {
         const searchKey = moduleKeys[i];
