@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Module from "module";
-import {ipcRenderer as IPC} from "electron";
+import {ipcRenderer as IPC, webFrame} from "electron";
 import * as IPCEvents from "@common/constants/ipcevents";
 
 type ResolveFilename = (request: string, parent?: NodeJS.Module, isMain?: boolean, options?: unknown) => string;
@@ -73,6 +73,8 @@ function patchDiscordModuleResolution(preload: string) {
 }
 
 export default function () {
+    webFrame.top?.executeJavaScript(`(() => {${fs.readFileSync(path.join(__dirname, "earlyRenderer.js"), "utf8")}})()`).catch(() => {});
+
     // Load Discord's original preload
     const preload = process.env.BD_DISCORD_PRELOAD;
     if (preload) {
