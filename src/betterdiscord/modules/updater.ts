@@ -106,8 +106,17 @@ export class CoreUpdater {
     static apiData: Release;
     static remoteVersion = "";
 
+    static shouldSkipAutoCheck() {
+        const branch = Config.get("branch");
+        const commit = Config.get("commit");
+
+        // Local/fork develop-style builds should not nag on startup, but manual checks remain available.
+        return !branch || !commit || branch === "develop";
+    }
+
     static async initialize() {
         if (!SettingsStore.get("addons", "checkForUpdates")) return;
+        if (this.shouldSkipAutoCheck()) return;
         this.checkForUpdate();
     }
 
