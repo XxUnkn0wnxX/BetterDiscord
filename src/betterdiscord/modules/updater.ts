@@ -109,7 +109,9 @@ export default class Updater {
 
         const hours = SettingsStore.get<number>("addons", "updateInterval");
         this.updateCheckInterval = setInterval(() => {
-            CoreUpdater.checkForUpdate();
+            // Fork behavior: keep plugin/theme auto-checks, but leave BD core updates manual-only.
+            // Our fork should only check for BetterDiscord core updates from the updater button.
+            // CoreUpdater.checkForUpdate();
             PluginUpdater.checkAll();
             ThemeUpdater.checkAll();
         }, hours * 60 * 60 * 1000);
