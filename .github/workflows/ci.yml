@@ -59,7 +59,8 @@ jobs:
         env:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: |
+          notes="$(printf 'Rolling release for the latest develop commit.\n\nCommit: %s\n' "${GITHUB_SHA}")"
           gh release create develop-latest dist/betterdiscord.asar \
             --target "${GITHUB_SHA}" \
             --title "BD Dev Fork" \
-            --notes "Rolling release for the latest develop commit.\n\nCommit: ${GITHUB_SHA}"
+            --notes "${notes}"
