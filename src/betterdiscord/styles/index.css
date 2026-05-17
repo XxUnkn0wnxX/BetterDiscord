@@ -76,6 +76,16 @@
     cursor: pointer;
 }
 
+.bd-version-info-wrapper {
+    padding: 6px 8px 8px;
+}
+
+.bd-version-info-wrapper .bd-version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .bd-settings-title-extend {
     width: 100%;
 }

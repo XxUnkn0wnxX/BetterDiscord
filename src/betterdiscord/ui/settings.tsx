@@ -1,7 +1,7 @@
 import React, {ReactDOM} from "@modules/react";
 import Settings, {type SettingsCollection} from "@stores/settings";
 import JsonStore from "@stores/json";
-import {Filters, getByKeys, getLazy, getMangled, getMangledLazy} from "@webpack";
+import {Filters, getByKeys, getLazy, getMangled, getModule} from "@webpack";
 import Patcher from "@modules/patcher";
 
 import ReactUtils from "@api/reactutils";
@@ -27,8 +27,20 @@ import DOMManager from "@modules/dommanager";
 import type AddonManager from "@modules/addonmanager";
 import toasts from "@stores/toasts";
 import ContextMenuPatcher from "@api/contextmenu";
+import getDebugInfo from "@utils/debug";
+import Tooltip from "@ui/tooltip";
 
 const SettingsRenderer = new class SettingsRenderer {
+    private versionInfoObserver?: MutationObserver;
+    private versionInfoRoot?: ReturnType<typeof ReactDOM.createRoot>;
+    private versionInfoHost?: HTMLDivElement;
+    private versionInfoAnchor?: HTMLElement;
+    private versionInfoFeedback?: Tooltip;
+    private versionInfoFeedbackAnchor?: HTMLElement;
+    private versionInfoFeedbackTimeout?: ReturnType<typeof setTimeout>;
+    private versionInfoCopyBound = false;
+    private versionInfoFrame = 0;
+
     initialize() {
         this.patchModalSettings();
         this.patchVersionInformation();
@@ -358,17 +370,173 @@ const SettingsRenderer = new class SettingsRenderer {
         });
     }
 
-    async patchVersionInformation() {
-        const versionDisplayModule = await getMangledLazy<{
-            versionDisplay: React.FC;
-        }>(["copyValue", "RELEASE_CHANNEL"], {
-            versionDisplay: Filters.byStrings("copyValue", "RELEASE_CHANNEL")
-        }, {
+    private scheduleVersionInfoRefresh() {
+        if (this.versionInfoFrame) return;
+
+        this.versionInfoFrame = requestAnimationFrame(() => {
+            this.versionInfoFrame = 0;
+            this.renderVersionInformation();
+        });
+    }
+
+    private teardownVersionInformation() {
+        this.versionInfoRoot?.unmount();
+        this.versionInfoRoot = undefined;
+
+        if (this.versionInfoHost?.isConnected) {
+            this.versionInfoHost.remove();
+        }
+
+        this.versionInfoHost = undefined;
+
+        if (this.versionInfoCopyBound) {
+            document.removeEventListener("click", this.copyVersionDebugInfo, true);
+            this.versionInfoCopyBound = false;
+        }
+
+        if (this.versionInfoFeedbackTimeout) {
+            clearTimeout(this.versionInfoFeedbackTimeout);
+            this.versionInfoFeedbackTimeout = undefined;
+        }
+
+        this.versionInfoFeedback?.hide();
+        this.versionInfoFeedback = undefined;
+        this.versionInfoFeedbackAnchor = undefined;
+
+        if (this.versionInfoAnchor?.isConnected) {
+            this.versionInfoAnchor.removeAttribute("data-bd-version-copy");
+            this.versionInfoAnchor.removeAttribute("title");
+        }
+
+        this.versionInfoAnchor = undefined;
+    }
+
+    private isVersionAnchorTarget(target: EventTarget | null) {
+        if (!(target instanceof Node) || !this.versionInfoAnchor) return false;
+        return this.versionInfoAnchor.contains(target);
+    }
+
+    private showVersionCopyFeedback(anchor: HTMLElement) {
+        if (this.versionInfoFeedbackAnchor !== anchor || !this.versionInfoFeedback) {
+            this.versionInfoFeedback?.hide();
+            this.versionInfoFeedback = Tooltip.create(anchor, "Copied", {
+                style: "success",
+                side: "top",
+                disabled: true
+            });
+            this.versionInfoFeedbackAnchor = anchor;
+        }
+
+        if (this.versionInfoFeedbackTimeout) {
+            clearTimeout(this.versionInfoFeedbackTimeout);
+        }
+
+        this.versionInfoFeedback.hide();
+        this.versionInfoFeedback.show();
+        this.versionInfoFeedbackTimeout = setTimeout(() => {
+            this.versionInfoFeedback?.hide();
+            this.versionInfoFeedbackTimeout = undefined;
+        }, 1200);
+    }
+
+    private copyVersionDebugInfo = (event: MouseEvent) => {
+        if (!this.isVersionAnchorTarget(event.target)) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        event.stopPropagation();
+
+        DiscordNative?.clipboard?.copy(`\`\`\`md\n${getDebugInfo()}\n\`\`\``);
+        if (this.versionInfoAnchor) this.showVersionCopyFeedback(this.versionInfoAnchor);
+    };
+
+    private bindVersionAnchor(anchor: HTMLElement) {
+        if (this.versionInfoAnchor === anchor) return;
+
+        if (this.versionInfoAnchor?.isConnected) {
+            this.versionInfoAnchor.removeAttribute("data-bd-version-copy");
+            this.versionInfoAnchor.removeAttribute("title");
+        }
+
+        if (!this.versionInfoCopyBound) {
+            document.addEventListener("click", this.copyVersionDebugInfo, true);
+            this.versionInfoCopyBound = true;
+        }
+
+        anchor.setAttribute("data-bd-version-copy", "true");
+        anchor.title = "Click to copy BetterDiscord debug info";
+        this.versionInfoAnchor = anchor;
+    }
+
+    private getVersionAnchor() {
+        const discordInfo = getModule<{
+            releaseChannel?: string;
+            version?: number[];
+        }>(m => typeof m?.releaseChannel === "string" && Array.isArray(m?.version), {
+            searchExports: true,
             searchDefault: false,
-            mapDeclarations: true
+            cacheId: "core-settings-version-anchor-discord-info"
         });
 
-        Patcher.instead("SettingsManager", versionDisplayModule, "versionDisplay", () => <VersionInfo />);
+        if (!discordInfo?.releaseChannel || !Array.isArray(discordInfo.version)) return null;
+
+        const versionText = discordInfo.version.join(".");
+        const channelText = discordInfo.releaseChannel;
+
+        const candidates = Array.from(document.querySelectorAll<HTMLElement>("[class*=\"compactInfo__\"]"));
+        const infoNode = candidates.find((node) => {
+            const text = node.textContent?.replace(/\s+/g, " ").trim();
+            if (!text) return false;
+            return text.includes(channelText) && text.includes(versionText);
+        });
+
+        if (!infoNode) return null;
+
+        return infoNode.closest<HTMLElement>("[class*=\"clickable__\"][class*=\"compact__\"]") ?? infoNode.parentElement;
+    }
+
+    private renderVersionInformation() {
+        const anchor = this.getVersionAnchor();
+        if (!anchor?.parentElement) {
+            this.teardownVersionInformation();
+            return;
+        }
+
+        this.bindVersionAnchor(anchor);
+
+        let host = this.versionInfoHost;
+
+        if (!host || !host.isConnected) {
+            host = document.createElement("div");
+            host.className = "bd-version-info-wrapper";
+        }
+
+        if (host.previousElementSibling !== anchor) {
+            anchor.insertAdjacentElement("afterend", host);
+        }
+
+        if (host !== this.versionInfoHost) {
+            this.versionInfoRoot?.unmount();
+            this.versionInfoHost = host;
+            this.versionInfoRoot = ReactDOM.createRoot(host);
+        }
+
+        this.versionInfoRoot?.render(<VersionInfo />);
+    }
+
+    patchVersionInformation() {
+        this.versionInfoObserver?.disconnect();
+        this.scheduleVersionInfoRefresh();
+
+        this.versionInfoObserver = new MutationObserver(() => {
+            this.scheduleVersionInfoRefresh();
+        });
+
+        this.versionInfoObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
     }
 
     public openSettingsPage(key: string) {
