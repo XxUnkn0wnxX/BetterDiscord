@@ -20,10 +20,9 @@ import SettingsTitle from "@ui/settings/title";
 import {debounce, findInTree} from "@common/utils";
 import RemoteAPI from "@polyfill/remote";
 import {PencilIcon} from "lucide-react";
-import {getByKeys, getByStrings} from "@webpack";
+import {getByStrings} from "@webpack";
 
 const closeUserSettings = getByStrings<() => boolean>(["closeUserSettings"]);
-const UserSettings = getByKeys<{open(id: string): void; close(): void;}>(["updateAccount"], {firstId: 252452, cacheId: "core-customcss-usersettings"});
 
 export default new class CustomCSS extends Builtin {
     get name() {return "Custom CSS";}
@@ -206,8 +205,6 @@ export default new class CustomCSS extends Builtin {
         this.isDetached = true;
 
         if (closeUserSettings?.()) return;
-
-        UserSettings?.close();
         DiscordModules.Dispatcher?.dispatch({type: "LAYER_POP"});
     }
 
