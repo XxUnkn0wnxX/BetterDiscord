@@ -72,7 +72,6 @@ const MemoModules = memoize({
     get UserAgentInfo(): UserAgentInfo | undefined {return getByKeys(["os", "layout"], {firstId: 214958, cacheId: "core-UserAgentInfo"});},
     get MessageUtils() {return getByKeys(["sendMessage"], {firstId: 843472, cacheId: "core-MessageUtils"});},
     get LinkParser(): any {return getModule(m => m.html && m.requiredFirstCharacters?.[0] === "[", {firstId: 694403, cacheId: "core-LinkParser"});},
-    get DiscordMarkdown(): any {return getModule(m => m?.prototype?.render && m.rules, {firstId: 558179, cacheId: "core-DiscordMarkdown"});},
     get Layout(): Record<string, any> {return getBySource(["$Root", "buildLayout"], {searchDefault: false, firstId: 419954, cacheId: "core-Layout"})!;},
     get NoticesBaseClasses(): {base: string;} | undefined {return getByKeys(["container", "base", "sidebar"], {cacheId: "core-NoticesBaseClasses"});},
     get NoticesPageClasses(): {errorPage: string;} | undefined {return getByKeys(["errorPage"], {cacheId: "core-NoticesPageClasses"});},
