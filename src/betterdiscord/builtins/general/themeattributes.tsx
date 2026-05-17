@@ -1,5 +1,5 @@
 import Builtin from "@structs/builtin";
-import {getLazy, getLazyBySource, getLazyByStrings, Stores} from "@webpack";
+import {getLazy, getLazyBySource, getLazyByStrings, getMangledLazy, Stores} from "@webpack";
 import {findInTree} from "@common/utils";
 import React from "react";
 
@@ -52,15 +52,16 @@ export default new class ThemeAttributes extends Builtin {
     }
 
     async patchMessageHook() {
-        const messageHookModule = await getLazyBySource(["SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries"], {
-            searchDefault: false,
-            cacheId: "core-themeattributes-messageHook"
+        const messageHook = await getMangledLazy("SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries", {
+            key: x => String(x?.type).includes("SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries")
+        }, {
+            cacheId: "core-themeattributes-messageHook",
+            mapDeclarations: true
         });
-        const messageHook = messageHookModule?.A ?? messageHookModule;
 
-        if (typeof messageHook?.type !== "function") return;
+        if (typeof messageHook?.key !== "function") return;
 
-        this.after(messageHook!, "type", (_, __, res) => {
+        this.after(messageHook!, "key", (_, __, res) => {
             const node = findInTree(res, m => m["data-list-id"] === "chat-messages", {
                 walkable: ["props", "children"]
             });
