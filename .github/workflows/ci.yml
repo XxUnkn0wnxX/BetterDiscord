@@ -4,8 +4,20 @@ on:
   workflow_dispatch:
   push:
     branches: ["develop"]
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+      - ".gitattributes"
+      - "AGENTS.md"
+      - "LICENSE*"
   pull_request:
     branches: ["develop"]
+    paths-ignore:
+      - "**/*.md"
+      - ".gitignore"
+      - ".gitattributes"
+      - "AGENTS.md"
+      - "LICENSE*"
 
 permissions:
   contents: write
