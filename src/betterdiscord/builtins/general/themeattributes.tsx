@@ -14,11 +14,13 @@ export default new class ThemeAttributes extends Builtin {
     get id() {return "themeAttributes";}
 
     async patchMessage() {
-        const MessageComponent = await getLazyBySource(["Message must not be a thread starter message"], {
+        const MessageComponentModule = await getLazyBySource(["Message must not be a thread starter message"], {
             cacheId: "core-themeattributes-MessageComponent",
-            searchDefault: false,
-            declarationFilter: m => String(m.type).includes("Message must not be a thread starter message")
+            searchDefault: false
         });
+        const MessageComponent = MessageComponentModule?.A ?? MessageComponentModule;
+
+        if (typeof MessageComponent?.type !== "function") return;
 
         this.after(MessageComponent!, "type", (_, [props], returnValue) => {
             const {first, last} = React.useContext(MessageGroupingContext);
