@@ -1,5 +1,7 @@
-import Bun, {$} from "bun";
+import Bun from "bun";
 import path from "node:path";
+import {execFileSync} from "node:child_process";
+import fs from "node:fs";
 import pkg from "../package.json";
 import styleLoader from "bun-style-loader";
 import * as esbuild from "esbuild";
@@ -9,8 +11,33 @@ const fileURL = Bun.fileURLToPath(import.meta.url);
 const rootDir = path.join(path.dirname(fileURL), "..");
 const isProduction = process.argv.includes("--minify");
 
-const BRANCH_NAME = Bun.env.BRANCH_NAME ?? (await $`git symbolic-ref --short HEAD`.quiet().nothrow().text()).trim();
-const COMMIT_HASH = Bun.env.COMMIT_HASH ?? (await $`git rev-parse --short HEAD`.quiet().nothrow().text()).trim();
+function readGitValue(...args: string[]) {
+    const candidates = [
+        Bun.env.GIT,
+        process.platform === "darwin" ? "/usr/local/bin/git" : undefined,
+        "git"
+    ].filter((candidate): candidate is string => Boolean(candidate));
+
+    for (const candidate of candidates) {
+        if (candidate.includes("/") && !fs.existsSync(candidate)) continue;
+
+        try {
+            return execFileSync(candidate, args, {
+                cwd: rootDir,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"]
+            }).trim();
+        }
+        catch {
+            continue;
+        }
+    }
+
+    return "";
+}
+
+const BRANCH_NAME = Bun.env.BRANCH_NAME ?? readGitValue("symbolic-ref", "--short", "HEAD");
+const COMMIT_HASH = Bun.env.COMMIT_HASH ?? readGitValue("rev-parse", "--short", "HEAD");
 const DEVELOPMENT = Bun.env.NODE_ENV ?? "development";
 
 interface EntryPoint {
