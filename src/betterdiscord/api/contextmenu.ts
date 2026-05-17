@@ -1,4 +1,4 @@
-import {Filters, getByKeys, getLazyByKeys, getMangled, getModule, webpackRequire} from "@webpack";
+import {Filters, getLazyByKeys, getMangled, getModule, webpackRequire} from "@webpack";
 import Logger from "@common/logger";
 import React from "@modules/react";
 import DiscordModules from "@modules/discordmodules";
@@ -11,15 +11,14 @@ let startupComplete = false;
 // TODO: actually do the typing
 // https://github.com/doggybootsy/vx/blob/main/packages/mod/src/betterdiscord/context-menu.tsx
 // https://github.com/doggybootsy/vx/blob/main/packages/mod/src/api/menu/components.ts
-const ModulesBundle = getByKeys(["MenuItem", "Menu"], {cacheId: "core-contextmenu-ModulesBundle"});
 const MenuComponents = {
-    Separator: ModulesBundle?.MenuSeparator,
-    CheckboxItem: ModulesBundle?.MenuCheckboxItem,
-    RadioItem: ModulesBundle?.MenuRadioItem,
-    ControlItem: ModulesBundle?.MenuControlItem,
-    Group: ModulesBundle?.MenuGroup,
-    Item: ModulesBundle?.MenuItem,
-    Menu: ModulesBundle?.Menu,
+    Separator: undefined,
+    CheckboxItem: undefined,
+    RadioItem: undefined,
+    ControlItem: undefined,
+    Group: undefined,
+    Item: undefined,
+    Menu: undefined,
 };
 
 startupComplete = Object.values(MenuComponents).every(v => v);
