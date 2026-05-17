@@ -556,7 +556,7 @@ const SettingsRenderer = new class SettingsRenderer {
 
 const ContextMenu = new ContextMenuPatcher();
 
-const UserSettings = getByKeys<any>(["openUserSettings", "openUserSettingsFromParsedUrl"], {firstId: 840065, cacheId: "core-settings-usersettings"});
+const UserSettings = getByKeys<any>(["openUserSettings"], {firstId: 840065, cacheId: "core-settings-usersettings"});
 
 interface PanelLayout {
     buildLayout(): [category: CategoryLayout];
