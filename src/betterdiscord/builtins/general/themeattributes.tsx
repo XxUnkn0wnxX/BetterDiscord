@@ -25,7 +25,9 @@ export default new class ThemeAttributes extends Builtin {
         this.after(MessageComponent!, "type", (_, [props], returnValue) => {
             const {first, last} = React.useContext(MessageGroupingContext);
 
-            const li = findInTree(returnValue, (node) => node?.className?.includes("messageListItem"));
+            const li = findInTree(returnValue, (node) => node?.className?.includes("messageListItem"), {
+                walkable: ["props", "children"]
+            });
             if (!li) return;
 
             const author = findInTree(props, (arg) => arg?.username, {walkable: ["message", "author"]});
