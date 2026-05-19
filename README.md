@@ -53,6 +53,8 @@ Download the installer for your operating system below. You can check [this page
 
 For normal users, installing via the installers makes the most sense. However when wanting to either develop BetterDiscord, or when the installers do not work, this option can be used. Please see our [detailed documentation](https://docs.betterdiscord.app/users/getting-started/installation#manual-installation) for a guide on how to do this.
 
+For this fork, see [docs/manual-install.md](docs/manual-install.md) for Bun build steps, the normal Bun injection commands, and the local macOS wrapper workflow.
+
 
 
 # Addons
