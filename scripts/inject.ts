@@ -14,82 +14,77 @@ const distPath = path.resolve(__dirname, "..", "dist");
 const bundlePath = path.join(distPath, "betterdiscord.asar");
 const bdPath = useBdRelease ? bundlePath : distPath;
 
-function compareVersions(left: string, right: string) {
-    const leftParts = left.split(".").map(part => Number.parseInt(part, 10) || 0);
-    const rightParts = right.split(".").map(part => Number.parseInt(part, 10) || 0);
-    const maxLength = Math.max(leftParts.length, rightParts.length);
-
-    for (let index = 0; index < maxLength; index++) {
-        const diff = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-        if (diff !== 0) return diff;
-    }
-
-    return 0;
+// Discord 1.0.136+ writes to `app-<X>.<Y>.<Z>` and may leave an empty legacy
+// `<X>.<Y>.<Z>` alongside it; prefer `app-*`, then highest version, and prefer
+// entries that actually contain a `modules/` subdir.
+function pickVersionDir(basedir: string): string | undefined {
+    const entries = fs.readdirSync(basedir).filter(name => {
+        try {return fs.lstatSync(path.join(basedir, name)).isDirectory();}
+        catch {return false;}
+    });
+    const versionRe = /^(app-)?(\d+)\.(\d+)\.(\d+)$/;
+    const candidates = entries
+        .map(name => ({name, m: name.match(versionRe)}))
+        .filter((c): c is {name: string; m: RegExpMatchArray} => Boolean(c.m))
+        .map(c => ({
+            name: c.name,
+            isApp: Boolean(c.m[1]),
+            tuple: [+c.m[2], +c.m[3], +c.m[4]] as [number, number, number],
+        }));
+    if (!candidates.length) return undefined;
+    candidates.sort((a, b) => {
+        if (a.isApp !== b.isApp) return a.isApp ? -1 : 1;
+        for (let i = 0; i < 3; i++) {
+            if (a.tuple[i] !== b.tuple[i]) return b.tuple[i] - a.tuple[i];
+        }
+        return 0;
+    });
+    const usable = candidates.find(c => fs.existsSync(path.join(basedir, c.name, "modules")));
+    return (usable ?? candidates[0]).name;
 }
 
-function getPreferredVersionDirectory(basedir: string) {
-    return fs.readdirSync(basedir)
-        .filter(entry => {
-            const entryPath = path.join(basedir, entry);
-            return fs.lstatSync(entryPath).isDirectory() && entry.split(".").length > 1;
+// Tries the new wrapped layout (`discord_desktop_core-<N>/discord_desktop_core`)
+// first, falls back to the legacy unwrapped layout (`discord_desktop_core`).
+function resolveCorePath(modulesDir: string): string {
+    if (!fs.existsSync(modulesDir)) return "";
+    const wrappers = fs.readdirSync(modulesDir)
+        .map(name => {
+            const m = name.match(/^discord_desktop_core-(\d+)$/);
+            return m ? {name, n: +m[1]} : null;
         })
-        .sort((left, right) => {
-            const leftVersion = left.startsWith("app-") ? left.slice(4) : left;
-            const rightVersion = right.startsWith("app-") ? right.slice(4) : right;
-            const versionCompare = compareVersions(rightVersion, leftVersion);
-            if (versionCompare !== 0) return versionCompare;
-
-            if (left.startsWith("app-") !== right.startsWith("app-")) {
-                return left.startsWith("app-") ? -1 : 1;
-            }
-
-            return right.localeCompare(left);
-        })[0];
-}
-
-function resolveDesktopCore(modulesPath: string) {
-    if (!fs.existsSync(modulesPath)) return "";
-
-    const wrappedCore = fs.readdirSync(modulesPath)
-        .filter(entry => entry.indexOf("discord_desktop_core-") === 0)
-        .sort()
-        .reverse()[0];
-
-    const candidates = [
-        wrappedCore && path.join(modulesPath, wrappedCore, "discord_desktop_core"),
-        path.join(modulesPath, "discord_desktop_core")
-    ].filter(Boolean) as string[];
-
-    return candidates.find(candidate => fs.existsSync(candidate)) ?? "";
+        .filter((w): w is {name: string; n: number} => w !== null)
+        .sort((a, b) => b.n - a.n);
+    for (const {name} of wrappers) {
+        const candidate = path.join(modulesDir, name, "discord_desktop_core");
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    const legacy = path.join(modulesDir, "discord_desktop_core");
+    if (fs.existsSync(legacy)) return legacy;
+    return "";
 }
 
 const discordPath = await (async function () {
-    let resourcePath = "";
+    let basedir = "";
     if (process.platform === "win32") {
-        const basedir = path.join(process.env.LOCALAPPDATA!, release.replace(/ /g, ""));
-        if (!fs.existsSync(basedir)) throw new Error(`Cannot find directory for ${release}`);
-        const version = getPreferredVersionDirectory(basedir);
-        resourcePath = resolveDesktopCore(path.join(basedir, version, "modules"));
+        basedir = path.join(process.env.LOCALAPPDATA!, release.replace(/ /g, ""));
     }
     else if (process.env.WSL_DISTRO_NAME) {
         const appdata = (await bun.$`wslpath "$(cmd.exe /c "echo %LOCALAPPDATA%" 2>/dev/null | tr -d '\r')"`.text()).trim();
-        const basedir = path.join(appdata, release.replace(/ /g, ""));
-        if (!fs.existsSync(basedir)) throw new Error(`Cannot find directory for ${release}`);
-        const version = getPreferredVersionDirectory(basedir);
-        resourcePath = resolveDesktopCore(path.join(basedir, version, "modules"));
+        basedir = path.join(appdata, release.replace(/ /g, ""));
     }
     else {
         let userData = process.env.XDG_CONFIG_HOME ? process.env.XDG_CONFIG_HOME : path.join(process.env.HOME!, ".config");
         if (process.platform === "darwin") userData = path.join(process.env.HOME!, "Library", "Application Support");
-        const basedir = path.join(userData, release.toLowerCase().replace(" ", ""));
-        if (!fs.existsSync(basedir)) return "";
-        const version = getPreferredVersionDirectory(basedir);
-        if (!version) return "";
-        resourcePath = resolveDesktopCore(path.join(basedir, version, "modules"));
+        basedir = path.join(userData, release.toLowerCase().replace(" ", ""));
     }
 
-    if (fs.existsSync(resourcePath)) return resourcePath;
-    return "";
+    if (!fs.existsSync(basedir)) throw new Error(`No ${release} install at ${basedir}`);
+    const version = pickVersionDir(basedir);
+    if (!version) throw new Error(`No version dir in ${basedir} (expected app-X.Y.Z or X.Y.Z)`);
+    const modulesDir = path.join(basedir, version, "modules");
+    const core = resolveCorePath(modulesDir);
+    if (!core) throw new Error(`Found ${modulesDir} but no discord_desktop_core (tried wrapped discord_desktop_core-N/ and legacy)`);
+    return core;
 })();
 
 doSanityChecks(distPath);
@@ -100,7 +95,6 @@ if (useBdRelease && !fs.existsSync(bundlePath)) {
 console.log("");
 
 console.log(`Injecting into ${release}`);
-if (!fs.existsSync(discordPath)) throw new Error(`Cannot find directory for ${release}`);
 console.log(`    ✅ Found ${release} in ${discordPath}`);
 
 const indexJs = path.join(discordPath, "index.js");

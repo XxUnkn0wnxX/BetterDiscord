@@ -274,6 +274,7 @@ fi
 stock_loader='module.exports = require("./core.asar");'
 current_contents="$(<"$index_js")"
 release_marker='require("./betterdiscord.asar");'
+release_marker_absolute='/dist/betterdiscord.asar'
 dev_marker_absolute='/dist'
 dev_marker_relative='require("./betterdiscord");'
 
@@ -282,7 +283,7 @@ if [[ "$current_contents" == "$stock_loader" || "$current_contents" == "$stock_l
     exit 0
 fi
 
-if [[ "$inject_mode" == "release" && "$current_contents" != *"$release_marker"* ]]; then
+if [[ "$inject_mode" == "release" && "$current_contents" != *"$release_marker"* && "$current_contents" != *"$release_marker_absolute"* ]]; then
     echo "Refusing to uninject $app_name as release mode because index.js does not look like release injection."
     exit 1
 fi

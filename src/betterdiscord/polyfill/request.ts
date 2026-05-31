@@ -1,21 +1,24 @@
 import Logger from "@common/logger";
 import Remote from "./remote";
 import Buffer from "./buffer";
-import type {OutgoingHttpHeader, RequestOptions} from "node:http";
+import type {OutgoingHttpHeader} from "node:http";
+import type {RequestCallback, RequestOptions} from "@common/types/ipc";
 
 
 const methods = ["get", "put", "post", "delete", "head"];
-const aliases = {del: "delete"};
+const aliases: Record<string, string> = {del: "delete"};
 
 function parseArguments(...args: any) {
-    let url, options, callback;
+    let url: string | undefined;
+    let options: RequestOptions | undefined;
+    let callback: RequestCallback | undefined;
 
     for (const arg of args) {
         switch (typeof arg) {
             case (arg !== null && "object"):
                 options = arg;
-                if ("url" in options) {
-                    url = options.url;
+                if ("url" in arg) {
+                    url = arg.url;
                 }
                 break;
 
@@ -45,8 +48,8 @@ function isArrayHeaders(headers: unknown): headers is readonly string[] {
     return Array.isArray(headers);
 }
 
-function fixBuffer(options: RequestOptions & {formData?: Buffer | string;}, callback: (e: Error, h?: Record<string, any>, d?: Buffer | string) => void) {
-    return (error: Error, res?: Record<string, any>, body?: Buffer | string) => {
+function fixBuffer(options: RequestOptions, callback: RequestCallback): RequestCallback {
+    return (error, res, body) => {
         try {
             let contentType: OutgoingHttpHeader | undefined;
 
@@ -61,10 +64,10 @@ function fixBuffer(options: RequestOptions & {formData?: Buffer | string;}, call
             }
 
             if (String(contentType) !== "text/plain") {
-                body = Buffer.from(body!);
+                body = Buffer.from(body as any) as any;
             }
             else {
-                body = Buffer.from(body!).toString();
+                body = Buffer.from(body as any).toString();
             }
         }
         catch (err) {
@@ -82,14 +85,14 @@ function fixBuffer(options: RequestOptions & {formData?: Buffer | string;}, call
     };
 }
 
-export default function request(this: any, ...args: any[]) {
+function request(this: any, ...args: any[]) {
     const {url, options = {}, callback} = parseArguments.apply(this, args);
 
     if (!validUrl(url) || !validCallback(callback)) return null;
 
-    if ("method" in options && methods.indexOf(options.method.toLowerCase()) >= 0) {
-        // @ts-expect-error TODO: either fix or wait for polyfill remove
-        return Remote.https[options.method](url, options, fixBuffer(options, callback));
+    if (options.method && methods.indexOf(options.method.toLowerCase()) >= 0) {
+        const methodName = options.method.toLowerCase() as keyof typeof Remote.https;
+        return Remote.https[methodName](url, options, fixBuffer(options, callback));
     }
 
     return Remote.https.request(url, options, fixBuffer(options, callback));
@@ -101,7 +104,19 @@ Object.assign(request, Object.fromEntries(
 
         if (!validUrl(url) || !validCallback(callback)) return null;
 
-        // @ts-expect-error TODO: either fix or wait for polyfill remove
-        return Remote.https[aliases[method] || method](url, options, fixBuffer(options, callback));
+        const methodName = (aliases[method] || method) as keyof typeof Remote.https;
+        return Remote.https[methodName](url, options, fixBuffer(options, callback));
     }])
 ));
+
+type Request = typeof request & {
+    request: typeof request;
+    get: typeof request;
+    put: typeof request;
+    post: typeof request;
+    delete: typeof request;
+    head: typeof request;
+    del: typeof request;
+}
+
+export default request as Request;

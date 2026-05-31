@@ -1,7 +1,7 @@
 import Config from "@stores/config";
 import Toasts from "@stores/toasts";
 
-import React from "@modules/react";
+import React, {type MouseEvent, type ReactNode} from "react";
 import {t} from "@common/i18n";
 import Events from "@modules/emitter";
 import DiscordModules from "@modules/discordmodules";
@@ -13,7 +13,6 @@ import SettingsTitle from "@ui/settings/title";
 
 import {ArrowDownToLineIcon, CheckIcon, RefreshCwIcon, RotateCwIcon} from "lucide-react";
 import type {CoreUpdater, ThemeUpdater, PluginUpdater, AddonUpdater} from "@modules/updater";
-import type {MouseEvent, ReactNode} from "react";
 import {SettingsTitleContext} from "./settings";
 
 
@@ -96,14 +95,14 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
     }, [checkAddons]);
 
     useEffect(() => {
-        Events.on(`plugin-loaded`, update);
+        Events.on(`plugin-read`, update);
         Events.on(`plugin-unloaded`, update);
-        Events.on(`theme-loaded`, update);
+        Events.on(`theme-read`, update);
         Events.on(`theme-unloaded`, update);
         return () => {
-            Events.off(`plugin-loaded`, update);
+            Events.off(`plugin-read`, update);
             Events.off(`plugin-unloaded`, update);
-            Events.off(`theme-loaded`, update);
+            Events.off(`theme-read`, update);
             Events.off(`theme-unloaded`, update);
         };
     }, [update]);
