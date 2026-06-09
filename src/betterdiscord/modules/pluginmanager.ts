@@ -59,6 +59,10 @@ export default new class PluginManager extends AddonManager<Plugin> {
         Logger.log("PluginManager", `Loading addons at point: ${point}`);
 
         for (const addon of this.addonList) {
+            // Upstream force-loads 0BDFDB.plugin.js here. This fork removes that
+            // from active logic because no plugin gets special treatment; disabled
+            // plugins must stay disabled.
+            // if (addon.runAt !== point || !(this.state[addon.id] || addon.filename === "0BDFDB.plugin.js")) continue;
             if (addon.runAt !== point || !this.state[addon.id]) continue;
             this.startAddon(addon);
         }
@@ -71,7 +75,7 @@ export default new class PluginManager extends AddonManager<Plugin> {
         try {
             const module = {filename: plugin.filename, exports: {}};
 
-            plugin.fileContent += normalizeExports + `\n//# sourceURL=betterdiscord://plugins/${plugin.filename}`;
+            plugin.fileContent += normalizeExports + `\n//# sourceURL=betterdiscord://betterdiscord/plugins/${plugin.filename}`;
 
             // Wrap the plugin in a function and run it
             const wrappedPlugin = new Function("require", "module", "exports", "__filename", "__dirname", plugin.fileContent!); // eslint-disable-line no-new-func
