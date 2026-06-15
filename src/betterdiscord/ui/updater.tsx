@@ -114,7 +114,8 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
 
     const checkForUpdates = useCallback(async () => {
         Toasts.info(t("Updater.checking"));
-        await checkCoreUpdate();
+        // Fork behavior: keep manual plugin/theme checks, but disable BD core update checks.
+        // await checkCoreUpdate();
         await checkAddons("plugins");
         await checkAddons("themes");
         setUpdates({
