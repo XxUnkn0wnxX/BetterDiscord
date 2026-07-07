@@ -317,11 +317,35 @@ const SettingsRenderer = new class SettingsRenderer {
         });
 
         Patcher.after("SettingsManager", rootLayout, "buildLayout", (_, __, res) => {
-            let index = res.findIndex((layout) => (layout as any).key === "activity_section") + 1;
-            if (index === -1) index = res.length;
+            const index = this.getBetterDiscordSectionIndex(res);
 
             res.splice(index, 0, section);
         });
+    }
+
+    private getBetterDiscordSectionIndex(layouts: SectionLayout[]) {
+        const getKey = (layout: unknown) => {
+            const key = (layout as {key?: unknown;})?.key;
+            return typeof key === "string" ? key : "";
+        };
+
+        const findSectionByChild = (keys: Set<string>) => layouts.findIndex((layout) => {
+            try {
+                return layout.buildLayout().some((item) => keys.has(getKey(item)));
+            }
+            catch {
+                return false;
+            }
+        });
+
+        const footerIndex = findSectionByChild(new Set(["developer_panel", "logout_sidebar_item"]));
+        if (footerIndex !== -1) return footerIndex;
+
+        const sectionAnchor = layouts.findIndex((layout) => getKey(layout) === "activity_section");
+        if (sectionAnchor !== -1) return sectionAnchor + 1;
+
+        const childAnchor = findSectionByChild(new Set(["activity_privacy_panel", "registered_games_panel", "language_and_time_panel"]));
+        return childAnchor === -1 ? layouts.length : childAnchor + 1;
     }
 
     patchSettingsSearch() {
