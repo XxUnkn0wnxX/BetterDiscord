@@ -2,7 +2,7 @@ import fileSystem from "fs";
 import path from "path";
 
 import Logger from "@common/logger";
-import fetch from "../api/fetch";
+import Net from "../api/net";
 
 import Config from "@stores/config";
 
@@ -31,6 +31,8 @@ import {RefreshCcwIcon} from "lucide-react";
 import type {AddonType} from "@typed/addon";
 
 const FETCH_TIMEOUT = 15000;
+const net = new Net();
+const fetch = net.fetch.bind(net);
 
 const getJSON = async (url: string) => {
     try {

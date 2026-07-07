@@ -48,38 +48,46 @@ class HydratingResponse extends Response {
     }
 }
 
-async function fetch(input: string | URL | Request, init?: NativeRequestInit): Promise<Response> {
-    let request: Request;
-    if (input instanceof URL) {
-        request = new Request(input.href, init);
+class Net {
+    /** @ignore */
+    constructor() {};
+
+    async fetch(input: string | URL | Request, init?: NativeRequestInit) {
+        let request: Request;
+        if (input instanceof URL) {
+            request = new Request(input.href, init);
+        }
+        else {
+            request = new Request(input, init);
+        }
+
+        let headers = request.headers;
+        if (init?.headers) {
+            headers = new Headers(init.headers);
+        }
+
+        const driedResponse = await Remote.nativeFetch({
+            url: request.url,
+
+            body: request.body ? dryReadableStream(request.body) : null,
+
+            headers: Object.fromEntries(headers),
+
+            keepalive: request.keepalive,
+            method: methods.has(request.method) ? request.method as NativeRequestMethod : "GET",
+            redirect: request.redirect,
+            signal: request.signal ? dryAbortSignal(request.signal) : null,
+
+            timeout: init?.timeout ?? DEFAULT_TIMEOUT,
+            maxRedirects: init?.maxRedirects ?? MAX_DEFAULT_REDIRECTS,
+            rejectUnauthorized: init?.rejectUnauthorized ?? true
+        });
+
+        return new HydratingResponse(driedResponse);
     }
-    else {
-        request = new Request(input, init);
-    }
-
-    let headers = request.headers;
-    if (init?.headers) {
-        headers = new Headers(init.headers);
-    }
-
-    const driedResponse = await Remote.nativeFetch({
-        url: request.url,
-
-        body: request.body ? dryReadableStream(request.body) : null,
-
-        headers: Object.fromEntries(headers),
-
-        keepalive: request.keepalive,
-        method: methods.has(request.method) ? request.method as NativeRequestMethod : "GET",
-        redirect: request.redirect,
-        signal: request.signal ? dryAbortSignal(request.signal) : null,
-
-        timeout: init?.timeout ?? DEFAULT_TIMEOUT,
-        maxRedirects: init?.maxRedirects ?? MAX_DEFAULT_REDIRECTS,
-        rejectUnauthorized: init?.rejectUnauthorized ?? true
-    });
-
-    return new HydratingResponse(driedResponse);
 }
 
-export default fetch;
+Object.freeze(Net);
+Object.freeze(Net.prototype);
+
+export default Net;
