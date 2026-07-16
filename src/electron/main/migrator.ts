@@ -5,6 +5,7 @@ import {randomUUID} from "crypto";
 import {execFileSync, spawn} from "child_process";
 
 import {findLatestDiscordResources, parseDiscordVersionDirectory} from "@common/discordResources";
+import {findMatchingOpenAsarHandoff} from "./macoshandoff";
 import {getMacOSRecoveryEnvironment, macOSRecoveryHelperSource} from "./macosrecovery";
 
 
@@ -299,11 +300,26 @@ function armMacRecovery() {
         return replaceLog(logPath, "Recovery is disabled; helper not armed");
     }
 
+    const targetAppPath = path.resolve(hostResourcesPath, "..", "..");
+    const nestedTarget = path.join(hostResourcesPath, wrappedAsarFilename);
+    const openAsarBootstrap = path.join(userData, "openasar-bootstrap");
+    const handoff = findMatchingOpenAsarHandoff({
+        marker,
+        targetAppPath,
+        nestedTarget,
+        readyPath: path.join(bootstrap, "wrapper-ready.json"),
+        pendingPath: path.join(openAsarBootstrap, "post-shipit-update-pending.json"),
+        helperPath: path.join(openAsarBootstrap, "post-shipit-helper.zsh"),
+        helperPidPath: path.join(openAsarBootstrap, "post-shipit-helper.pid"),
+    });
+    if (handoff) {
+        return appendLog(logPath, `Preserved OpenAsar wrapper-ready handoff helperPid=${handoff.helperPid} installationId=${marker.installationId}`);
+    }
+
     try {
         fs.mkdirSync(bootstrap, {recursive: true});
         fs.writeFileSync(logPath, "");
         fs.writeFileSync(consoleLogPath, "");
-        const targetAppPath = path.resolve(hostResourcesPath, "..", "..");
         const statePath = path.join(bootstrap, "update-pending.json");
         const readyPath = path.join(bootstrap, "wrapper-ready.json");
         const helperPath = path.join(bootstrap, helperFilename);
@@ -323,15 +339,15 @@ function armMacRecovery() {
             installationId: marker.installationId,
             targetAppPath,
             resourcesPath: hostResourcesPath,
-            nestedTarget: path.join(hostResourcesPath, wrappedAsarFilename),
+            nestedTarget,
             armedAt,
             marker,
             readyPath,
             disabledPath,
             logPath,
-            openAsarPendingPath: path.join(userData, "openasar-bootstrap", "post-shipit-update-pending.json"),
-            openAsarHelperPath: path.join(userData, "openasar-bootstrap", "post-shipit-helper.zsh"),
-            openAsarHelperPidPath: path.join(userData, "openasar-bootstrap", "post-shipit-helper.pid"),
+            openAsarPendingPath: path.join(openAsarBootstrap, "post-shipit-update-pending.json"),
+            openAsarHelperPath: path.join(openAsarBootstrap, "post-shipit-helper.zsh"),
+            openAsarHelperPidPath: path.join(openAsarBootstrap, "post-shipit-helper.pid"),
             snapshotPath,
             readyTemplatePath,
             shipItRequestPath: path.join(userData, "ShipIt_request.json"),
