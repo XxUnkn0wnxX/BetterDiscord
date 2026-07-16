@@ -309,6 +309,9 @@ Notes:
 - `release` and `dev` add an extra check so the wrapper only restores a loader that matches the expected injection style.
 - `--dry-run` does not stop Discord or modify files; it only validates and
   reports the detected layout.
+- A normal uninject also checks the layout first. If BetterDiscord is not
+  installed, it exits successfully without disabling recovery or stopping
+  Discord.
 
 Examples:
 

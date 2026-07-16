@@ -134,6 +134,19 @@ if [[ "$dry_run" == true ]]; then
     exit 0
 fi
 
+# Confirm a complete BetterDiscord-owned wrapper exists before disabling
+# recovery or stopping Discord. Exit code 3 means the stock layout is already
+# present, so uninject is a successful no-op.
+if bun scripts/uninject.ts "$target" "$inject_mode" --check; then
+    :
+else
+    check_status=$?
+    if (( check_status == 3 )); then
+        exit 0
+    fi
+    exit "$check_status"
+fi
+
 # Disable the detached macOS recovery helper before quitting Discord so a
 # deliberate uninject cannot be mistaken for an application update.
 [[ -e "$recovery_disabled" || -L "$recovery_disabled" ]] && recovery_preexisting=true

@@ -9,8 +9,9 @@ import {inspectInjection, unwrapInjection, type InjectionChannel} from "./helper
 const rawArgs = process.argv.slice(2);
 const dryRun = rawArgs.includes("--dry-run");
 const prepare = rawArgs.includes("--prepare");
-const args = rawArgs.filter(argument => argument !== "--dry-run" && argument !== "--prepare");
-if (args.length > 2) throw new Error("Usage: bun scripts/uninject.ts [stable|ptb|canary] [auto|release|dev] [--prepare|--dry-run]");
+const check = rawArgs.includes("--check");
+const args = rawArgs.filter(argument => argument !== "--dry-run" && argument !== "--prepare" && argument !== "--check");
+if (args.length > 2) throw new Error("Usage: bun scripts/uninject.ts [stable|ptb|canary] [auto|release|dev] [--prepare|--check|--dry-run]");
 
 const requestedChannel = (args[0] ?? "stable").toLowerCase();
 if (requestedChannel !== "stable" && requestedChannel !== "ptb" && requestedChannel !== "canary" && requestedChannel !== "discord") {
@@ -50,6 +51,19 @@ const bootstrapDirectory = process.platform === "darwin"
     : "";
 const recoveryDisabled = bootstrapDirectory ? path.join(bootstrapDirectory, "recovery-disabled") : "";
 let recoveryDisabledByThisRun = false;
+
+if (check) {
+    const layout = inspectInjection(resources);
+    if (layout.kind === "plain-asar" || layout.kind === "plain-directory" || layout.kind === "missing") {
+        console.log(`${release} does not have a BetterDiscord app wrapper.`);
+        process.exit(3);
+    }
+    if (layout.kind === "unsafe") throw new Error(`Refusing to uninject ${release}: ${layout.reason}`);
+    if (requestedMode !== "auto" && layout.marker.mode !== requestedMode) {
+        throw new Error(`Refusing to uninject ${release} as ${requestedMode}; marker says ${layout.marker.mode}`);
+    }
+    process.exit(0);
+}
 
 function readMacHelperProcess(pid: number): {pgid: number; command: string} | null {
     try {
