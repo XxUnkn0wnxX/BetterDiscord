@@ -53,7 +53,7 @@ describe("macOS update recovery", () => {
         expect(helper).toContain("Wrapper recovery committed, but Discord relaunch did not start");
     });
 
-    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" = "missing") {
+    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" | "term-before-publish" | "term-after-publish" = "missing") {
         if (process.platform !== "darwin") return null;
 
         const bootstrap = path.join(root, "betterdiscord-bootstrap");
@@ -129,6 +129,18 @@ describe("macOS update recovery", () => {
         let helperSource = macOSRecoveryHelperSource();
         if (relaunchMode === "timeout") {
             helperSource = helperSource.replace(`deadline="$((SECONDS + 90))"`, `deadline="$((SECONDS + 1))"`);
+        }
+        if (relaunchMode === "term-before-publish") {
+            helperSource = helperSource.replace(
+                `if ! /bin/mv "$app_asar" "$nested_target"; then\n    fail_recovery "could not move fresh app.asar"\nfi`,
+                () => `if ! /bin/mv "$app_asar" "$nested_target"; then\n    fail_recovery "could not move fresh app.asar"\nfi\n/bin/kill -TERM "$$"\n/bin/sleep 1`,
+            );
+        }
+        if (relaunchMode === "term-after-publish") {
+            helperSource = helperSource.replace(
+                `log "Wrapper ready for installation $installation_id"`,
+                () => `log "Wrapper ready for installation $installation_id"\n/bin/kill -TERM "$$"\n/bin/sleep 1`,
+            );
         }
         if (relaunchMode === "retry" || relaunchMode === "fallback") {
             const contents = path.join(targetAppPath, "Contents");
@@ -329,6 +341,38 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
         expect(fs.readFileSync(run.logPath, "utf8")).toBe("old human log\n");
         expect(fs.readFileSync(run.consoleLogPath, "utf8")).toBe("old console log\n");
         expect(fs.existsSync(run.helperPidPath)).toBe(false);
+        expect(fs.existsSync(run.runPath)).toBe(false);
+        expect(fs.readFileSync(run.activeRunPath, "utf8")).toBe("newer-run\n");
+        expect(JSON.parse(fs.readFileSync(run.statePath, "utf8"))).toEqual({pending: true});
+    });
+
+    test("TERM before wrapper publication rolls back the fresh app layout", () => {
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "term-before-publish");
+        if (!run) return;
+
+        expect(run.result.status).toBe(143);
+        expect(fs.readFileSync(path.join(run.resources, "app.asar"), "utf8")).toBe("fresh Discord payload");
+        expect(fs.existsSync(path.join(run.resources, "betterdiscord.app.asar"))).toBe(false);
+        expect(fs.existsSync(path.join(run.resources, "app"))).toBe(false);
+        expect(fs.existsSync(run.readyPath)).toBe(false);
+        expect(fs.existsSync(run.runPath)).toBe(false);
+        expect(fs.existsSync(run.helperPidPath)).toBe(false);
+        expect(fs.existsSync(run.activeRunPath)).toBe(false);
+        expect(fs.existsSync(run.statePath)).toBe(false);
+    });
+
+    test("TERM after wrapper publication preserves the wrapper and clears recovery ownership", () => {
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "term-after-publish");
+        if (!run) return;
+
+        expect(run.result.status).toBe(143);
+        expect(fs.readFileSync(path.join(run.resources, "betterdiscord.app.asar"), "utf8")).toBe("fresh Discord payload");
+        expect(fs.existsSync(path.join(run.resources, "app", ".betterdiscord-inject.json"))).toBe(true);
+        expect(fs.existsSync(run.readyPath)).toBe(true);
+        expect(fs.existsSync(run.runPath)).toBe(false);
+        expect(fs.existsSync(run.helperPidPath)).toBe(false);
+        expect(fs.existsSync(run.activeRunPath)).toBe(false);
+        expect(fs.existsSync(run.statePath)).toBe(false);
     });
 
     test("a recovery failure keeps the stock payload and owns relaunch after disabling ShipIt", () => {

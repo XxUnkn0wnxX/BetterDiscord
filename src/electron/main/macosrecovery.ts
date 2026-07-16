@@ -58,9 +58,16 @@ owns_active_run() {
     [[ "$(/bin/cat "$active_run_path" 2>/dev/null || true)" = "$run_id" ]]
 }
 
+cleanup_own_run() {
+    /bin/rm -rf "$run_path" 2>/dev/null || true
+}
+
 # A late helper from an older quit must not truncate current logs or touch the
 # replacement application after a newer recovery run has superseded it.
-owns_active_run || exit 0
+if ! owns_active_run; then
+    cleanup_own_run
+    exit 0
+fi
 
 /bin/mkdir -p "$(/usr/bin/dirname "$helper_pid_path")" 2>/dev/null || exit 1
 pid_temporary="$helper_pid_path.$$.tmp"
@@ -93,10 +100,17 @@ owned_wrapper_matches_snapshot() {
 
 rollback_uncommitted_wrapper() {
     (( recovery_committed == 0 )) || return 0
+    # wrapper-ready.json is atomically published only after the complete
+    # wrapper exists. Preserve that handoff on TERM; anything earlier can be
+    # rolled back while this helper still owns the active run.
+    if owns_active_run && [[ -f "$ready_path" ]]; then
+        return 0
+    fi
     [[ -n "$staged_wrapper" ]] && /bin/rm -rf "$staged_wrapper" 2>/dev/null || true
     [[ -n "$ready_temporary" ]] && /bin/rm -f "$ready_temporary" 2>/dev/null || true
     owns_active_run && /bin/rm -f "$ready_path" 2>/dev/null || true
     (( wrapper_replacement_started == 1 )) || return 0
+    owns_active_run || return 0
 
     if [[ ! -e "$app_asar" && -f "$nested_target" ]]; then
         if [[ -e "$app_directory" ]]; then
@@ -122,7 +136,7 @@ cleanup_run_state() {
     else
         log "A newer BetterDiscord recovery run replaced active state before cleanup"
     fi
-    /bin/rm -rf "$run_path" 2>/dev/null || true
+    cleanup_own_run
 }
 
 cleanup_partial() {
@@ -136,6 +150,7 @@ cleanup_pid() {
 
 cleanup() {
     cleanup_partial
+    cleanup_own_run
     cleanup_pid
 }
 
@@ -157,14 +172,16 @@ signal_helper_descendants() {
 }
 
 terminate_helper() {
-    local status="$1"
+    local exit_status="$1"
 
     trap - EXIT INT TERM
     signal_helper_descendants TERM
     /bin/sleep 0.1
     signal_helper_descendants KILL
-    cleanup
-    exit "$status"
+    cleanup_partial
+    cleanup_run_state
+    cleanup_pid
+    exit "$exit_status"
 }
 
 trap cleanup EXIT
