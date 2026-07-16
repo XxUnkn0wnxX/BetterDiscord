@@ -239,6 +239,7 @@ Examples:
 ./local-build.zsh production
 ./local-build.zsh pack
 ./local-build.zsh dist
+./local-build.zsh --macos-recovery-timeout-seconds 60
 ./local-build.zsh dist --macos-recovery-timeout-seconds 60
 ```
 

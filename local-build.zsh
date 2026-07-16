@@ -5,8 +5,9 @@ set -euo pipefail
 repo_dir="${0:A:h}"
 cd "$repo_dir"
 
-mode="${1:-dist}"
-if [[ $# -gt 0 ]]; then
+mode="dist"
+if [[ $# -gt 0 && "$1" != --* ]]; then
+    mode="$1"
     shift
 fi
 
