@@ -5,11 +5,21 @@ set -euo pipefail
 repo_dir="${0:A:h}"
 cd "$repo_dir"
 
-target="${1:-}"
-inject_mode="${2:-release}"
+dry_run=false
+positional=()
+for argument in "$@"; do
+    if [[ "$argument" == "--dry-run" ]]; then
+        dry_run=true
+    else
+        positional+=("$argument")
+    fi
+done
 
-if [[ "$#" -gt 2 ]]; then
-    echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev]"
+target="${positional[1]:-}"
+inject_mode="${positional[2]:-release}"
+
+if [[ "${#positional[@]}" -gt 2 ]]; then
+    echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev] [--dry-run]"
     exit 1
 fi
 
@@ -42,7 +52,7 @@ case "$inject_mode" in
     release|dev)
         ;;
     *)
-        echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev]"
+        echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev] [--dry-run]"
         exit 1
         ;;
 esac
@@ -61,7 +71,7 @@ case "$target" in
         inject_target="canary"
         ;;
     *)
-        echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev]"
+        echo "Usage: ./local-inject.zsh [stable|ptb|canary] [release|dev] [--dry-run]"
         exit 1
         ;;
 esac
@@ -139,7 +149,15 @@ if [[ -n "$inject_target" ]]; then
     inject_args+=("$inject_target")
 fi
 
-kill_selected_app
+if [[ "$dry_run" == false ]]; then
+    kill_selected_app
+else
+    inject_args+=("--dry-run")
+fi
 
-echo "Injecting into $app_name using $inject_mode mode..."
+if [[ "$dry_run" == true ]]; then
+    echo "Dry-run: inspecting $app_name using $inject_mode mode; no files or processes will be changed..."
+else
+    echo "Injecting into $app_name using $inject_mode mode..."
+fi
 bun scripts/inject.ts "${inject_args[@]}"

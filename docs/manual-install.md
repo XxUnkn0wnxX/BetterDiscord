@@ -74,6 +74,12 @@ The actual injection logic lives in [../scripts/inject.ts](../scripts/inject.ts)
 
 After any injection, fully restart the target Discord client.
 
+The current injector uses Discord's application wrapper layout. It renames the
+existing `Contents/Resources/app.asar` to `betterdiscord.app.asar`, then creates
+an owned `Contents/Resources/app/` loader that starts BetterDiscord before the
+renamed payload. If the existing payload is OpenAsar, it remains the payload
+behind BetterDiscord.
+
 ### Development Injection
 
 Development injection points Discord at the unpacked `dist/` directory. Build first with `bun scripts/build.ts`.
@@ -169,7 +175,7 @@ This wrapper stops the selected Discord client on macOS and then calls the Bun i
 Usage:
 
 ```sh
-./local-inject.zsh [stable|ptb|canary] [release|dev]
+./local-inject.zsh [stable|ptb|canary] [release|dev] [--dry-run]
 ```
 
 Notes:
@@ -178,6 +184,8 @@ Notes:
 - If you omit the mode, it defaults to `release`.
 - `release` expects `dist/betterdiscord.asar`.
 - `dev` expects `dist/betterdiscord.js`.
+- `--dry-run` does not stop Discord or modify files; it prints the wrapper
+  changes that would be made.
 
 Examples:
 
@@ -186,24 +194,29 @@ Examples:
 ./local-inject.zsh stable
 ./local-inject.zsh ptb release
 ./local-inject.zsh canary dev
+./local-inject.zsh stable release --dry-run
 ```
 
 ### `local-uninject.zsh`
 
-This wrapper restores the stock Discord loader by rewriting the target `index.js` back to `module.exports = require("./core.asar");`.
+This wrapper removes BetterDiscord's owned `Contents/Resources/app/` loader and
+renames `betterdiscord.app.asar` back to `app.asar`. It does not inspect or
+replace the restored payload, so an OpenAsar payload remains OpenAsar.
 
 Usage:
 
 ```sh
-./local-uninject.zsh [stable|ptb|canary] [auto|release|dev]
+./local-uninject.zsh [stable|ptb|canary] [auto|release|dev] [--dry-run]
 ```
 
 Notes:
 
 - If you omit the channel, it becomes interactive and prompts for `stable`, `ptb`, or `canary`.
 - If you omit the mode, it defaults to `auto`.
-- `auto` is the least strict mode and is usually the easiest choice when you just want to restore stock.
+- `auto` is the least strict mode and is usually the easiest choice when you just want to remove BetterDiscord's wrapper.
 - `release` and `dev` add an extra check so the wrapper only restores a loader that matches the expected injection style.
+- `--dry-run` does not stop Discord or modify files; it only validates and
+  reports the detected layout.
 
 Examples:
 
@@ -212,6 +225,7 @@ Examples:
 ./local-uninject.zsh stable
 ./local-uninject.zsh ptb auto
 ./local-uninject.zsh canary dev
+./local-uninject.zsh stable auto --dry-run
 ```
 
 ## Quick Examples

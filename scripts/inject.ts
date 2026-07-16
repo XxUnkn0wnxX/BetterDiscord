@@ -1,5 +1,3 @@
-const args = process.argv;
-
 import fs from "fs";
 import path from "path";
 import bun from "bun";
@@ -8,14 +6,39 @@ import doSanityChecks from "./helpers/validate";
 import buildPackage from "./helpers/package";
 import copyFiles from "./helpers/copy";
 import {comparator} from "../src/common/semver";
+import {wrapInjection, type InjectionChannel, type InjectionMode} from "./helpers/injection";
 
-const useBdRelease = args[2] && args[2].toLowerCase() === "release";
-const releaseInput = useBdRelease ? args[3] && args[3].toLowerCase() : args[2] && args[2].toLowerCase();
-const release = releaseInput === "canary" ? "Discord Canary" : releaseInput === "ptb" ? "Discord PTB" : "Discord";
-const bdPath = useBdRelease ? path.resolve(__dirname, "..", "dist", "betterdiscord.asar") : path.resolve(__dirname, "..", "dist");
+const rawArgs = process.argv.slice(2);
+const dryRun = rawArgs.includes("--dry-run");
+const args = rawArgs.filter(argument => argument !== "--dry-run");
+const useBdRelease = args[0]?.toLowerCase() === "release";
+if (useBdRelease) args.shift();
+if (args.length > 1) throw new Error("Usage: bun scripts/inject.ts [release] [stable|ptb|canary] [--dry-run]");
 
-const resources = await (async function () {
-    let basedir = "";
+const requestedChannel = (args[0] ?? "stable").toLowerCase();
+if (requestedChannel !== "stable" && requestedChannel !== "ptb" && requestedChannel !== "canary" && requestedChannel !== "discord") {
+    throw new Error("Channel must be stable, ptb, or canary");
+}
+
+const channel: InjectionChannel = requestedChannel === "discord" ? "stable" : requestedChannel;
+const mode: InjectionMode = useBdRelease ? "release" : "dev";
+const release = channel === "canary" ? "Discord Canary" : channel === "ptb" ? "Discord PTB" : "Discord";
+const releaseDirectory = channel === "canary" ? "discordcanary" : channel === "ptb" ? "discordptb" : "discord";
+const distPath = path.resolve(__dirname, "..", "dist");
+const bundlePath = path.join(distPath, "betterdiscord.asar");
+
+function latestVersionDirectory(basedir: string): string {
+    const versions = fs.readdirSync(basedir)
+        .filter(item => item.startsWith("app-") && fs.statSync(path.join(basedir, item)).isDirectory())
+        .map(item => item.slice(4));
+    if (!versions.length) throw new Error(`Discord requires the new updater; no app-* directory exists in ${basedir}`);
+    return versions.reduce((current, candidate) => comparator(current, candidate) === 1 ? candidate : current);
+}
+
+const resources = await (async function resolveResources() {
+    if (process.platform === "darwin") return path.join(path.sep, "Applications", `${release}.app`, "Contents", "Resources");
+
+    let basedir: string;
     if (process.platform === "win32") {
         basedir = path.join(process.env.LOCALAPPDATA!, release.replace(/ /g, ""));
     }
@@ -24,91 +47,56 @@ const resources = await (async function () {
         basedir = path.join(appdata, release.replace(/ /g, ""));
     }
     else {
-        if (process.platform === "darwin") {
-            return path.sep + path.join("Applications", `${release}.app`, "Contents", "Resources");
-        }
-
-        basedir = path.join(process.env.XDG_CONFIG_HOME ? process.env.XDG_CONFIG_HOME : path.join(process.env.HOME!, ".config"), release.toLowerCase().replace(" ", ""));
+        const config = process.env.XDG_CONFIG_HOME || path.join(process.env.HOME!, ".config");
+        basedir = path.join(config, releaseDirectory);
     }
 
     if (!fs.existsSync(basedir)) throw new Error(`No ${release} install at ${basedir}`);
-
-    const dirs = fs.readdirSync(basedir)
-        .filter(x => x.startsWith("app-"));
-
-    if (dirs.length === 0) {
-        throw new Error("Discord requires the new updater. Please update Dicord.");
-    }
-
-    const latest = dirs
-        .filter((item) => item.startsWith("app-") && fs.statSync(path.join(basedir, item)).isDirectory())
-        .map(item => item.slice(4))
-        .reduce((pre, cur) => {
-            if (comparator(pre, cur) === 1) return cur;
-            return pre;
-        });
-
-    return path.join(basedir, `app-${latest}`, "resources");
+    return path.join(basedir, `app-${latestVersionDirectory(basedir)}`, "resources");
 })();
 
-doSanityChecks(bdPath);
-buildPackage(bdPath);
-console.log("");
-
-console.log(`Injecting into ${release}`);
-console.log(`    ✅ Found ${release} in ${resources}`);
-
-const asarDir = path.join(resources, "app");
-
-let appName = "app.asar";
-
-const renamedAppAsarExists = fs.existsSync(path.join(resources, "betterdiscord.app.asar"));
-if (renamedAppAsarExists || fs.existsSync(path.join(resources, "betterdiscord.app"))) {
-    // lazy fix for if app.asar does not exist but app folder does (Why? Better safe than sorry)
-    if (!renamedAppAsarExists) {
-        appName = "app";
-    }
-
-    console.log(`    ✅ ${appName} was previously renamed`);
-}
-else {
-    if (!fs.existsSync(path.join(resources, "app.asar"))) appName = "app";
-
-    console.log(`    ✅ Renaming ${appName} to betterdiscord.${appName}`);
-
-    fs.renameSync(path.join(resources, appName), path.join(resources, `betterdiscord.${appName}`));
+doSanityChecks(distPath);
+if (!dryRun) buildPackage(distPath);
+if (useBdRelease && !fs.existsSync(bundlePath)) {
+    throw new Error("    ❌ File missing: betterdiscord.asar. Run `./local-build.zsh dist` before using release injection.");
 }
 
-fs.mkdirSync(asarDir, {recursive: true});
-
-const indexJs = path.join(asarDir, "index.js");
-
-let requirePath: string;
+let bdPath = useBdRelease ? bundlePath : distPath;
 if (process.env.WSL_DISTRO_NAME) {
-    copyFiles(bdPath, path.join(asarDir, "..", "..", "betterdiscord"));
-    requirePath = "../../betterdiscord";
-}
-else {
-    requirePath = bdPath;
-}
-
-
-// __betterdiscord_inject_meta__ is used so the updater module can use the correct path
-fs.writeFileSync(indexJs, `
-require(${JSON.stringify(requirePath)});
-module.exports = require("../betterdiscord.app.asar");`);
-
-console.log("    ✅ Wrote index.js");
-
-if (!fs.existsSync(path.join(asarDir, "package.json"))) {
-    fs.writeFileSync(path.join(asarDir, "package.json"), JSON.stringify({
-        main: "./index.js",
-        name: "discord"
-    }));
-
-    console.log("    ✅ Wrote package.json");
+    const target = path.join(resources, "..", "..", "betterdiscord");
+    bdPath = useBdRelease ? "../../../betterdiscord/betterdiscord.asar" : "../../../betterdiscord";
+    if (dryRun) {
+        console.log(`    [dry-run] Would copy BetterDiscord ${mode} files to ${target}`);
+    }
+    else if (useBdRelease) {
+        fs.mkdirSync(target, {recursive: true});
+        fs.copyFileSync(bundlePath, path.join(target, "betterdiscord.asar"));
+    }
+    else {
+        copyFiles(distPath, target);
+    }
 }
 
 console.log("");
+console.log(`${dryRun ? "Dry-run for" : "Injecting into"} ${release}`);
+console.log(`    ✅ Found resources in ${resources}`);
 
-console.log(`Injection successful, please restart ${release}.`);
+const marker = wrapInjection({
+    resources,
+    channel,
+    mode,
+    bdPath,
+    helperRuntime: process.execPath,
+    dryRun,
+    log: message => console.log(`    ${dryRun ? "[dry-run] " : ""}${message}`),
+});
+
+if (!dryRun && process.platform === "darwin") {
+    const recoveryDisabled = path.join(process.env.HOME!, "Library", "Application Support", releaseDirectory, "betterdiscord-bootstrap", "recovery-disabled");
+    fs.rmSync(recoveryDisabled, {force: true});
+}
+
+console.log(`    ${dryRun ? "[dry-run] Would write" : "✅ Wrote"} ${path.join(resources, "app", ".betterdiscord-inject.json")}`);
+console.log(`    Installation ID: ${marker.installationId}`);
+console.log("");
+console.log(dryRun ? `Dry-run complete; ${release} was not modified.` : `Injection successful, please restart ${release}.`);
