@@ -43,7 +43,7 @@ export function mapObject<T extends object>(module: any, mappers: Record<keyof T
             if (!Object.prototype.hasOwnProperty.call(mappers, key)) continue;
             if (Object.prototype.hasOwnProperty.call(mapped, key)) continue;
 
-            if ((mappers[key] as (value: any, key: string) => any)(searchValue, searchKey)) {
+            if ((mappers[key] as (value: any, propertyKey: string) => any)(searchValue, searchKey)) {
                 Object.defineProperty(mapped, key, {
                     get() {
                         try {

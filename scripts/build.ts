@@ -47,8 +47,7 @@ function readPositiveIntegerOption(argument: string, environmentVariable: string
     if (inlineArgument === inlinePrefix || (argumentIndex !== -1 && process.argv[argumentIndex + 1] == null)) {
         throw new Error(`${argument} requires a value`);
     }
-    const argumentValue = inlineArgument?.slice(inlinePrefix.length)
-        ?? (argumentIndex === -1 ? undefined : process.argv[argumentIndex + 1]);
+    const argumentValue = inlineArgument?.slice(inlinePrefix.length) ?? (argumentIndex === -1 ? undefined : process.argv[argumentIndex + 1]);
     const rawValue = argumentValue ?? Bun.env[environmentVariable] ?? String(fallback);
 
     if (!/^[1-9]\d*$/.test(rawValue)) {

@@ -54,8 +54,8 @@ describe("macOS update recovery", () => {
     });
 
     test("uses the configured recovery timeout without changing its default", () => {
-        expect(macOSRecoveryHelperSource()).toContain('deadline="$((SECONDS + 90))"');
-        expect(macOSRecoveryHelperSource(7)).toContain('deadline="$((SECONDS + 7))"');
+        expect(macOSRecoveryHelperSource()).toContain("deadline=\"$((SECONDS + 90))\"");
+        expect(macOSRecoveryHelperSource(7)).toContain("deadline=\"$((SECONDS + 7))\"");
         expect(() => macOSRecoveryHelperSource(0)).toThrow("macOS recovery timeout must be a positive integer");
     });
 
