@@ -260,13 +260,99 @@ matching_openasar_pending() {
     openasar_helper_is_live
 }
 
+app_executable_path() {
+    local info_plist="$target_app_path/Contents/Info.plist"
+    local executable_name=""
+    local app_name=""
+
+    executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info_plist" 2>/dev/null || true)"
+    if [[ -z "$executable_name" ]]; then
+        app_name="$(/usr/bin/basename "$target_app_path" .app 2>/dev/null || true)"
+        executable_name="$app_name"
+    fi
+
+    [[ -n "$executable_name" ]] || return 1
+    print -r -- "$target_app_path/Contents/MacOS/$executable_name"
+}
+
+wait_for_app_bundle_ready() {
+    local deadline="$((SECONDS + 20))"
+    local executable_path=""
+
+    while (( SECONDS < deadline )); do
+        owns_active_run || return 1
+        [[ ! -e "$disabled_path" ]] || return 1
+        executable_path="$(app_executable_path || true)"
+        if [[ -f "$target_app_path/Contents/Info.plist" && -n "$executable_path" && -x "$executable_path" ]]; then
+            return 0
+        fi
+        /bin/sleep 0.5
+    done
+
+    log "Discord app executable was not ready for relaunch at $executable_path"
+    return 1
+}
+
+refresh_launch_services_registration() {
+    local lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+    [[ -x "$lsregister" ]] || return 0
+    "$lsregister" -f "$target_app_path" >/dev/null 2>&1 || true
+}
+
+betterdiscord_owns_relaunch() {
+    if ! owns_active_run; then
+        log "A newer BetterDiscord recovery run owns Discord relaunch"
+        return 1
+    fi
+    if [[ -e "$disabled_path" ]]; then
+        log "Recovery disabled before Discord relaunch"
+        return 1
+    fi
+    if matching_openasar_pending; then
+        log "Matching OpenAsar handoff detected during relaunch; OpenAsar owns nested restore and relaunch"
+        return 1
+    fi
+    return 0
+}
+
 relaunch_discord() {
+    local attempt=""
+    local open_output=""
+    local executable_path=""
+
     log "No matching OpenAsar handoff; BetterDiscord owns relaunch"
     if [[ ! -d "$target_app_path" ]]; then
         log "Discord app is not available for relaunch at $target_app_path"
         return 0
     fi
-    /usr/bin/open "$target_app_path" >/dev/null 2>&1 || log "Discord relaunch failed for $target_app_path"
+    wait_for_app_bundle_ready || return 1
+
+    for attempt in 1 2 3; do
+        betterdiscord_owns_relaunch || return 0
+        refresh_launch_services_registration
+        if open_output="$(/usr/bin/open "$target_app_path" 2>&1)"; then
+            log "Relaunched Discord $target_app_path"
+            return 0
+        fi
+        if [[ -n "$open_output" ]]; then
+            log "Discord open attempt $attempt failed for $target_app_path: $open_output"
+        else
+            log "Discord open attempt $attempt failed for $target_app_path"
+        fi
+        /bin/sleep 1
+    done
+
+    betterdiscord_owns_relaunch || return 0
+    executable_path="$(app_executable_path || true)"
+    if [[ -n "$executable_path" && -x "$executable_path" ]]; then
+        log "Falling back to direct Discord executable launch $executable_path"
+        "$executable_path" >/dev/null 2>&1 &!
+        return 0
+    fi
+
+    log "Discord relaunch failed for $target_app_path"
+    return 1
 }
 
 handoff_or_relaunch_after_failure() {
@@ -374,14 +460,23 @@ if [[ -e "$disabled_path" ]]; then
     exit 0
 fi
 log "Wrapper ready for installation $installation_id"
+relaunch_failed=0
 if matching_openasar_pending; then
     log "Matching OpenAsar handoff detected; OpenAsar owns nested restore and relaunch"
 else
-    relaunch_discord
+    relaunch_discord || relaunch_failed=1
 fi
 recovery_committed=1
-/bin/rm -f "$state_path" "$active_run_path" 2>/dev/null || true
+if owns_active_run; then
+    /bin/rm -f "$state_path" "$active_run_path" 2>/dev/null || true
+else
+    log "A newer BetterDiscord recovery run replaced active state before cleanup"
+fi
 /bin/rm -rf "$run_path" 2>/dev/null || true
+if (( relaunch_failed == 1 )); then
+    log "Wrapper recovery committed, but Discord relaunch did not start"
+    exit 1
+fi
 exit 0
 `;
 }

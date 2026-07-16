@@ -41,7 +41,19 @@ describe("macOS update recovery", () => {
         expect(environment.NODE_OPTIONS).toBeUndefined();
     });
 
-    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false) {
+    test("retries LaunchServices and preserves a direct executable fallback", () => {
+        const helper = macOSRecoveryHelperSource();
+
+        expect(helper).toContain("wait_for_app_bundle_ready");
+        expect(helper).toContain("lsregister\" -f \"$target_app_path");
+        expect(helper).toContain("for attempt in 1 2 3");
+        expect(helper).toContain("open_output=\"$(/usr/bin/open \"$target_app_path\" 2>&1)\"");
+        expect(helper).toContain("betterdiscord_owns_relaunch || return 0");
+        expect(helper).toContain("Falling back to direct Discord executable launch");
+        expect(helper).toContain("Wrapper recovery committed, but Discord relaunch did not start");
+    });
+
+    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" = "missing") {
         if (process.platform !== "darwin") return null;
 
         const bootstrap = path.join(root, "betterdiscord-bootstrap");
@@ -67,6 +79,9 @@ describe("macOS update recovery", () => {
         const installationId = "test-installation";
         const channel = "stable";
         const armedAt = new Date().toISOString();
+        const openAttemptsPath = path.join(root, "open-attempts");
+        const registrationAttemptsPath = path.join(root, "registration-attempts");
+        const directLaunchPath = path.join(root, "direct-launch");
         const marker = {
             schema: 1,
             owner: "betterdiscord",
@@ -101,7 +116,49 @@ describe("macOS update recovery", () => {
                 readyAt: "",
             }, null, 4)}\n`);
         }
-        fs.writeFileSync(helperPath, macOSRecoveryHelperSource());
+        let helperSource = macOSRecoveryHelperSource();
+        if (relaunchMode !== "missing") {
+            const contents = path.join(targetAppPath, "Contents");
+            const executableDirectory = path.join(contents, "MacOS");
+            const executablePath = path.join(executableDirectory, "Discord");
+            const openStubPath = path.join(root, "open-stub.zsh");
+            const registrationStubPath = path.join(root, "lsregister-stub.zsh");
+            const forceFailurePath = path.join(root, "force-open-failure");
+            fs.mkdirSync(executableDirectory, {recursive: true});
+            fs.writeFileSync(path.join(contents, "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleExecutable</key><string>Discord</string></dict></plist>
+`);
+            fs.writeFileSync(executablePath, `#!/usr/bin/env zsh
+root="\${0:A:h:h:h:h}"
+print -r -- launched > "$root/direct-launch"
+`);
+            fs.writeFileSync(openStubPath, `#!/usr/bin/env zsh
+root="\${1:h}"
+count="$(/bin/cat "$root/open-attempts" 2>/dev/null || print 0)"
+count="$((count + 1))"
+print -r -- "$count" > "$root/open-attempts"
+if [[ -e "$root/force-open-failure" || "$count" -lt 3 ]]; then
+    print -u2 -- "kLSNoExecutableErr registration error -10814"
+    exit 1
+fi
+`);
+            fs.writeFileSync(registrationStubPath, `#!/usr/bin/env zsh
+root="\${2:h}"
+count="$(/bin/cat "$root/registration-attempts" 2>/dev/null || print 0)"
+print -r -- "$((count + 1))" > "$root/registration-attempts"
+`);
+            for (const executable of [executablePath, openStubPath, registrationStubPath]) fs.chmodSync(executable, 0o700);
+            if (relaunchMode === "fallback") fs.writeFileSync(forceFailurePath, "fail\n");
+
+            helperSource = helperSource
+                .replace(`/usr/bin/open "$target_app_path"`, `${JSON.stringify(openStubPath)} "$target_app_path"`)
+                .replace(
+                    `local lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"`,
+                    `local lsregister=${JSON.stringify(registrationStubPath)}`,
+                );
+        }
+        fs.writeFileSync(helperPath, helperSource);
         fs.chmodSync(helperPath, 0o700);
         fs.writeFileSync(activeRunPath, `${activeRunId}\n`);
         fs.writeFileSync(logPath, "old human log\n");
@@ -165,7 +222,7 @@ describe("macOS update recovery", () => {
             encoding: "utf8",
             timeout: 10000,
         });
-        return {result, resources, readyPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath};
+        return {result, resources, readyPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath, openAttemptsPath, registrationAttemptsPath, directLaunchPath};
     }
 
     test("recovers without OpenAsar and replaces both logs", () => {
@@ -182,6 +239,33 @@ describe("macOS update recovery", () => {
         expect(JSON.parse(fs.readFileSync(run.shipItRequestPath, "utf8")).launchAfterInstallation).toBe(false);
         expect(fs.existsSync(run.helperPidPath)).toBe(false);
         expect(fs.existsSync(run.activeRunPath)).toBe(false);
+    });
+
+    test("refreshes LaunchServices and retries a transient registration failure", () => {
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "retry");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        expect(fs.readFileSync(run.openAttemptsPath, "utf8").trim()).toBe("3");
+        expect(fs.readFileSync(run.registrationAttemptsPath, "utf8").trim()).toBe("3");
+        const log = fs.readFileSync(run.logPath, "utf8");
+        expect(log).toContain("Discord open attempt 1 failed");
+        expect(log).toContain("registration error -10814");
+        expect(log).toContain("Relaunched Discord");
+        expect(fs.existsSync(run.directLaunchPath)).toBe(false);
+    });
+
+    test("falls back to the resolved Discord executable after bounded open failures", () => {
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "fallback");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        for (let attempt = 0; attempt < 20 && !fs.existsSync(run.directLaunchPath); attempt++) {
+            spawnSync("/bin/sleep", ["0.05"]);
+        }
+        expect(fs.readFileSync(run.openAttemptsPath, "utf8").trim()).toBe("3");
+        expect(fs.existsSync(run.directLaunchPath)).toBe(true);
+        expect(fs.readFileSync(run.logPath, "utf8")).toContain("Falling back to direct Discord executable launch");
     });
 
     test("hands nested restore and relaunch to a matching live OpenAsar helper", () => {
