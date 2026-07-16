@@ -47,7 +47,12 @@ different positive whole-number timeout into a build:
 ```sh
 bun scripts/build.ts --macos-recovery-timeout-seconds 60
 ./local-build.zsh dist --macos-recovery-timeout-seconds 60
+./local-build.zsh -mrts 60
 ```
+
+`-mrts` is a local-wrapper alias for
+`--macos-recovery-timeout-seconds`; the underlying Bun command uses only the
+long option.
 
 `BETTERDISCORD_MACOS_RECOVERY_TIMEOUT_SECONDS` provides the same build-time
 setting for GitHub Actions. OpenAsar adds its own short coordination grace
@@ -228,7 +233,7 @@ This is a small wrapper around the repo build and pack commands. It is not inter
 Usage:
 
 ```sh
-./local-build.zsh [build|production|pack|dist] [extra args...]
+./local-build.zsh [build|production|pack|dist] [options]
 ```
 
 Examples:
@@ -239,9 +244,14 @@ Examples:
 ./local-build.zsh production
 ./local-build.zsh pack
 ./local-build.zsh dist
+./local-build.zsh --help
+./local-build.zsh -mrts 60
 ./local-build.zsh --macos-recovery-timeout-seconds 60
 ./local-build.zsh dist --macos-recovery-timeout-seconds 60
 ```
+
+The timeout option can come first; the wrapper then uses its default `dist`
+mode. `-mrts` is the short alias for the long timeout option.
 
 What each mode does:
 
