@@ -40,6 +40,32 @@ const BRANCH_NAME = Bun.env.BRANCH_NAME ?? readGitValue("symbolic-ref", "--short
 const COMMIT_HASH = Bun.env.COMMIT_HASH ?? readGitValue("rev-parse", "--short", "HEAD");
 const DEVELOPMENT = Bun.env.NODE_ENV ?? "development";
 
+function readPositiveIntegerOption(argument: string, environmentVariable: string, fallback: number) {
+    const inlinePrefix = `${argument}=`;
+    const inlineArgument = process.argv.find(value => value.startsWith(inlinePrefix));
+    const argumentIndex = process.argv.indexOf(argument);
+    if (inlineArgument === inlinePrefix || (argumentIndex !== -1 && process.argv[argumentIndex + 1] == null)) {
+        throw new Error(`${argument} requires a value`);
+    }
+    const argumentValue = inlineArgument?.slice(inlinePrefix.length)
+        ?? (argumentIndex === -1 ? undefined : process.argv[argumentIndex + 1]);
+    const rawValue = argumentValue ?? Bun.env[environmentVariable] ?? String(fallback);
+
+    if (!/^[1-9]\d*$/.test(rawValue)) {
+        throw new Error(`${argument} must be a positive integer`);
+    }
+
+    const value = Number(rawValue);
+    if (!Number.isSafeInteger(value)) throw new Error(`${argument} is too large`);
+    return value;
+}
+
+const MACOS_RECOVERY_TIMEOUT_SECONDS = readPositiveIntegerOption(
+    "--macos-recovery-timeout-seconds",
+    "BETTERDISCORD_MACOS_RECOVERY_TIMEOUT_SECONDS",
+    90,
+);
+
 interface EntryPoint {
     in: string;
     out: string;
@@ -88,7 +114,8 @@ function buildOptions() {
             "process.env.__MONACO_VERSION__": JSON.stringify(pkg.dependencies["monaco-editor"]),
             "process.env.__BRANCH__": JSON.stringify(BRANCH_NAME),
             "process.env.__COMMIT__": JSON.stringify(COMMIT_HASH),
-            "process.env.__BUILD__": JSON.stringify(DEVELOPMENT)
+            "process.env.__BUILD__": JSON.stringify(DEVELOPMENT),
+            "process.env.__MACOS_RECOVERY_TIMEOUT_SECONDS__": JSON.stringify(MACOS_RECOVERY_TIMEOUT_SECONDS)
         }
     } satisfies esbuild.BuildOptions;
 }
@@ -115,6 +142,7 @@ async function runBuild() {
     console.log(`Version: ${pkg.version}`);
     console.log(`Branch:  ${BRANCH_NAME}`);
     console.log(`Commit:  ${COMMIT_HASH}`);
+    console.log(`macOS recovery timeout: ${MACOS_RECOVERY_TIMEOUT_SECONDS}s`);
     console.log("");
 }
 

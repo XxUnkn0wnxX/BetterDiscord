@@ -53,6 +53,12 @@ describe("macOS update recovery", () => {
         expect(helper).toContain("Wrapper recovery committed, but Discord relaunch did not start");
     });
 
+    test("uses the configured recovery timeout without changing its default", () => {
+        expect(macOSRecoveryHelperSource()).toContain('deadline="$((SECONDS + 90))"');
+        expect(macOSRecoveryHelperSource(7)).toContain('deadline="$((SECONDS + 7))"');
+        expect(() => macOSRecoveryHelperSource(0)).toThrow("macOS recovery timeout must be a positive integer");
+    });
+
     function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" | "term-before-publish" | "term-after-publish" = "missing", restartRequested = false, openAsarGeneration: "match" | "late-match" | "handoff-mismatch" | "source-mismatch" = "match") {
         if (process.platform !== "darwin") return null;
 
@@ -139,7 +145,7 @@ describe("macOS update recovery", () => {
         }
         let helperSource = macOSRecoveryHelperSource();
         if (relaunchMode === "timeout") {
-            helperSource = helperSource.replace(`deadline="$((SECONDS + 90))"`, `deadline="$((SECONDS + 1))"`);
+            helperSource = macOSRecoveryHelperSource(1);
         }
         if (relaunchMode === "term-before-publish") {
             helperSource = helperSource.replace(

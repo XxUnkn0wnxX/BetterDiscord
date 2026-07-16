@@ -10,7 +10,13 @@ export function getMacOSRecoveryEnvironment(source: NodeJS.ProcessEnv = process.
     return environment;
 }
 
-export function macOSRecoveryHelperSource(): string {
+const MACOS_RECOVERY_TIMEOUT_SECONDS = Number(process.env.__MACOS_RECOVERY_TIMEOUT_SECONDS__ ?? 90);
+
+export function macOSRecoveryHelperSource(recoveryTimeoutSeconds = MACOS_RECOVERY_TIMEOUT_SECONDS): string {
+    if (!Number.isSafeInteger(recoveryTimeoutSeconds) || recoveryTimeoutSeconds < 1) {
+        throw new Error("macOS recovery timeout must be a positive integer");
+    }
+
     return String.raw`#!/usr/bin/env -S zsh -f
 emulate -LR zsh
 set -u
@@ -488,7 +494,7 @@ patch_shipit_request
 
 last_size=""
 stable_polls=0
-deadline="$((SECONDS + 90))"
+deadline="$((SECONDS + ${recoveryTimeoutSeconds}))"
 while (( SECONDS < deadline )); do
     owns_active_run || exit 0
     if [[ -e "$disabled_path" ]]; then

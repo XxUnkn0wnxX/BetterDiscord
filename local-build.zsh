@@ -26,6 +26,7 @@ case "$mode" in
         ;;
     *)
         echo "Usage: ./local-build.zsh [build|production|pack|dist] [extra args...]"
+        echo "Build option: --macos-recovery-timeout-seconds <seconds> (default: 90)"
         exit 1
         ;;
 esac

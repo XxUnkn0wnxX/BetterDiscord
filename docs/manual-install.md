@@ -41,6 +41,18 @@ You can pass extra build arguments when needed, for example:
 bun scripts/build.ts --module=betterdiscord
 ```
 
+The macOS recovery helper waits up to 90 seconds by default. To stamp a
+different positive whole-number timeout into a build:
+
+```sh
+bun scripts/build.ts --macos-recovery-timeout-seconds 60
+./local-build.zsh dist --macos-recovery-timeout-seconds 60
+```
+
+`BETTERDISCORD_MACOS_RECOVERY_TIMEOUT_SECONDS` provides the same build-time
+setting for GitHub Actions. OpenAsar adds its own short coordination grace
+when it is waiting for BetterDiscord, so matching configured values are safe.
+
 ### Production Build
 
 Build the minified production output in `dist/`:
@@ -225,6 +237,7 @@ Examples:
 ./local-build.zsh production
 ./local-build.zsh pack
 ./local-build.zsh dist
+./local-build.zsh dist --macos-recovery-timeout-seconds 60
 ```
 
 What each mode does:
