@@ -20,8 +20,9 @@ describe("app wrapper injection", () => {
         const payload = Buffer.from("openasar fixture");
         fs.writeFileSync(path.join(resources, "app.asar"), payload);
 
-        const marker = wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/tmp/betterdiscord.asar"});
+        const marker = wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/fixture/betterdiscord.asar"});
 
+        expect(marker.helperRuntime).toBeUndefined();
         expect(fs.existsSync(path.join(resources, "app.asar"))).toBe(false);
         expect(fs.readFileSync(path.join(resources, "betterdiscord.app.asar"))).toEqual(payload);
         expect(fs.readFileSync(path.join(resources, "app", "index.js"), "utf8")).toContain(loaderMarker);
@@ -35,18 +36,30 @@ describe("app wrapper injection", () => {
 
     test("reinjection is idempotent and retains its installation ID", () => {
         fs.writeFileSync(path.join(resources, "app.asar"), "payload");
-        const first = wrapInjection({resources, channel: "ptb", mode: "dev", bdPath: "/tmp/dist"});
-        const second = wrapInjection({resources, channel: "ptb", mode: "release", bdPath: "/tmp/betterdiscord.asar"});
+        const first = wrapInjection({resources, channel: "ptb", mode: "dev", bdPath: "/fixture/dist"});
+        const second = wrapInjection({resources, channel: "ptb", mode: "release", bdPath: "/fixture/betterdiscord.asar"});
 
         expect(second.installationId).toBe(first.installationId);
         expect(second.mode).toBe("release");
-        expect(fs.readFileSync(path.join(resources, "app", "index.js"), "utf8")).toContain("/tmp/betterdiscord.asar");
+        expect(fs.readFileSync(path.join(resources, "app", "index.js"), "utf8")).toContain("/fixture/betterdiscord.asar");
         expect(inspectInjection(resources).kind).toBe("wrapped");
+    });
+
+    test("accepts a legacy Bun runtime marker but removes it on reinjection", () => {
+        fs.writeFileSync(path.join(resources, "app.asar"), "payload");
+        const marker = wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/fixture/betterdiscord.asar"});
+        const markerPath = path.join(resources, "app", markerFilename);
+        fs.writeFileSync(markerPath, `${JSON.stringify({...marker, helperRuntime: "/old/bun"}, null, 4)}\n`);
+
+        expect(inspectInjection(resources).kind).toBe("wrapped");
+        const updated = wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/fixture/betterdiscord.asar"});
+        expect(updated.helperRuntime).toBeUndefined();
+        expect(JSON.parse(fs.readFileSync(markerPath, "utf8")).helperRuntime).toBeUndefined();
     });
 
     test("dry-run performs no writes", () => {
         fs.writeFileSync(path.join(resources, "app.asar"), "payload");
-        wrapInjection({resources, channel: "canary", mode: "release", bdPath: "/tmp/betterdiscord.asar", dryRun: true});
+        wrapInjection({resources, channel: "canary", mode: "release", bdPath: "/fixture/betterdiscord.asar", dryRun: true});
 
         expect(fs.readFileSync(path.join(resources, "app.asar"), "utf8")).toBe("payload");
         expect(fs.existsSync(path.join(resources, "app"))).toBe(false);
@@ -56,7 +69,7 @@ describe("app wrapper injection", () => {
     test("refuses dual and foreign layouts", () => {
         fs.writeFileSync(path.join(resources, "app.asar"), "payload");
         fs.mkdirSync(path.join(resources, "app"));
-        expect(() => wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/tmp/betterdiscord.asar"})).toThrow("both Resources/app.asar and Resources/app exist");
+        expect(() => wrapInjection({resources, channel: "stable", mode: "release", bdPath: "/fixture/betterdiscord.asar"})).toThrow("both Resources/app.asar and Resources/app exist");
 
         fs.rmSync(path.join(resources, "app.asar"));
         fs.writeFileSync(path.join(resources, "betterdiscord.app.asar"), "payload");

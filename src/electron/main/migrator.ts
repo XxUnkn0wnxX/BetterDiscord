@@ -1,14 +1,17 @@
 import {app} from "electron";
 import fs from "fs";
 import path from "path";
-import {spawn} from "child_process";
+import {randomUUID} from "crypto";
+import {execFileSync, spawn} from "child_process";
 
-import {comparator} from "@common/semver";
+import {findLatestDiscordResources, parseDiscordVersionDirectory} from "@common/discordResources";
+import {getMacOSRecoveryEnvironment, macOSRecoveryHelperSource} from "./macosrecovery";
+
 
 const markerFilename = ".betterdiscord-inject.json";
 const loaderMarker = "__betterdiscord_inject_meta__";
 const wrappedAsarFilename = "betterdiscord.app.asar";
-const helperFilename = "betterdiscord-update-helper.js";
+const helperFilename = "betterdiscord-update-helper.zsh";
 // OpenAsar adjusts process.resourcesPath during its own bootstrap. Preserve the
 // real Electron host Resources directory before any wrapped payload can do so.
 const hostResourcesPath = process.resourcesPath;
@@ -43,6 +46,13 @@ interface MacRecoveryState {
     openAsarPendingPath: string;
     openAsarHelperPath: string;
     openAsarHelperPidPath: string;
+    snapshotPath: string;
+    readyTemplatePath: string;
+    shipItRequestPath: string;
+    helperPidPath: string;
+    activeRunPath: string;
+    runId: string;
+    stoppedHelperPids: number[];
 }
 
 function readJson(target: string): unknown {
@@ -68,16 +78,20 @@ function isMarker(value: unknown): value is InjectionMarker {
 }
 
 function readCurrentMarker(): InjectionMarker | null {
-    const resources = hostResourcesPath;
-    const appDirectory = path.join(resources, "app");
+    const appDirectory = path.join(hostResourcesPath, "app");
     const marker = readJson(path.join(appDirectory, markerFilename));
     if (!isMarker(marker)) return null;
-    if (!fs.existsSync(path.join(resources, wrappedAsarFilename))) return null;
+    if (!fs.existsSync(path.join(hostResourcesPath, wrappedAsarFilename))) return null;
     const indexPath = path.join(appDirectory, "index.js");
     if (!fs.existsSync(indexPath)) return null;
     const index = fs.readFileSync(indexPath, "utf8");
     if (!index.includes(loaderMarker) || !index.includes(marker.payload)) return null;
-    return marker;
+
+    // Old fork markers recorded Bun here. Continue accepting those markers, but
+    // never execute or preserve the developer runtime in installed recovery.
+    const normalized = {...marker};
+    delete normalized.helperRuntime;
+    return normalized;
 }
 
 function appendLog(logPath: string, message: string) {
@@ -88,10 +102,107 @@ function appendLog(logPath: string, message: string) {
     catch {/* Logging must never break Discord startup. */}
 }
 
+function replaceLog(logPath: string, message: string) {
+    try {
+        fs.mkdirSync(path.dirname(logPath), {recursive: true});
+        fs.writeFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`);
+    }
+    catch {/* Logging must never break Discord startup. */}
+}
+
 function atomicJson(target: string, value: unknown) {
     const temporary = `${target}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, `${JSON.stringify(value, null, 4)}\n`);
     fs.renameSync(temporary, target);
+}
+
+function atomicText(target: string, value: string) {
+    const temporary = `${target}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, value);
+    fs.renameSync(temporary, target);
+}
+
+interface MacHelperProcess {
+    pid: number;
+    pgid: number;
+    command: string;
+}
+
+function listMacHelperProcesses(): MacHelperProcess[] {
+    let processes = "";
+    try {processes = execFileSync("/bin/ps", ["-axo", "pid=,pgid=,command="], {encoding: "utf8"});}
+    catch {return [];}
+
+    const parsed: MacHelperProcess[] = [];
+    for (const line of processes.split("\n")) {
+        const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+        if (!match) continue;
+        parsed.push({pid: Number(match[1]), pgid: Number(match[2]), command: match[3]});
+    }
+    return parsed;
+}
+
+function isOwnedMacHelper(candidate: MacHelperProcess, bootstrap: string): boolean {
+    const helperPath = path.join(bootstrap, helperFilename);
+    const commandPrefixes = [
+        `zsh -f ${helperPath} `,
+        `/bin/zsh -f ${helperPath} `,
+        `/usr/bin/zsh -f ${helperPath} `,
+        `/usr/bin/env zsh -f ${helperPath} `,
+    ];
+    return candidate.pid > 0
+        && candidate.pid !== process.pid
+        && candidate.pgid === candidate.pid
+        && commandPrefixes.some(prefix => candidate.command.startsWith(prefix));
+}
+
+function macHelperIsRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    }
+    catch {return false;}
+}
+
+function waitForMacHelperExit(pid: number): boolean {
+    for (let attempt = 0; attempt < 20; attempt++) {
+        if (!macHelperIsRunning(pid)) return true;
+        execFileSync("/bin/sleep", ["0.1"]);
+    }
+    return !macHelperIsRunning(pid);
+}
+
+function stopExistingMacHelpers(bootstrap: string, helperPidPath: string): number[] {
+    const stopped: number[] = [];
+    let recordedPid = 0;
+    try {
+        if (fs.lstatSync(helperPidPath).isSymbolicLink()) return stopped;
+        const rawPid = fs.readFileSync(helperPidPath, "utf8").trim();
+        if (/^\d+$/.test(rawPid)) recordedPid = Number(rawPid);
+    }
+    catch {return stopped;}
+    if (!Number.isInteger(recordedPid) || recordedPid <= 0) return stopped;
+
+    const helper = listMacHelperProcesses().find(candidate => candidate.pid === recordedPid);
+    if (!helper || !isOwnedMacHelper(helper, bootstrap)) return stopped;
+    try {
+        // The detached helper is its process-group leader. Signal the whole
+        // PID-file-correlated group so foreground commands cannot outlive it.
+        process.kill(-helper.pid, "SIGTERM");
+        stopped.push(helper.pid);
+    }
+    catch {return stopped;}
+
+    if (waitForMacHelperExit(helper.pid)) return stopped;
+    const current = listMacHelperProcesses().find(candidate => candidate.pid === helper.pid);
+    if (!current || !isOwnedMacHelper(current, bootstrap)) return stopped;
+    try {
+        process.kill(-helper.pid, "SIGKILL");
+        waitForMacHelperExit(helper.pid);
+    }
+    catch {/* The validated process group can finish before the fallback. */}
+
+    return stopped;
 }
 
 function writeWrapper(resources: string, marker: InjectionMarker) {
@@ -124,161 +235,32 @@ function migrateVersionDirectory() {
     if (!marker) return;
 
     const logPath = path.join(app.getPath("userData"), "betterdiscord-bootstrap", "updater.log");
+    replaceLog(logPath, "Version-directory recovery started");
     try {
         const currentBase = path.dirname(process.execPath);
         const currentVersionName = path.basename(currentBase);
-        if (!currentVersionName.startsWith("app-")) return appendLog(logPath, `Skipping migration: ${currentVersionName} is not an app-* directory`);
+        const currentVersion = parseDiscordVersionDirectory(currentVersionName);
+        if (!currentVersion) return appendLog(logPath, `Skipping migration: ${currentVersionName} is not an app-* or version directory`);
 
         const discordPath = path.dirname(currentBase);
-        const versions = fs.readdirSync(discordPath)
-            .filter(item => item.startsWith("app-") && fs.statSync(path.join(discordPath, item)).isDirectory())
-            .map(item => item.slice(4));
-        if (!versions.length) return appendLog(logPath, "Skipping migration: no app-* directories exist");
+        const latest = findLatestDiscordResources(discordPath);
+        if (!latest) return appendLog(logPath, "Skipping migration: no app-* or version directory has a modern Discord application payload");
 
-        const latestVersion = versions.reduce((current, candidate) => comparator(current, candidate) === 1 ? candidate : current);
-        const currentVersion = currentVersionName.slice(4);
-        appendLog(logPath, `Current version is ${currentVersion}; latest is ${latestVersion}`);
-        if (latestVersion === currentVersion) return;
+        appendLog(logPath, `Current directory is ${currentVersionName}; latest usable directory is ${latest.directoryName}`);
+        if (path.resolve(latest.directoryPath) === path.resolve(currentBase)) return;
 
-        const resources = path.join(discordPath, `app-${latestVersion}`, "resources");
+        const resources = latest.resourcesPath;
         const existing = readJson(path.join(resources, "app", markerFilename));
         if (isMarker(existing) && existing.installationId === marker.installationId && fs.existsSync(path.join(resources, wrappedAsarFilename))) {
             return appendLog(logPath, "Target version already has the matching BetterDiscord wrapper");
         }
 
         writeWrapper(resources, marker);
-        appendLog(logPath, `Wrapped app-${latestVersion} successfully`);
+        appendLog(logPath, `Wrapped ${latest.directoryName} successfully`);
     }
     catch (error) {
         appendLog(logPath, `Migration failed: ${String(error)}`);
     }
-}
-
-function macHelperSource(): string {
-    return String.raw`"use strict";
-const fs = require("fs");
-const path = require("path");
-const {spawn, execFileSync} = require("child_process");
-
-const statePath = process.argv[2];
-const readJson = (target) => { try { return JSON.parse(fs.readFileSync(target, "utf8")); } catch { return null; } };
-const state = readJson(statePath);
-if (!state || state.schema !== 1 || state.pending !== true || state.owner !== "betterdiscord") process.exit(0);
-
-const log = (message) => {
-    try { fs.appendFileSync(state.logPath, "[" + new Date().toISOString() + "] " + message + "\n"); } catch {}
-};
-const finish = (code) => { clearInterval(timer); process.exit(code); };
-const atomicJson = (target, value) => {
-    const temporary = target + "." + process.pid + ".tmp";
-    fs.writeFileSync(temporary, JSON.stringify(value, null, 4) + "\n");
-    fs.renameSync(temporary, target);
-};
-const openAsarHelperIsLive = (pending) => {
-    const helperPid = Number(pending.helperPid);
-    if (!Number.isInteger(helperPid) || helperPid <= 0) return false;
-    if (path.resolve(pending.helperPath || "") !== path.resolve(state.openAsarHelperPath)) return false;
-    if (path.resolve(pending.helperPidPath || "") !== path.resolve(state.openAsarHelperPidPath)) return false;
-
-    let recordedPid;
-    try { recordedPid = Number(fs.readFileSync(state.openAsarHelperPidPath, "utf8").trim()); }
-    catch { return false; }
-    if (recordedPid !== helperPid) return false;
-
-    try {
-        process.kill(helperPid, 0);
-        const command = execFileSync("/bin/ps", ["-p", String(helperPid), "-o", "command="], {encoding: "utf8"}).trim();
-        return command.includes(state.openAsarHelperPath) && command.includes(state.openAsarHelperPidPath);
-    }
-    catch { return false; }
-};
-const matchingOpenAsarPending = () => {
-    const pending = readJson(state.openAsarPendingPath);
-    if (!pending || pending.pending !== true || pending.betterDiscordExpected !== true) return false;
-    const expectedId = pending.expectedInstallationId || pending.installationId;
-    const expectedApp = pending.appPath || pending.targetAppPath || pending.expectedTargetAppPath;
-    const pendingArmedAt = Date.parse(pending.armedAt || pending.createdAt || "");
-    const now = Date.now();
-    return pending.schema === 1
-        && pending.owner === "betterdiscord"
-        && pending.style === "app-wrapper"
-        && pending.channel === state.marker.channel
-        && expectedId === state.installationId
-        && path.resolve(expectedApp || "") === path.resolve(state.targetAppPath)
-        && path.resolve(pending.nestedTarget || "") === path.resolve(state.nestedTarget)
-        && Number.isFinite(pendingArmedAt)
-        && pendingArmedAt <= now + 10000
-        && now - pendingArmedAt <= 300000
-        && openAsarHelperIsLive(pending);
-};
-const relaunch = () => {
-    log("No matching OpenAsar handoff; BetterDiscord owns relaunch");
-    const child = spawn("/usr/bin/open", [state.targetAppPath], {detached: true, stdio: "ignore"});
-    child.unref();
-};
-
-let lastSize = -1;
-let stablePolls = 0;
-const deadline = Date.now() + 90000;
-const timer = setInterval(() => {
-    if (fs.existsSync(state.disabledPath)) {
-        log("Recovery disabled by deliberate uninject; exiting");
-        return finish(0);
-    }
-    if (Date.now() > deadline) {
-        log("Timed out waiting for a fresh Discord app.asar");
-        return finish(0);
-    }
-
-    const appAsar = path.join(state.resourcesPath, "app.asar");
-    let size;
-    try { size = fs.statSync(appAsar).size; } catch { stablePolls = 0; lastSize = -1; return; }
-    if (size <= 0 || size !== lastSize) { lastSize = size; stablePolls = 0; return; }
-    if (++stablePolls < 3) return;
-
-    const wrappedAsar = state.nestedTarget;
-    const appDirectory = path.join(state.resourcesPath, "app");
-    const staged = path.join(state.resourcesPath, ".betterdiscord-app-helper-" + process.pid);
-    let moved = false;
-    try {
-        if (fs.existsSync(appDirectory) || fs.existsSync(wrappedAsar)) throw new Error("fresh resources layout is ambiguous");
-        fs.renameSync(appAsar, wrappedAsar);
-        moved = true;
-        fs.mkdirSync(staged);
-        fs.writeFileSync(path.join(staged, "index.js"), "// __betterdiscord_inject_meta__\nrequire(" + JSON.stringify(state.marker.bdPath) + ");\nmodule.exports = require(" + JSON.stringify(state.marker.payload) + ");\n");
-        fs.writeFileSync(path.join(staged, "package.json"), JSON.stringify({name: "discord", main: "./index.js"}, null, 4) + "\n");
-        fs.writeFileSync(path.join(staged, ".betterdiscord-inject.json"), JSON.stringify(state.marker, null, 4) + "\n");
-        fs.renameSync(staged, appDirectory);
-
-        const readyAt = new Date().toISOString();
-        atomicJson(state.readyPath, {
-            schema: 1,
-            owner: "betterdiscord",
-            style: "app-wrapper",
-            channel: state.marker.channel,
-            installationId: state.installationId,
-            appPath: state.targetAppPath,
-            targetAppPath: state.targetAppPath,
-            nestedTarget: state.nestedTarget,
-            armedAt: state.armedAt,
-            readyAt
-        });
-        fs.rmSync(statePath, {force: true});
-        log("Wrapper ready for installation " + state.installationId);
-        if (matchingOpenAsarPending()) log("Matching OpenAsar handoff detected; OpenAsar owns relaunch");
-        else relaunch();
-        finish(0);
-    }
-    catch (error) {
-        fs.rmSync(staged, {recursive: true, force: true});
-        if (moved && !fs.existsSync(appAsar) && fs.existsSync(wrappedAsar)) {
-            try { fs.renameSync(wrappedAsar, appAsar); } catch {}
-        }
-        log("Wrapper recovery failed: " + String(error));
-        finish(1);
-    }
-}, 250);
-`;
 }
 
 let macHelperArmed = false;
@@ -289,11 +271,13 @@ function initializeMacBootstrap() {
     const logPath = path.join(bootstrap, "betterdiscord-bootstrap.log");
     try {
         fs.mkdirSync(bootstrap, {recursive: true});
-        fs.writeFileSync(path.join(bootstrap, helperFilename), macHelperSource());
-        appendLog(logPath, "Bootstrap helper refreshed");
+        const helperPath = path.join(bootstrap, helperFilename);
+        fs.rmSync(path.join(bootstrap, "betterdiscord-update-helper.js"), {force: true});
+        fs.writeFileSync(helperPath, macOSRecoveryHelperSource());
+        fs.chmodSync(helperPath, 0o700);
     }
     catch (error) {
-        appendLog(logPath, `Bootstrap initialization failed: ${String(error)}`);
+        replaceLog(logPath, `Bootstrap initialization failed: ${String(error)}`);
     }
 }
 
@@ -304,16 +288,33 @@ function armMacRecovery() {
     const marker = readCurrentMarker();
     if (!marker) return;
 
-    const bootstrap = path.join(app.getPath("userData"), "betterdiscord-bootstrap");
+    const userData = app.getPath("userData");
+    const bootstrap = path.join(userData, "betterdiscord-bootstrap");
     const disabledPath = path.join(bootstrap, "recovery-disabled");
     const logPath = path.join(bootstrap, "betterdiscord-bootstrap.log");
-    if (fs.existsSync(disabledPath)) return appendLog(logPath, "Recovery is disabled; helper not armed");
+    const consoleLogPath = path.join(bootstrap, "betterdiscord-bootstrap-console.log");
+    if (fs.existsSync(disabledPath)) {
+        try {fs.writeFileSync(consoleLogPath, "");}
+        catch {/* Logging must never break Discord shutdown. */}
+        return replaceLog(logPath, "Recovery is disabled; helper not armed");
+    }
 
     try {
         fs.mkdirSync(bootstrap, {recursive: true});
+        fs.writeFileSync(logPath, "");
+        fs.writeFileSync(consoleLogPath, "");
         const targetAppPath = path.resolve(hostResourcesPath, "..", "..");
         const statePath = path.join(bootstrap, "update-pending.json");
         const readyPath = path.join(bootstrap, "wrapper-ready.json");
+        const helperPath = path.join(bootstrap, helperFilename);
+        const helperPidPath = path.join(bootstrap, "betterdiscord-update-helper.pid");
+        const activeRunPath = path.join(bootstrap, "active-run");
+        const runId = randomUUID();
+        const runPath = path.join(bootstrap, "recovery-runs", runId);
+        const snapshotPath = path.join(runPath, "wrapper");
+        const readyTemplatePath = path.join(runPath, "wrapper-ready-template.json");
+        const armedAt = new Date().toISOString();
+        const stoppedHelperPids = stopExistingMacHelpers(bootstrap, helperPidPath);
         const state: MacRecoveryState = {
             schema: 1,
             pending: true,
@@ -323,30 +324,79 @@ function armMacRecovery() {
             targetAppPath,
             resourcesPath: hostResourcesPath,
             nestedTarget: path.join(hostResourcesPath, wrappedAsarFilename),
-            armedAt: new Date().toISOString(),
+            armedAt,
             marker,
             readyPath,
             disabledPath,
             logPath,
-            openAsarPendingPath: path.join(app.getPath("userData"), "openasar-bootstrap", "post-shipit-update-pending.json"),
-            openAsarHelperPath: path.join(app.getPath("userData"), "openasar-bootstrap", "post-shipit-helper.zsh"),
-            openAsarHelperPidPath: path.join(app.getPath("userData"), "openasar-bootstrap", "post-shipit-helper.pid"),
+            openAsarPendingPath: path.join(userData, "openasar-bootstrap", "post-shipit-update-pending.json"),
+            openAsarHelperPath: path.join(userData, "openasar-bootstrap", "post-shipit-helper.zsh"),
+            openAsarHelperPidPath: path.join(userData, "openasar-bootstrap", "post-shipit-helper.pid"),
+            snapshotPath,
+            readyTemplatePath,
+            shipItRequestPath: path.join(userData, "ShipIt_request.json"),
+            helperPidPath,
+            activeRunPath,
+            runId,
+            stoppedHelperPids,
         };
 
         fs.rmSync(readyPath, {force: true});
+        fs.mkdirSync(snapshotPath, {recursive: true});
+        fs.writeFileSync(path.join(snapshotPath, "index.js"), `// ${loaderMarker}\nrequire(${JSON.stringify(marker.bdPath)});\nmodule.exports = require(${JSON.stringify(marker.payload)});\n`);
+        fs.writeFileSync(path.join(snapshotPath, "package.json"), `${JSON.stringify({name: "discord", main: "./index.js"}, null, 4)}\n`);
+        fs.writeFileSync(path.join(snapshotPath, markerFilename), `${JSON.stringify(marker, null, 4)}\n`);
+        atomicJson(readyTemplatePath, {
+            schema: 1,
+            owner: "betterdiscord",
+            style: "app-wrapper",
+            channel: marker.channel,
+            installationId: marker.installationId,
+            appPath: targetAppPath,
+            targetAppPath,
+            nestedTarget: state.nestedTarget,
+            armedAt,
+            readyAt: "",
+        });
         atomicJson(statePath, state);
-        fs.writeFileSync(path.join(bootstrap, helperFilename), macHelperSource());
-        const helperRuntime = marker.helperRuntime && fs.existsSync(marker.helperRuntime) ? marker.helperRuntime : process.execPath;
-        const child = spawn(helperRuntime, [path.join(bootstrap, helperFilename), statePath], {
+        fs.writeFileSync(helperPath, macOSRecoveryHelperSource());
+        fs.chmodSync(helperPath, 0o700);
+        atomicText(activeRunPath, `${runId}\n`);
+
+        const child = spawn("/usr/bin/env", [
+            "zsh",
+            "-f",
+            helperPath,
+            statePath,
+            state.resourcesPath,
+            state.nestedTarget,
+            state.targetAppPath,
+            state.snapshotPath,
+            state.readyTemplatePath,
+            state.readyPath,
+            state.disabledPath,
+            state.logPath,
+            state.openAsarPendingPath,
+            state.openAsarHelperPath,
+            state.openAsarHelperPidPath,
+            state.installationId,
+            marker.channel,
+            state.armedAt,
+            state.shipItRequestPath,
+            state.helperPidPath,
+            state.activeRunPath,
+            state.runId,
+            state.stoppedHelperPids.length > 0 ? state.stoppedHelperPids.join(",") : "none",
+        ], {
             detached: true,
             stdio: "ignore",
-            env: helperRuntime === process.execPath ? {...process.env, ELECTRON_RUN_AS_NODE: "1"} : process.env,
+            env: getMacOSRecoveryEnvironment(),
         });
+        child.once("error", error => appendLog(logPath, `Recovery helper failed to start: ${String(error)}`));
         child.unref();
-        appendLog(logPath, `Recovery armed for installation ${marker.installationId}`);
     }
     catch (error) {
-        appendLog(logPath, `Failed to arm recovery: ${String(error)}`);
+        replaceLog(logPath, `Failed to arm recovery: ${String(error)}`);
     }
 }
 

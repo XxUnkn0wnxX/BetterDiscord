@@ -35,7 +35,6 @@ export interface InjectionOptions {
     channel: InjectionChannel;
     mode: InjectionMode;
     bdPath: string;
-    helperRuntime?: string;
     dryRun?: boolean;
     log?: (message: string) => void;
 }
@@ -169,7 +168,6 @@ export function wrapInjection(options: InjectionOptions): InjectionMarker {
         loader: "index.js",
         payload: layout.payload,
         bdPath: options.bdPath,
-        helperRuntime: options.helperRuntime,
         installationId: layout.kind === "wrapped" ? layout.marker.installationId : randomUUID(),
     };
 

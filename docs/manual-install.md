@@ -80,6 +80,43 @@ an owned `Contents/Resources/app/` loader that starts BetterDiscord before the
 renamed payload. If the existing payload is OpenAsar, it remains the payload
 behind BetterDiscord.
 
+Bun is only used for development tooling: dependency installation, building,
+packing, and manually running the inject/uninject scripts. Installed update
+recovery does not call Bun.
+
+On Windows and Linux, the injector, uninjector, and update migrator recognize
+both `app-X.Y.Z` and plain `X.Y.Z` version directories. They select the newest
+directory containing the modern `resources/app.asar` or application-wrapper
+layout. Old `discord_desktop_core`-only directories are deliberately ignored.
+
+### macOS Update Recovery
+
+On macOS, Discord's Electron main process prepares a detached recovery helper
+inside the selected channel's `betterdiscord-bootstrap` folder. The helper uses
+the macOS-provided Zsh through `/usr/bin/env zsh -f` with a fixed system `PATH`;
+it does not load `.zshrc`, Oh My Zsh, custom shell paths, Bun, or a separately
+installed Node runtime.
+
+For each recovery run, BetterDiscord replaces these logs instead of appending
+to older runs:
+
+- `betterdiscord-bootstrap/betterdiscord-bootstrap.log` — concise recovery and handoff events
+- `betterdiscord-bootstrap/betterdiscord-bootstrap-console.log` — detailed Zsh execution trace
+
+The active helper records its process-group-owning parent in
+`betterdiscord-bootstrap/betterdiscord-update-helper.pid`. A validated `TERM`
+to that PID stops the helper and any helper child processes before removing the
+PID file. Each run also has a unique recovery ID, so an older helper cannot
+overwrite current state or logs.
+
+The helper disables ShipIt's early relaunch, waits for the replacement
+`app.asar` to stabilize, rebuilds the BetterDiscord wrapper, and writes
+`wrapper-ready.json`. If a matching live OpenAsar handoff is detected,
+BetterDiscord lets OpenAsar restore `betterdiscord.app.asar` and relaunch the
+client. Without a matching OpenAsar helper, BetterDiscord owns the relaunch.
+Deliberate uninject still disables this recovery before restoring the wrapped
+payload.
+
 ### macOS Discord Install Manager And OpenAsar Order
 
 The Discord install manager described here is macOS-only.

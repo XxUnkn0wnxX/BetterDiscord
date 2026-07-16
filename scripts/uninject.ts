@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import bun from "bun";
+import {execFileSync} from "child_process";
 
-import {comparator} from "../src/common/semver";
+import {findLatestDiscordResources} from "../src/common/discordResources";
 import {inspectInjection, unwrapInjection, type InjectionChannel} from "./helpers/injection";
 
 const rawArgs = process.argv.slice(2);
@@ -22,14 +23,6 @@ if (requestedMode !== "auto" && requestedMode !== "release" && requestedMode !==
 const release = channel === "canary" ? "Discord Canary" : channel === "ptb" ? "Discord PTB" : "Discord";
 const releaseDirectory = channel === "canary" ? "discordcanary" : channel === "ptb" ? "discordptb" : "discord";
 
-function latestVersionDirectory(basedir: string): string {
-    const versions = fs.readdirSync(basedir)
-        .filter(item => item.startsWith("app-") && fs.statSync(path.join(basedir, item)).isDirectory())
-        .map(item => item.slice(4));
-    if (!versions.length) throw new Error(`No app-* directory exists in ${basedir}`);
-    return versions.reduce((current, candidate) => comparator(current, candidate) === 1 ? candidate : current);
-}
-
 const resources = await (async function resolveResources() {
     if (process.platform === "darwin") return path.join(path.sep, "Applications", `${release}.app`, "Contents", "Resources");
 
@@ -47,7 +40,9 @@ const resources = await (async function resolveResources() {
     }
 
     if (!fs.existsSync(basedir)) throw new Error(`No ${release} install at ${basedir}`);
-    return path.join(basedir, `app-${latestVersionDirectory(basedir)}`, "resources");
+    const candidate = findLatestDiscordResources(basedir);
+    if (!candidate) throw new Error(`No app-* or version directory with a modern Discord application payload exists in ${basedir}`);
+    return candidate.resourcesPath;
 })();
 
 const bootstrapDirectory = process.platform === "darwin"
@@ -55,6 +50,88 @@ const bootstrapDirectory = process.platform === "darwin"
     : "";
 const recoveryDisabled = bootstrapDirectory ? path.join(bootstrapDirectory, "recovery-disabled") : "";
 let recoveryDisabledByThisRun = false;
+
+function readMacHelperProcess(pid: number): {pgid: number; command: string} | null {
+    try {
+        const output = execFileSync("/bin/ps", ["-p", String(pid), "-o", "pgid=,command="], {encoding: "utf8"}).trim();
+        const match = output.match(/^(\d+)\s+(.+)$/);
+        if (!match) return null;
+        return {pgid: Number(match[1]), command: match[2]};
+    }
+    catch {return null;}
+}
+
+function macHelperIsRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    }
+    catch {return false;}
+}
+
+function waitForMacHelperExit(pid: number): boolean {
+    for (let attempt = 0; attempt < 20; attempt++) {
+        if (!macHelperIsRunning(pid)) return true;
+        execFileSync("/bin/sleep", ["0.1"]);
+    }
+    return false;
+}
+
+function stopMacRecoveryHelper(): void {
+    if (!bootstrapDirectory) return;
+    const pidPath = path.join(bootstrapDirectory, "betterdiscord-update-helper.pid");
+    try {
+        if (fs.lstatSync(pidPath).isSymbolicLink()) throw new Error(`Refusing to use symlinked recovery PID file for ${release}`);
+    }
+    catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+        throw error;
+    }
+
+    const rawPid = fs.readFileSync(pidPath, "utf8").trim();
+    if (!/^\d+$/.test(rawPid) || Number(rawPid) <= 0) {
+        fs.rmSync(pidPath, {force: true});
+        console.log(`Removed an invalid BetterDiscord recovery PID file for ${release}`);
+        return;
+    }
+
+    const helperPid = Number(rawPid);
+    let helper = readMacHelperProcess(helperPid);
+    if (!helper) {
+        fs.rmSync(pidPath, {force: true});
+        console.log(`Removed a stale BetterDiscord recovery PID file for ${release}`);
+        return;
+    }
+    const helperPath = path.join(bootstrapDirectory, "betterdiscord-update-helper.zsh");
+    const helperPrefixes = [
+        `zsh -f ${helperPath} `,
+        `/bin/zsh -f ${helperPath} `,
+        `/usr/bin/zsh -f ${helperPath} `,
+        `/usr/bin/env zsh -f ${helperPath} `,
+    ];
+    const helperCommandMatches = (command: string) => helperPrefixes.some(prefix => command.startsWith(prefix));
+    const helperNameMatches = helperCommandMatches(helper.command);
+    if (!helperNameMatches || !helper.command.includes(bootstrapDirectory) || helper.pgid !== helperPid) {
+        throw new Error(`Refusing to signal PID ${helperPid}; it is not ${release}'s BetterDiscord recovery process-group owner`);
+    }
+
+    console.log(`Stopping BetterDiscord recovery helper for ${release} (PID ${helperPid} and its helper descendants)`);
+    try {process.kill(-helperPid, "SIGTERM");}
+    catch {/* The helper can finish after validation. */}
+    if (!waitForMacHelperExit(helperPid)) {
+        helper = readMacHelperProcess(helperPid);
+        const stillMatches = helper
+            && helper.pgid === helperPid
+            && helperCommandMatches(helper.command);
+        if (!stillMatches) throw new Error(`Refusing a forced helper stop because PID ${helperPid} no longer matches BetterDiscord recovery`);
+        try {process.kill(-helperPid, "SIGKILL");}
+        catch {
+            if (macHelperIsRunning(helperPid)) throw new Error(`Could not stop ${release}'s BetterDiscord recovery process group`);
+        }
+        if (!waitForMacHelperExit(helperPid)) throw new Error(`${release}'s BetterDiscord recovery helper did not stop`);
+    }
+    fs.rmSync(pidPath, {force: true});
+}
 
 function assertRecoveryMarkerSafe(): void {
     if (!recoveryDisabled) return;
@@ -75,9 +152,31 @@ function disableMacRecovery(): void {
     fs.mkdirSync(bootstrapDirectory, {recursive: true});
     fs.writeFileSync(recoveryDisabled, `${Date.now()}\n`);
     recoveryDisabledByThisRun = !alreadyDisabled;
-    for (const state of ["update-pending.json", "wrapper-ready.json"]) {
-        fs.rmSync(path.join(bootstrapDirectory, state), {force: true});
+    try {
+        stopMacRecoveryHelper();
+        for (const state of ["update-pending.json", "wrapper-ready.json", "active-run"]) {
+            fs.rmSync(path.join(bootstrapDirectory, state), {force: true});
+        }
+        fs.rmSync(path.join(bootstrapDirectory, "recovery-runs"), {recursive: true, force: true});
     }
+    catch (error) {
+        if (recoveryDisabledByThisRun) fs.rmSync(recoveryDisabled, {force: true});
+        throw error;
+    }
+}
+
+if (prepare) {
+    if (process.platform !== "darwin") {
+        process.exit(0);
+    }
+    if (dryRun) {
+        console.log(`[dry-run] Would disable BetterDiscord update recovery for ${release}`);
+    }
+    else {
+        assertRecoveryMarkerSafe();
+        disableMacRecovery();
+    }
+    process.exit(0);
 }
 
 const layout = inspectInjection(resources);
@@ -94,19 +193,6 @@ const copiedWslPayload = process.env.WSL_DISTRO_NAME
     && (layout.marker.bdPath === "../../../betterdiscord" || layout.marker.bdPath === "../../../betterdiscord/betterdiscord.asar")
     ? path.resolve(resources, "..", "..", "betterdiscord")
     : "";
-
-if (prepare) {
-    if (process.platform !== "darwin") {
-        process.exit(0);
-    }
-    if (dryRun) {
-        console.log(`[dry-run] Would disable BetterDiscord update recovery for ${release}`);
-    }
-    else {
-        disableMacRecovery();
-    }
-    process.exit(0);
-}
 
 console.log(`${dryRun ? "Dry-run for" : "Uninjecting from"} ${release}`);
 if (!dryRun) disableMacRecovery();

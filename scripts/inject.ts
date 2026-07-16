@@ -5,7 +5,7 @@ import bun from "bun";
 import doSanityChecks from "./helpers/validate";
 import buildPackage from "./helpers/package";
 import copyFiles from "./helpers/copy";
-import {comparator} from "../src/common/semver";
+import {findLatestDiscordResources} from "../src/common/discordResources";
 import {wrapInjection, type InjectionChannel, type InjectionMode} from "./helpers/injection";
 
 const rawArgs = process.argv.slice(2);
@@ -27,14 +27,6 @@ const releaseDirectory = channel === "canary" ? "discordcanary" : channel === "p
 const distPath = path.resolve(__dirname, "..", "dist");
 const bundlePath = path.join(distPath, "betterdiscord.asar");
 
-function latestVersionDirectory(basedir: string): string {
-    const versions = fs.readdirSync(basedir)
-        .filter(item => item.startsWith("app-") && fs.statSync(path.join(basedir, item)).isDirectory())
-        .map(item => item.slice(4));
-    if (!versions.length) throw new Error(`Discord requires the new updater; no app-* directory exists in ${basedir}`);
-    return versions.reduce((current, candidate) => comparator(current, candidate) === 1 ? candidate : current);
-}
-
 const resources = await (async function resolveResources() {
     if (process.platform === "darwin") return path.join(path.sep, "Applications", `${release}.app`, "Contents", "Resources");
 
@@ -52,7 +44,9 @@ const resources = await (async function resolveResources() {
     }
 
     if (!fs.existsSync(basedir)) throw new Error(`No ${release} install at ${basedir}`);
-    return path.join(basedir, `app-${latestVersionDirectory(basedir)}`, "resources");
+    const candidate = findLatestDiscordResources(basedir);
+    if (!candidate) throw new Error(`No app-* or version directory with a modern Discord application payload exists in ${basedir}`);
+    return candidate.resourcesPath;
 })();
 
 doSanityChecks(distPath);
@@ -86,7 +80,6 @@ const marker = wrapInjection({
     channel,
     mode,
     bdPath,
-    helperRuntime: process.execPath,
     dryRun,
     log: message => console.log(`    ${dryRun ? "[dry-run] " : ""}${message}`),
 });
