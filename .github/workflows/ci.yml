@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare Bun
         uses: oven-sh/setup-bun@v2
@@ -55,11 +55,12 @@ jobs:
 
       # Only upload artifact on PR, otherwise it gets pushed to canary
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: ${{github.event_name == 'pull_request'}}
         with:
           if-no-files-found: error
           retention-days: 30
+          archive: false
           path: dist/betterdiscord.asar
 
       # Keep a single rolling release for the latest develop commit.
