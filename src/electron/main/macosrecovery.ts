@@ -27,6 +27,7 @@ target_app_path="$4"
 snapshot_path="$5"
 ready_template_path="$6"
 ready_path="$7"
+result_path="$(/usr/bin/dirname "$ready_path")/wrapper-result.json"
 disabled_path="$8"
 log_path="$9"
 console_log_path="$(/usr/bin/dirname "$log_path")/betterdiscord-bootstrap-console.log"
@@ -49,6 +50,7 @@ app_directory="$resources_path/app"
 run_path="$(/usr/bin/dirname "$snapshot_path")"
 staged_wrapper=""
 ready_temporary=""
+result_temporary=""
 recovery_committed=0
 wrapper_replacement_started=0
 shipit_relaunch_disabled=0
@@ -140,6 +142,7 @@ cleanup_run_state() {
 }
 
 cleanup_partial() {
+    [[ -n "$result_temporary" ]] && /bin/rm -f "$result_temporary" 2>/dev/null || true
     rollback_uncommitted_wrapper || true
 }
 
@@ -288,6 +291,41 @@ matching_openasar_pending() {
     openasar_helper_is_live
 }
 
+publish_no_update_result() {
+    local completed_at=""
+
+    owns_active_run || return 1
+    [[ ! -e "$disabled_path" ]] || return 1
+    owned_wrapper_matches_snapshot || return 1
+    [[ ! -e "$app_asar" && -f "$nested_target" ]] || return 1
+    matching_openasar_pending || return 1
+
+    completed_at="$(current_iso_time)"
+    [[ -n "$completed_at" ]] || return 1
+    result_temporary="$result_path.$$.tmp"
+    /bin/rm -f "$result_temporary" 2>/dev/null || true
+    if ! /bin/cp "$ready_template_path" "$result_temporary" \
+        || ! BETTERDISCORD_COMPLETED_AT="$completed_at" /usr/bin/perl -0pi -e 'BEGIN { $value = $ENV{"BETTERDISCORD_COMPLETED_AT"}; } s/"readyAt"\s*:\s*""/"outcome": "no-update",\n    "completedAt": "$value"/ or die "readyAt placeholder missing";' "$result_temporary"; then
+        /bin/rm -f "$result_temporary" 2>/dev/null || true
+        result_temporary=""
+        return 1
+    fi
+
+    if ! owns_active_run || [[ -e "$disabled_path" ]] || ! matching_openasar_pending; then
+        /bin/rm -f "$result_temporary" 2>/dev/null || true
+        result_temporary=""
+        return 1
+    fi
+    if ! /bin/mv -f "$result_temporary" "$result_path"; then
+        /bin/rm -f "$result_temporary" 2>/dev/null || true
+        result_temporary=""
+        return 1
+    fi
+    result_temporary=""
+    log "Published no-update result for matching OpenAsar handoff installationId=$installation_id"
+    return 0
+}
+
 app_executable_path() {
     local info_plist="$target_app_path/Contents/Info.plist"
     local executable_name=""
@@ -429,6 +467,9 @@ done
 
 if (( stable_polls < 3 )); then
     log "No Discord update detected before timeout; leaving the existing BetterDiscord wrapper unchanged"
+    if matching_openasar_pending && ! publish_no_update_result; then
+        log "Could not publish no-update result for the matching OpenAsar handoff"
+    fi
     recovery_committed=1
     cleanup_run_state
     exit 0

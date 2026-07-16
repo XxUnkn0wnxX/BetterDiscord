@@ -154,7 +154,7 @@ function disableMacRecovery(): void {
     recoveryDisabledByThisRun = !alreadyDisabled;
     try {
         stopMacRecoveryHelper();
-        for (const state of ["update-pending.json", "wrapper-ready.json", "active-run"]) {
+        for (const state of ["update-pending.json", "wrapper-ready.json", "wrapper-result.json", "active-run"]) {
             fs.rmSync(path.join(bootstrapDirectory, state), {force: true});
         }
         fs.rmSync(path.join(bootstrapDirectory, "recovery-runs"), {recursive: true, force: true});

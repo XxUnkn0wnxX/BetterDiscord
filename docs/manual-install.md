@@ -114,6 +114,9 @@ The helper disables ShipIt's early relaunch, waits for the replacement
 `wrapper-ready.json`. If a matching live OpenAsar handoff is detected,
 BetterDiscord lets OpenAsar restore `betterdiscord.app.asar` and relaunch the
 client. Without a matching OpenAsar helper, BetterDiscord owns the relaunch.
+If no Discord replacement appears, BetterDiscord publishes a matching
+`wrapper-result.json` no-update result so OpenAsar can end its wait without
+patching or relaunching the unchanged client.
 Deliberate uninject still disables this recovery before restoring the wrapped
 payload.
 

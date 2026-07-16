@@ -66,6 +66,7 @@ describe("macOS update recovery", () => {
         const statePath = path.join(bootstrap, "update-pending.json");
         const readyTemplatePath = path.join(runPath, "wrapper-ready-template.json");
         const readyPath = path.join(bootstrap, "wrapper-ready.json");
+        const resultPath = path.join(bootstrap, "wrapper-result.json");
         const disabledPath = path.join(bootstrap, "recovery-disabled");
         const logPath = path.join(bootstrap, "betterdiscord-bootstrap.log");
         const consoleLogPath = path.join(bootstrap, "betterdiscord-bootstrap-console.log");
@@ -247,7 +248,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
             encoding: "utf8",
             timeout: 10000,
         });
-        return {result, resources, runPath, statePath, readyPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath, openAttemptsPath, registrationAttemptsPath, directLaunchPath};
+        return {result, resources, runPath, statePath, readyPath, resultPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath, openAttemptsPath, registrationAttemptsPath, directLaunchPath};
     }
 
     test("recovers without OpenAsar and replaces both logs", () => {
@@ -282,6 +283,27 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
         expect(fs.existsSync(run.activeRunPath)).toBe(false);
         expect(fs.existsSync(run.statePath)).toBe(false);
         expect(fs.existsSync(run.runPath)).toBe(false);
+        expect(fs.existsSync(run.resultPath)).toBe(false);
+    });
+
+    test("notifies a matching OpenAsar helper when no Discord update appears", () => {
+        const run = runRecovery(true, false, "test-run", "test-run", false, false, "timeout");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        expect(fs.existsSync(run.readyPath)).toBe(false);
+        expect(JSON.parse(fs.readFileSync(run.resultPath, "utf8"))).toMatchObject({
+            schema: 1,
+            owner: "betterdiscord",
+            style: "app-wrapper",
+            channel: "stable",
+            installationId: "test-installation",
+            outcome: "no-update",
+        });
+        expect(fs.readFileSync(path.join(run.resources, "betterdiscord.app.asar"), "utf8")).toBe("existing Discord payload");
+        const log = fs.readFileSync(run.logPath, "utf8");
+        expect(log).toContain("Published no-update result for matching OpenAsar handoff");
+        expect(log).not.toContain("BetterDiscord owns relaunch");
     });
 
     test("refreshes LaunchServices and retries a transient registration failure", () => {

@@ -322,6 +322,7 @@ function armMacRecovery() {
         fs.writeFileSync(consoleLogPath, "");
         const statePath = path.join(bootstrap, "update-pending.json");
         const readyPath = path.join(bootstrap, "wrapper-ready.json");
+        const resultPath = path.join(bootstrap, "wrapper-result.json");
         const helperPath = path.join(bootstrap, helperFilename);
         const helperPidPath = path.join(bootstrap, "betterdiscord-update-helper.pid");
         const activeRunPath = path.join(bootstrap, "active-run");
@@ -358,6 +359,7 @@ function armMacRecovery() {
         };
 
         fs.rmSync(readyPath, {force: true});
+        fs.rmSync(resultPath, {force: true});
         fs.mkdirSync(snapshotPath, {recursive: true});
         fs.writeFileSync(path.join(snapshotPath, "index.js"), `// ${loaderMarker}\nrequire(${JSON.stringify(marker.bdPath)});\nmodule.exports = require(${JSON.stringify(marker.payload)});\n`);
         fs.writeFileSync(path.join(snapshotPath, "package.json"), `${JSON.stringify({name: "discord", main: "./index.js"}, null, 4)}\n`);
