@@ -80,6 +80,25 @@ an owned `Contents/Resources/app/` loader that starts BetterDiscord before the
 renamed payload. If the existing payload is OpenAsar, it remains the payload
 behind BetterDiscord.
 
+### macOS Discord Install Manager And OpenAsar Order
+
+The Discord install manager described here is macOS-only.
+
+The normal fresh-install order remains:
+
+1. Run the Discord install manager, optionally installing OpenAsar to top-level `app.asar`.
+2. Inject BetterDiscord last so it wraps that payload as `betterdiscord.app.asar`.
+
+The manager's `--BD` modifier is the in-place maintenance exception:
+
+- Without `--BD`, a valid BetterDiscord wrapper is removed. If `--openasar` is requested, OpenAsar is installed as top-level `app.asar`; inject BetterDiscord again afterward.
+- With `--openasar --BD` or `--openasar-source <path> --BD`, a valid wrapper is preserved and only its nested `betterdiscord.app.asar` is replaced; BetterDiscord does not need to be reinjected.
+- With `--BD` but no wrapper, the manager falls back to standalone `app.asar`; inject BetterDiscord afterward if both are wanted.
+- `--BD` requires `--openasar` or `--openasar-source` and cannot be combined with `--update`.
+- A full `--update`, with or without `--openasar`, creates the stock or standalone OpenAsar layout first; inject BetterDiscord last.
+
+The manager validates the complete BetterDiscord ownership marker and wrapper before using the nested target. Wrappers that disappear or become invalid are refused instead of receiving a top-level fallback.
+
 ### Development Injection
 
 Development injection points Discord at the unpacked `dist/` directory. Build first with `bun scripts/build.ts`.
@@ -243,6 +262,19 @@ Do the same thing with the local wrappers on macOS:
 ```sh
 ./local-build.zsh dist
 ./local-inject.zsh stable
+```
+
+Reset/update Stable, install OpenAsar, and then wrap it with BetterDiscord:
+
+```sh
+$HOME/Apps/Scripts/shell/discord_install_manager.zsh --channel stable --update --openasar
+./local-inject.zsh stable
+```
+
+Refresh OpenAsar inside an already installed BetterDiscord wrapper without reinjecting BetterDiscord:
+
+```sh
+$HOME/Apps/Scripts/shell/discord_install_manager.zsh --channel stable --openasar --BD
 ```
 
 Build only the BetterDiscord module and inject it into Canary in dev mode on macOS:
