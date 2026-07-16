@@ -52,6 +52,8 @@ bun scripts/build.ts --macos-recovery-timeout-seconds 60
 `BETTERDISCORD_MACOS_RECOVERY_TIMEOUT_SECONDS` provides the same build-time
 setting for GitHub Actions. OpenAsar adds its own short coordination grace
 when it is waiting for BetterDiscord, so matching configured values are safe.
+The fork's workflow builds explicitly use 60 seconds; direct builds without an
+override keep the normal 90-second default.
 
 ### Production Build
 
