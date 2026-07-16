@@ -111,9 +111,16 @@ overwrite current state or logs.
 
 The helper disables ShipIt's early relaunch, waits for the replacement
 `app.asar` to stabilize, rebuilds the BetterDiscord wrapper, and writes
-`wrapper-ready.json`. If a matching live OpenAsar handoff is detected,
-BetterDiscord lets OpenAsar restore `betterdiscord.app.asar` and relaunch the
-client. Without a matching OpenAsar helper, BetterDiscord owns the relaunch.
+`wrapper-ready.json`. Recovery markers bind the BetterDiscord run ID, OpenAsar
+handoff ID, and source Discord PID so an older quit cannot complete a newer
+handoff. If OpenAsar publishes its handoff just after BetterDiscord arms, the
+helper may adopt it only when it names this same Discord process and recovery
+run.
+
+If a matching live OpenAsar handoff is detected, BetterDiscord lets OpenAsar
+restore `betterdiscord.app.asar`. Either helper relaunches Discord only when
+the current updater explicitly requested a restart; an ordinary or fast user
+quit may repair a replaced ASAR but leaves Discord closed.
 If no Discord replacement appears, BetterDiscord publishes a matching
 `wrapper-result.json` no-update result so OpenAsar can end its wait without
 patching or relaunching the unchanged client.

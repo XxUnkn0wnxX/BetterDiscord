@@ -44,6 +44,11 @@ active_run_path="$9"
 shift 9
 run_id="$1"
 stopped_helpers="$2"
+source_process_pid="$3"
+openasar_handoff_id="$4"
+openasar_source_process_pid="$5"
+restart_requested="$6"
+[[ "$openasar_handoff_id" = "none" ]] && openasar_handoff_id=""
 
 app_asar="$resources_path/app.asar"
 app_directory="$resources_path/app"
@@ -53,7 +58,7 @@ ready_temporary=""
 result_temporary=""
 recovery_committed=0
 wrapper_replacement_started=0
-shipit_relaunch_disabled=0
+shipit_launch_suppressed=0
 
 owns_active_run() {
     [[ -f "$active_run_path" ]] || return 1
@@ -237,10 +242,10 @@ patch_shipit_request() {
     [[ -f "$shipit_request_path" ]] || return 0
     if /usr/bin/grep -Eq '"launchAfterInstallation"[[:space:]]*:[[:space:]]*true' "$shipit_request_path" 2>/dev/null \
         && /usr/bin/perl -0pi -e 's/"launchAfterInstallation"\s*:\s*true/"launchAfterInstallation":false/g' "$shipit_request_path" 2>> "$log_path"; then
-        shipit_relaunch_disabled=1
+        shipit_launch_suppressed=1
         log "Disabled ShipIt launchAfterInstallation"
     elif /usr/bin/grep -Eq '"launchAfterInstallation"[[:space:]]*:[[:space:]]*false' "$shipit_request_path" 2>/dev/null; then
-        shipit_relaunch_disabled=1
+        shipit_launch_suppressed=1
     elif /usr/bin/grep -Eq '"launchAfterInstallation"[[:space:]]*:[[:space:]]*true' "$shipit_request_path" 2>/dev/null; then
         log "Could not disable ShipIt automatic relaunch"
     fi
@@ -272,7 +277,11 @@ matching_openasar_pending() {
     local expected_app="$(json_string_value appPath "$openasar_pending_path" || true)"
     local pending_nested="$(json_string_value nestedTarget "$openasar_pending_path" || true)"
     local pending_armed="$(json_string_value armedAt "$openasar_pending_path" || true)"
+    local pending_handoff_id="$(json_string_value handoffId "$openasar_pending_path" || true)"
+    local pending_source_process_pid="$(json_number_value sourceProcessPid "$openasar_pending_path" || true)"
+    local pending_recovery_run_id="$(json_string_value betterDiscordRecoveryRunId "$openasar_pending_path" || true)"
     local pending_epoch=""
+    local recovery_epoch=""
     local now_ms="$(( $(/bin/date +%s) * 1000 ))"
 
     json_bool_true pending "$openasar_pending_path" || return 1
@@ -286,9 +295,36 @@ matching_openasar_pending() {
     [[ "$schema" = "1" && "$owner" = "betterdiscord" && "$style" = "app-wrapper" ]] || return 1
     [[ "$pending_channel" = "$channel" && "$expected_id" = "$installation_id" ]] || return 1
     [[ "$expected_app" = "$target_app_path" && "$pending_nested" = "$nested_target" ]] || return 1
+    [[ "$source_process_pid" = <-> && "$source_process_pid" -gt 0 ]] || return 1
+    [[ -n "$pending_handoff_id" && "$pending_source_process_pid" = "$source_process_pid" ]] || return 1
     [[ "$pending_epoch" = <-> ]] || return 1
     (( pending_epoch <= now_ms + 10000 && now_ms - pending_epoch <= 300000 )) || return 1
-    openasar_helper_is_live
+    openasar_helper_is_live || return 1
+
+    if [[ -n "$openasar_handoff_id" ]]; then
+        [[ "$pending_handoff_id" = "$openasar_handoff_id" && "$openasar_source_process_pid" = "$source_process_pid" ]] || return 1
+        return 0
+    fi
+
+    recovery_epoch="$(iso_to_epoch_ms "$armed_at" || true)"
+    [[ "$openasar_source_process_pid" = "0" && "$pending_recovery_run_id" = "$run_id" && "$recovery_epoch" = <-> ]] || return 1
+    (( pending_epoch >= recovery_epoch )) || return 1
+    openasar_handoff_id="$pending_handoff_id"
+    openasar_source_process_pid="$pending_source_process_pid"
+    log "Adopted same-process OpenAsar handoff published after BetterDiscord recovery arm handoffId=$openasar_handoff_id runId=$run_id"
+    return 0
+}
+
+stamp_openasar_identity() {
+    local marker_path="$1"
+    [[ -n "$openasar_handoff_id" ]] || return 0
+    BETTERDISCORD_OPENASAR_HANDOFF_ID="$openasar_handoff_id" \
+    BETTERDISCORD_OPENASAR_SOURCE_PID="$openasar_source_process_pid" \
+    /usr/bin/perl -0pi -e '
+        BEGIN { $handoff = $ENV{"BETTERDISCORD_OPENASAR_HANDOFF_ID"}; $pid = $ENV{"BETTERDISCORD_OPENASAR_SOURCE_PID"}; }
+        s/("openAsarHandoffId"\s*:\s*)"[^"]*"/$1"$handoff"/ or die "openAsarHandoffId missing";
+        s/("openAsarSourceProcessPid"\s*:\s*)-?[0-9]+/$1$pid/ or die "openAsarSourceProcessPid missing";
+    ' "$marker_path"
 }
 
 publish_no_update_result() {
@@ -305,6 +341,7 @@ publish_no_update_result() {
     result_temporary="$result_path.$$.tmp"
     /bin/rm -f "$result_temporary" 2>/dev/null || true
     if ! /bin/cp "$ready_template_path" "$result_temporary" \
+        || ! stamp_openasar_identity "$result_temporary" \
         || ! BETTERDISCORD_COMPLETED_AT="$completed_at" /usr/bin/perl -0pi -e 'BEGIN { $value = $ENV{"BETTERDISCORD_COMPLETED_AT"}; } s/"readyAt"\s*:\s*""/"outcome": "no-update",\n    "completedAt": "$value"/ or die "readyAt placeholder missing";' "$result_temporary"; then
         /bin/rm -f "$result_temporary" 2>/dev/null || true
         result_temporary=""
@@ -367,6 +404,10 @@ refresh_launch_services_registration() {
 }
 
 betterdiscord_owns_relaunch() {
+    if [[ "$restart_requested" != "1" ]]; then
+        log "Discord relaunch was not requested for this recovery run"
+        return 1
+    fi
     if ! owns_active_run; then
         log "A newer BetterDiscord recovery run owns Discord relaunch"
         return 1
@@ -376,7 +417,7 @@ betterdiscord_owns_relaunch() {
         return 1
     fi
     if matching_openasar_pending; then
-        log "Matching OpenAsar handoff detected during relaunch; OpenAsar owns nested restore and relaunch"
+        log "Matching OpenAsar handoff detected during relaunch; OpenAsar owns nested restore and optional relaunch"
         return 1
     fi
     return 0
@@ -424,8 +465,10 @@ relaunch_discord() {
 handoff_or_relaunch_after_failure() {
     if matching_openasar_pending; then
         log "Matching OpenAsar handoff remains active after BetterDiscord recovery failure"
-    elif (( shipit_relaunch_disabled == 1 )); then
+    elif (( shipit_launch_suppressed == 1 )) && [[ "$restart_requested" = "1" ]]; then
         relaunch_discord
+    else
+        log "Recovery failure will not relaunch Discord because restart was not requested"
     fi
 }
 
@@ -440,7 +483,7 @@ fail_recovery() {
 }
 
 [[ -n "$stopped_helpers" ]] || stopped_helpers="none"
-log "Recovery helper started pid=$$ pidFile=$helper_pid_path installationId=$installation_id channel=$channel armedAt=$armed_at supersededPids=$stopped_helpers"
+log "Recovery helper started pid=$$ pidFile=$helper_pid_path installationId=$installation_id channel=$channel armedAt=$armed_at runId=$run_id sourcePid=$source_process_pid openAsarHandoffId=$openasar_handoff_id restartRequested=$restart_requested supersededPids=$stopped_helpers"
 patch_shipit_request
 
 last_size=""
@@ -516,8 +559,10 @@ if [[ -e "$disabled_path" ]]; then
 fi
 ready_at="$(current_iso_time)"
 [[ -n "$ready_at" ]] || fail_recovery "could not generate wrapper-ready timestamp"
+matching_openasar_pending || true
 ready_temporary="$ready_path.$$.tmp"
 if ! /bin/cp "$ready_template_path" "$ready_temporary" \
+    || ! stamp_openasar_identity "$ready_temporary" \
     || ! BETTERDISCORD_READY_AT="$ready_at" /usr/bin/perl -0pi -e 'BEGIN { $value = $ENV{"BETTERDISCORD_READY_AT"}; } s/"readyAt"\s*:\s*""/"readyAt": "$value"/ or die "readyAt placeholder missing";' "$ready_temporary" \
     || ! /bin/mv -f "$ready_temporary" "$ready_path"; then
     fail_recovery "wrapper-ready marker creation failed"
@@ -533,9 +578,11 @@ fi
 log "Wrapper ready for installation $installation_id"
 relaunch_failed=0
 if matching_openasar_pending; then
-    log "Matching OpenAsar handoff detected; OpenAsar owns nested restore and relaunch"
-else
+    log "Matching OpenAsar handoff detected; OpenAsar owns nested restore and optional relaunch"
+elif [[ "$restart_requested" = "1" ]]; then
     relaunch_discord || relaunch_failed=1
+else
+    log "Wrapper recovery complete; restart was not requested; leaving Discord closed"
 fi
 recovery_committed=1
 cleanup_run_state

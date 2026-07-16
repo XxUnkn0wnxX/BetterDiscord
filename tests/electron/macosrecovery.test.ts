@@ -53,7 +53,7 @@ describe("macOS update recovery", () => {
         expect(helper).toContain("Wrapper recovery committed, but Discord relaunch did not start");
     });
 
-    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" | "term-before-publish" | "term-after-publish" = "missing") {
+    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" | "term-before-publish" | "term-after-publish" = "missing", restartRequested = false, openAsarGeneration: "match" | "late-match" | "handoff-mismatch" | "source-mismatch" = "match") {
         if (process.platform !== "darwin") return null;
 
         const bootstrap = path.join(root, "betterdiscord-bootstrap");
@@ -80,6 +80,11 @@ describe("macOS update recovery", () => {
         const installationId = "test-installation";
         const channel = "stable";
         const armedAt = new Date().toISOString();
+        const sourceProcessPid = 24680;
+        const openAsarHandoffId = openAsar ? "test-handoff" : "";
+        const openAsarSourceProcessPid = openAsar ? sourceProcessPid : 0;
+        const capturedOpenAsarHandoffId = openAsarGeneration === "late-match" ? "" : openAsarHandoffId;
+        const capturedOpenAsarSourceProcessPid = openAsarGeneration === "late-match" ? 0 : openAsarSourceProcessPid;
         const openAttemptsPath = path.join(root, "open-attempts");
         const registrationAttemptsPath = path.join(root, "registration-attempts");
         const directLaunchPath = path.join(root, "direct-launch");
@@ -124,6 +129,11 @@ describe("macOS update recovery", () => {
                 targetAppPath,
                 nestedTarget,
                 armedAt,
+                recoveryRunId: runId,
+                sourceProcessPid,
+                openAsarHandoffId: capturedOpenAsarHandoffId,
+                openAsarSourceProcessPid: capturedOpenAsarSourceProcessPid,
+                restartRequested,
                 readyAt: "",
             }, null, 4)}\n`);
         }
@@ -213,6 +223,10 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
                 appPath: targetAppPath,
                 nestedTarget,
                 armedAt,
+                handoffId: openAsarGeneration === "handoff-mismatch" ? "newer-handoff" : openAsarHandoffId,
+                sourceProcessPid: openAsarGeneration === "source-mismatch" ? sourceProcessPid + 1 : sourceProcessPid,
+                betterDiscordRecoveryRunId: openAsarGeneration === "late-match" ? runId : undefined,
+                restartRequested,
                 helperPid: openAsarChild.pid,
                 helperPath: openAsarHelperPath,
                 helperPidPath: openAsarHelperPidPath,
@@ -243,6 +257,10 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
             activeRunPath,
             runId,
             "none",
+            String(sourceProcessPid),
+            capturedOpenAsarHandoffId || "none",
+            String(capturedOpenAsarSourceProcessPid),
+            restartRequested ? "1" : "0",
         ], {
             env: getMacOSRecoveryEnvironment(),
             encoding: "utf8",
@@ -258,8 +276,16 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
         expect(run.result.status).toBe(0);
         expect(fs.readFileSync(path.join(run.resources, "betterdiscord.app.asar"), "utf8")).toBe("fresh Discord payload");
         expect(fs.existsSync(path.join(run.resources, "app", ".betterdiscord-inject.json"))).toBe(true);
-        expect(JSON.parse(fs.readFileSync(run.readyPath, "utf8")).readyAt).toMatch(/Z$/);
-        expect(fs.readFileSync(run.logPath, "utf8")).toContain("BetterDiscord owns relaunch");
+        expect(JSON.parse(fs.readFileSync(run.readyPath, "utf8"))).toMatchObject({
+            recoveryRunId: "test-run",
+            sourceProcessPid: 24680,
+            openAsarHandoffId: "",
+            openAsarSourceProcessPid: 0,
+            restartRequested: false,
+            readyAt: expect.stringMatching(/Z$/),
+        });
+        expect(fs.readFileSync(run.logPath, "utf8")).toContain("restart was not requested; leaving Discord closed");
+        expect(fs.readFileSync(run.logPath, "utf8")).not.toContain("BetterDiscord owns relaunch");
         expect(fs.readFileSync(run.logPath, "utf8")).not.toContain("old human log");
         expect(fs.readFileSync(run.consoleLogPath, "utf8")).not.toContain("old console log");
         expect(JSON.parse(fs.readFileSync(run.shipItRequestPath, "utf8")).launchAfterInstallation).toBe(false);
@@ -287,7 +313,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
     });
 
     test("notifies a matching OpenAsar helper when no Discord update appears", () => {
-        const run = runRecovery(true, false, "test-run", "test-run", false, false, "timeout");
+        const run = runRecovery(true, false, "test-run", "test-run", false, false, "timeout", false, "late-match");
         if (!run) return;
 
         expect(run.result.status).toBe(0);
@@ -298,16 +324,43 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
             style: "app-wrapper",
             channel: "stable",
             installationId: "test-installation",
+            recoveryRunId: "test-run",
+            sourceProcessPid: 24680,
+            openAsarHandoffId: "test-handoff",
+            openAsarSourceProcessPid: 24680,
             outcome: "no-update",
         });
         expect(fs.readFileSync(path.join(run.resources, "betterdiscord.app.asar"), "utf8")).toBe("existing Discord payload");
         const log = fs.readFileSync(run.logPath, "utf8");
+        expect(log).toContain("Adopted same-process OpenAsar handoff");
         expect(log).toContain("Published no-update result for matching OpenAsar handoff");
         expect(log).not.toContain("BetterDiscord owns relaunch");
     });
 
+    test("stamps a same-process OpenAsar handoff published after BetterDiscord arms", () => {
+        const run = runRecovery(true, false, "test-run", "test-run", false, false, "missing", false, "late-match");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        expect(JSON.parse(fs.readFileSync(run.readyPath, "utf8"))).toMatchObject({
+            recoveryRunId: "test-run",
+            openAsarHandoffId: "test-handoff",
+            openAsarSourceProcessPid: 24680,
+        });
+        expect(fs.readFileSync(run.logPath, "utf8")).toContain("Adopted same-process OpenAsar handoff");
+    });
+
+    test("does not publish a no-update result to a newer OpenAsar generation", () => {
+        const run = runRecovery(true, false, "test-run", "test-run", false, false, "timeout", false, "source-mismatch");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        expect(fs.existsSync(run.resultPath)).toBe(false);
+        expect(fs.readFileSync(run.logPath, "utf8")).not.toContain("Published no-update result");
+    });
+
     test("refreshes LaunchServices and retries a transient registration failure", () => {
-        const run = runRecovery(false, false, "test-run", "test-run", false, false, "retry");
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "retry", true);
         if (!run) return;
 
         expect(run.result.status).toBe(0);
@@ -321,7 +374,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
     });
 
     test("falls back to the resolved Discord executable after bounded open failures", () => {
-        const run = runRecovery(false, false, "test-run", "test-run", false, false, "fallback");
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "fallback", true);
         if (!run) return;
 
         expect(run.result.status).toBe(0);
@@ -338,7 +391,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
         if (!run) return;
 
         expect(run.result.status).toBe(0);
-        expect(fs.readFileSync(run.logPath, "utf8")).toContain("OpenAsar owns nested restore and relaunch");
+        expect(fs.readFileSync(run.logPath, "utf8")).toContain("OpenAsar owns nested restore and optional relaunch");
         expect(fs.readFileSync(run.logPath, "utf8")).not.toContain("BetterDiscord owns relaunch");
     });
 
@@ -398,7 +451,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
     });
 
     test("a recovery failure keeps the stock payload and owns relaunch after disabling ShipIt", () => {
-        const run = runRecovery(false, false, "test-run", "test-run", true);
+        const run = runRecovery(false, false, "test-run", "test-run", true, false, "missing", true);
         if (!run) return;
 
         expect(run.result.status).toBe(1);
@@ -410,7 +463,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
     });
 
     test("rolls back the wrapper before relaunch when ready publication fails", () => {
-        const run = runRecovery(false, false, "test-run", "test-run", false, true);
+        const run = runRecovery(false, false, "test-run", "test-run", false, true, "missing", true);
         if (!run) return;
 
         expect(run.result.status).toBe(1);

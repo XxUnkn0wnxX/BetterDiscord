@@ -3,12 +3,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import {findMatchingOpenAsarHandoff, type OpenAsarHandoffOptions} from "../../src/electron/main/macoshandoff";
+import {findMatchingOpenAsarHandoff, findPendingOpenAsarHandoff, type OpenAsarHandoffOptions} from "../../src/electron/main/macoshandoff";
 
 
 describe("macOS OpenAsar handoff preservation", () => {
     const now = Date.parse("2026-07-16T09:41:49.000Z");
     const helperPid = 17847;
+    const handoffId = "test-handoff";
+    const sourceProcessPid = 24680;
     let root: string;
     let options: OpenAsarHandoffOptions;
 
@@ -40,6 +42,9 @@ describe("macOS OpenAsar handoff preservation", () => {
             appPath: targetAppPath,
             nestedTarget,
             armedAt,
+            handoffId,
+            sourceProcessPid,
+            restartRequested: false,
             helperPid,
             helperPath,
             helperPidPath,
@@ -54,6 +59,11 @@ describe("macOS OpenAsar handoff preservation", () => {
             targetAppPath,
             nestedTarget,
             armedAt: "2026-07-16T09:41:46.000Z",
+            recoveryRunId: "test-run",
+            sourceProcessPid,
+            openAsarHandoffId: handoffId,
+            openAsarSourceProcessPid: sourceProcessPid,
+            restartRequested: false,
             readyAt: "2026-07-16T09:41:47.000Z",
         }, null, 4)}\n`);
 
@@ -82,9 +92,57 @@ describe("macOS OpenAsar handoff preservation", () => {
         expect(findMatchingOpenAsarHandoff(options)).toEqual({
             helperPid,
             armedAt: "2026-07-16T09:41:35.547Z",
+            handoffId,
+            sourceProcessPid,
+            restartRequested: false,
             readyAt: "2026-07-16T09:41:47.000Z",
         });
         expect(fs.readFileSync(options.readyPath, "utf8")).toBe(readyBefore);
+    });
+
+    test("exposes only a live pending handoff from one Discord process generation", () => {
+        expect(findPendingOpenAsarHandoff(options)).toEqual({
+            helperPid,
+            armedAt: "2026-07-16T09:41:35.547Z",
+            handoffId,
+            sourceProcessPid,
+            restartRequested: false,
+        });
+
+        const pending = JSON.parse(fs.readFileSync(options.pendingPath, "utf8"));
+        pending.sourceProcessPid = 0;
+        fs.writeFileSync(options.pendingPath, JSON.stringify(pending));
+        expect(findPendingOpenAsarHandoff(options)).toBeNull();
+    });
+
+    test("rejects ready markers from another handoff or Discord process", () => {
+        const ready = JSON.parse(fs.readFileSync(options.readyPath, "utf8"));
+        ready.openAsarHandoffId = "newer-handoff";
+        fs.writeFileSync(options.readyPath, JSON.stringify(ready));
+        expect(findMatchingOpenAsarHandoff(options)).toBeNull();
+
+        ready.openAsarHandoffId = handoffId;
+        ready.openAsarSourceProcessPid = sourceProcessPid + 1;
+        fs.writeFileSync(options.readyPath, JSON.stringify(ready));
+        expect(findMatchingOpenAsarHandoff(options)).toBeNull();
+    });
+
+    test("accepts a handoff published just after the matching BetterDiscord run armed", () => {
+        const pending = JSON.parse(fs.readFileSync(options.pendingPath, "utf8"));
+        pending.armedAt = "2026-07-16T09:41:46.500Z";
+        pending.betterDiscordRecoveryRunId = "test-run";
+        fs.writeFileSync(options.pendingPath, JSON.stringify(pending));
+
+        expect(findMatchingOpenAsarHandoff(options)).toMatchObject({
+            handoffId,
+            sourceProcessPid,
+            betterDiscordRecoveryRunId: "test-run",
+            readyAt: "2026-07-16T09:41:47.000Z",
+        });
+
+        pending.betterDiscordRecoveryRunId = "another-run";
+        fs.writeFileSync(options.pendingPath, JSON.stringify(pending));
+        expect(findMatchingOpenAsarHandoff(options)).toBeNull();
     });
 
     test("rejects mismatched, stale, or unowned handoffs", () => {

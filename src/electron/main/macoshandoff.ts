@@ -31,8 +31,14 @@ export interface OpenAsarHandoffOptions {
 export interface OpenAsarHandoffOwner {
     helperPid: number;
     armedAt: string;
+    handoffId: string;
+    sourceProcessPid: number;
+    restartRequested: boolean;
+    betterDiscordRecoveryRunId?: string;
     readyAt: string;
 }
+
+export type PendingOpenAsarHandoffOwner = Omit<OpenAsarHandoffOwner, "readyAt">;
 
 function readRegularJson(target: string): JsonObject | null {
     try {
@@ -88,14 +94,15 @@ function processIsRunning(pid: number): boolean {
     catch {return false;}
 }
 
-export function findMatchingOpenAsarHandoff(options: OpenAsarHandoffOptions): OpenAsarHandoffOwner | null {
+export function findPendingOpenAsarHandoff(options: OpenAsarHandoffOptions): PendingOpenAsarHandoffOwner | null {
     const pending = readRegularJson(options.pendingPath);
-    const ready = readRegularJson(options.readyPath);
-    if (!pending || !ready || !isRegularFile(options.helperPath)) return null;
+    if (!pending || !isRegularFile(options.helperPath)) return null;
 
     const installationId = stringValue(pending, "expectedInstallationId") || stringValue(pending, "installationId");
     const targetAppPath = stringValue(pending, "appPath") || stringValue(pending, "targetAppPath") || stringValue(pending, "expectedTargetAppPath");
     const armedAt = stringValue(pending, "armedAt") || stringValue(pending, "createdAt");
+    const handoffId = stringValue(pending, "handoffId");
+    const betterDiscordRecoveryRunId = stringValue(pending, "betterDiscordRecoveryRunId");
     const armedTime = Date.parse(armedAt);
     const now = options.now ?? Date.now();
     if (pending.pending !== true
@@ -107,25 +114,13 @@ export function findMatchingOpenAsarHandoff(options: OpenAsarHandoffOptions): Op
         || installationId !== options.marker.installationId
         || targetAppPath !== options.targetAppPath
         || stringValue(pending, "nestedTarget") !== options.nestedTarget
+        || handoffId.length === 0
+        || !Number.isInteger(pending.sourceProcessPid)
+        || typeof pending.sourceProcessPid !== "number"
+        || pending.sourceProcessPid <= 0
         || !Number.isFinite(armedTime)
         || armedTime > now + 10_000
         || now - armedTime > 300_000) {
-        return null;
-    }
-
-    const readyAt = stringValue(ready, "readyAt");
-    const readyTime = Date.parse(readyAt);
-    if (ready.schema !== 1
-        || ready.owner !== "betterdiscord"
-        || ready.style !== "app-wrapper"
-        || stringValue(ready, "channel") !== options.marker.channel
-        || stringValue(ready, "installationId") !== options.marker.installationId
-        || stringValue(ready, "appPath") !== options.targetAppPath
-        || stringValue(ready, "targetAppPath") !== options.targetAppPath
-        || stringValue(ready, "nestedTarget") !== options.nestedTarget
-        || !Number.isFinite(readyTime)
-        || readyTime < armedTime
-        || readyTime > now + 10_000) {
         return null;
     }
 
@@ -157,5 +152,44 @@ export function findMatchingOpenAsarHandoff(options: OpenAsarHandoffOptions): Op
         return null;
     }
 
-    return {helperPid, armedAt, readyAt};
+    return {
+        helperPid,
+        armedAt,
+        handoffId,
+        sourceProcessPid: pending.sourceProcessPid,
+        restartRequested: pending.restartRequested === true,
+        ...(betterDiscordRecoveryRunId ? {betterDiscordRecoveryRunId} : {}),
+    };
+}
+
+export function findMatchingOpenAsarHandoff(options: OpenAsarHandoffOptions): OpenAsarHandoffOwner | null {
+    const pending = findPendingOpenAsarHandoff(options);
+    const ready = readRegularJson(options.readyPath);
+    if (!pending || !ready) return null;
+
+    const readyAt = stringValue(ready, "readyAt");
+    const recoveryRunId = stringValue(ready, "recoveryRunId");
+    const readyTime = Date.parse(readyAt);
+    const recoveryArmedTime = Date.parse(stringValue(ready, "armedAt"));
+    const now = options.now ?? Date.now();
+    if (ready.schema !== 1
+        || ready.owner !== "betterdiscord"
+        || ready.style !== "app-wrapper"
+        || stringValue(ready, "channel") !== options.marker.channel
+        || stringValue(ready, "installationId") !== options.marker.installationId
+        || stringValue(ready, "appPath") !== options.targetAppPath
+        || stringValue(ready, "targetAppPath") !== options.targetAppPath
+        || stringValue(ready, "nestedTarget") !== options.nestedTarget
+        || stringValue(ready, "openAsarHandoffId") !== pending.handoffId
+        || ready.openAsarSourceProcessPid !== pending.sourceProcessPid
+        || recoveryRunId.length === 0
+        || !Number.isFinite(recoveryArmedTime)
+        || (recoveryArmedTime < Date.parse(pending.armedAt) && pending.betterDiscordRecoveryRunId !== recoveryRunId)
+        || !Number.isFinite(readyTime)
+        || readyTime < recoveryArmedTime
+        || readyTime > now + 10_000) {
+        return null;
+    }
+
+    return {...pending, readyAt};
 }

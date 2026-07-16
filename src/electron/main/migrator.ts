@@ -1,11 +1,11 @@
-import {app} from "electron";
+import {app, autoUpdater} from "electron";
 import fs from "fs";
 import path from "path";
 import {randomUUID} from "crypto";
 import {execFileSync, spawn} from "child_process";
 
 import {findLatestDiscordResources, parseDiscordVersionDirectory} from "@common/discordResources";
-import {findMatchingOpenAsarHandoff} from "./macoshandoff";
+import {findMatchingOpenAsarHandoff, findPendingOpenAsarHandoff} from "./macoshandoff";
 import {getMacOSRecoveryEnvironment, macOSRecoveryHelperSource} from "./macosrecovery";
 
 
@@ -53,6 +53,10 @@ interface MacRecoveryState {
     helperPidPath: string;
     activeRunPath: string;
     runId: string;
+    sourceProcessPid: number;
+    openAsarHandoffId: string;
+    openAsarSourceProcessPid: number;
+    restartRequested: boolean;
     stoppedHelperPids: number[];
 }
 
@@ -265,6 +269,17 @@ function migrateVersionDirectory() {
 }
 
 let macHelperArmed = false;
+let macUpdateRestartRequestedAt = 0;
+const restartIntentWindowMs = 5000;
+
+if (process.platform === "darwin") {
+    try {
+        autoUpdater.on("before-quit-for-update", () => {
+            macUpdateRestartRequestedAt = Date.now();
+        });
+    }
+    catch {/* Discord builds without the native updater retain quiet recovery. */}
+}
 
 function initializeMacBootstrap() {
     if (process.platform !== "darwin") return;
@@ -316,6 +331,17 @@ function armMacRecovery() {
         return appendLog(logPath, `Preserved OpenAsar wrapper-ready handoff helperPid=${handoff.helperPid} installationId=${marker.installationId}`);
     }
 
+    const pendingHandoffCandidate = findPendingOpenAsarHandoff({
+        marker,
+        targetAppPath,
+        nestedTarget,
+        readyPath: path.join(bootstrap, "wrapper-ready.json"),
+        pendingPath: path.join(openAsarBootstrap, "post-shipit-update-pending.json"),
+        helperPath: path.join(openAsarBootstrap, "post-shipit-helper.zsh"),
+        helperPidPath: path.join(openAsarBootstrap, "post-shipit-helper.pid"),
+    });
+    const pendingHandoff = pendingHandoffCandidate?.sourceProcessPid === process.pid ? pendingHandoffCandidate : null;
+
     try {
         fs.mkdirSync(bootstrap, {recursive: true});
         fs.writeFileSync(logPath, "");
@@ -331,6 +357,8 @@ function armMacRecovery() {
         const snapshotPath = path.join(runPath, "wrapper");
         const readyTemplatePath = path.join(runPath, "wrapper-ready-template.json");
         const armedAt = new Date().toISOString();
+        const restartRequested = macUpdateRestartRequestedAt > 0
+            && Date.now() - macUpdateRestartRequestedAt <= restartIntentWindowMs;
         const stoppedHelperPids = stopExistingMacHelpers(bootstrap, helperPidPath);
         const state: MacRecoveryState = {
             schema: 1,
@@ -355,6 +383,10 @@ function armMacRecovery() {
             helperPidPath,
             activeRunPath,
             runId,
+            sourceProcessPid: process.pid,
+            openAsarHandoffId: pendingHandoff?.handoffId ?? "",
+            openAsarSourceProcessPid: pendingHandoff?.sourceProcessPid ?? 0,
+            restartRequested,
             stoppedHelperPids,
         };
 
@@ -374,6 +406,11 @@ function armMacRecovery() {
             targetAppPath,
             nestedTarget: state.nestedTarget,
             armedAt,
+            recoveryRunId: runId,
+            sourceProcessPid: state.sourceProcessPid,
+            openAsarHandoffId: state.openAsarHandoffId,
+            openAsarSourceProcessPid: state.openAsarSourceProcessPid,
+            restartRequested: state.restartRequested,
             readyAt: "",
         });
         atomicJson(statePath, state);
@@ -405,6 +442,10 @@ function armMacRecovery() {
             state.activeRunPath,
             state.runId,
             state.stoppedHelperPids.length > 0 ? state.stoppedHelperPids.join(",") : "none",
+            String(state.sourceProcessPid),
+            state.openAsarHandoffId || "none",
+            String(state.openAsarSourceProcessPid),
+            state.restartRequested ? "1" : "0",
         ], {
             detached: true,
             stdio: "ignore",
