@@ -53,7 +53,7 @@ describe("macOS update recovery", () => {
         expect(helper).toContain("Wrapper recovery committed, but Discord relaunch did not start");
     });
 
-    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" = "missing") {
+    function runRecovery(openAsar: boolean, disabled = false, activeRunId = "test-run", runId = "test-run", ambiguous = false, missingReadyTemplate = false, relaunchMode: "missing" | "retry" | "fallback" | "timeout" = "missing") {
         if (process.platform !== "darwin") return null;
 
         const bootstrap = path.join(root, "betterdiscord-bootstrap");
@@ -96,11 +96,21 @@ describe("macOS update recovery", () => {
 
         fs.mkdirSync(resources, {recursive: true});
         fs.mkdirSync(snapshot, {recursive: true});
-        fs.writeFileSync(path.join(resources, "app.asar"), "fresh Discord payload");
-        if (ambiguous) fs.mkdirSync(path.join(resources, "app"));
         fs.writeFileSync(path.join(snapshot, "index.js"), "// __betterdiscord_inject_meta__\n");
         fs.writeFileSync(path.join(snapshot, "package.json"), `${JSON.stringify({name: "discord", main: "./index.js"})}\n`);
         fs.writeFileSync(path.join(snapshot, ".betterdiscord-inject.json"), `${JSON.stringify(marker)}\n`);
+        if (relaunchMode === "timeout") {
+            const appDirectory = path.join(resources, "app");
+            fs.mkdirSync(appDirectory);
+            for (const wrapperFile of ["index.js", "package.json", ".betterdiscord-inject.json"]) {
+                fs.copyFileSync(path.join(snapshot, wrapperFile), path.join(appDirectory, wrapperFile));
+            }
+            fs.writeFileSync(nestedTarget, "existing Discord payload");
+        }
+        else {
+            fs.writeFileSync(path.join(resources, "app.asar"), "fresh Discord payload");
+            if (ambiguous) fs.mkdirSync(path.join(resources, "app"));
+        }
         fs.writeFileSync(statePath, `${JSON.stringify({pending: true})}\n`);
         if (!missingReadyTemplate) {
             fs.writeFileSync(readyTemplatePath, `${JSON.stringify({
@@ -117,7 +127,10 @@ describe("macOS update recovery", () => {
             }, null, 4)}\n`);
         }
         let helperSource = macOSRecoveryHelperSource();
-        if (relaunchMode !== "missing") {
+        if (relaunchMode === "timeout") {
+            helperSource = helperSource.replace(`deadline="$((SECONDS + 90))"`, `deadline="$((SECONDS + 1))"`);
+        }
+        if (relaunchMode === "retry" || relaunchMode === "fallback") {
             const contents = path.join(targetAppPath, "Contents");
             const executableDirectory = path.join(contents, "MacOS");
             const executablePath = path.join(executableDirectory, "Discord");
@@ -222,7 +235,7 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
             encoding: "utf8",
             timeout: 10000,
         });
-        return {result, resources, readyPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath, openAttemptsPath, registrationAttemptsPath, directLaunchPath};
+        return {result, resources, runPath, statePath, readyPath, logPath, consoleLogPath, shipItRequestPath, helperPidPath, activeRunPath, openAttemptsPath, registrationAttemptsPath, directLaunchPath};
     }
 
     test("recovers without OpenAsar and replaces both logs", () => {
@@ -239,6 +252,24 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
         expect(JSON.parse(fs.readFileSync(run.shipItRequestPath, "utf8")).launchAfterInstallation).toBe(false);
         expect(fs.existsSync(run.helperPidPath)).toBe(false);
         expect(fs.existsSync(run.activeRunPath)).toBe(false);
+    });
+
+    test("leaves an existing wrapper untouched when no Discord update appears", () => {
+        const run = runRecovery(false, false, "test-run", "test-run", false, false, "timeout");
+        if (!run) return;
+
+        expect(run.result.status).toBe(0);
+        expect(fs.existsSync(path.join(run.resources, "app", ".betterdiscord-inject.json"))).toBe(true);
+        expect(fs.readFileSync(path.join(run.resources, "betterdiscord.app.asar"), "utf8")).toBe("existing Discord payload");
+        expect(fs.existsSync(path.join(run.resources, "app.asar"))).toBe(false);
+        const log = fs.readFileSync(run.logPath, "utf8");
+        expect(log).toContain("leaving the existing BetterDiscord wrapper unchanged");
+        expect(log).not.toContain("BetterDiscord owns relaunch");
+        expect(log).not.toContain("Rolled back the incomplete BetterDiscord wrapper");
+        expect(fs.existsSync(run.helperPidPath)).toBe(false);
+        expect(fs.existsSync(run.activeRunPath)).toBe(false);
+        expect(fs.existsSync(run.statePath)).toBe(false);
+        expect(fs.existsSync(run.runPath)).toBe(false);
     });
 
     test("refreshes LaunchServices and retries a transient registration failure", () => {

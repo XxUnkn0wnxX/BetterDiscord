@@ -50,6 +50,7 @@ run_path="$(/usr/bin/dirname "$snapshot_path")"
 staged_wrapper=""
 ready_temporary=""
 recovery_committed=0
+wrapper_replacement_started=0
 shipit_relaunch_disabled=0
 
 owns_active_run() {
@@ -95,6 +96,7 @@ rollback_uncommitted_wrapper() {
     [[ -n "$staged_wrapper" ]] && /bin/rm -rf "$staged_wrapper" 2>/dev/null || true
     [[ -n "$ready_temporary" ]] && /bin/rm -f "$ready_temporary" 2>/dev/null || true
     owns_active_run && /bin/rm -f "$ready_path" 2>/dev/null || true
+    (( wrapper_replacement_started == 1 )) || return 0
 
     if [[ ! -e "$app_asar" && -f "$nested_target" ]]; then
         if [[ -e "$app_directory" ]]; then
@@ -112,6 +114,15 @@ rollback_uncommitted_wrapper() {
             return 1
         fi
     fi
+}
+
+cleanup_run_state() {
+    if owns_active_run; then
+        /bin/rm -f "$state_path" "$active_run_path" 2>/dev/null || true
+    else
+        log "A newer BetterDiscord recovery run replaced active state before cleanup"
+    fi
+    /bin/rm -rf "$run_path" 2>/dev/null || true
 }
 
 cleanup_partial() {
@@ -400,8 +411,9 @@ while (( SECONDS < deadline )); do
 done
 
 if (( stable_polls < 3 )); then
-    log "Timed out waiting for a fresh Discord app.asar"
-    handoff_or_relaunch_after_failure
+    log "No Discord update detected before timeout; leaving the existing BetterDiscord wrapper unchanged"
+    recovery_committed=1
+    cleanup_run_state
     exit 0
 fi
 
@@ -425,6 +437,7 @@ if [[ -e "$disabled_path" ]]; then
     exit 0
 fi
 staged_wrapper="$resources_path/.betterdiscord-app-helper-$$"
+wrapper_replacement_started=1
 if ! /bin/mv "$app_asar" "$nested_target"; then
     fail_recovery "could not move fresh app.asar"
 fi
@@ -467,12 +480,7 @@ else
     relaunch_discord || relaunch_failed=1
 fi
 recovery_committed=1
-if owns_active_run; then
-    /bin/rm -f "$state_path" "$active_run_path" 2>/dev/null || true
-else
-    log "A newer BetterDiscord recovery run replaced active state before cleanup"
-fi
-/bin/rm -rf "$run_path" 2>/dev/null || true
+cleanup_run_state
 if (( relaunch_failed == 1 )); then
     log "Wrapper recovery committed, but Discord relaunch did not start"
     exit 1
