@@ -148,7 +148,7 @@ payload.
 
 ### macOS Discord Install Manager And OpenAsar Order
 
-The Discord install manager described here is macOS-only.
+The [Discord install manager](https://github.com/XxUnkn0wnxX/Scripts/blob/develop/shell/discord_install_manager.zsh) described here is macOS-only.
 
 The normal fresh-install order remains:
 
