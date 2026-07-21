@@ -96,7 +96,7 @@ export default function InstallModal({addon, transitionState, install, onClose}:
 
     const doInstall = useCallback(() => {
         setInstalling(true);
-        install(shouldEnable).catch(() => onClose());
+        install(shouldEnable).then(() => onClose(), () => onClose());
     }, [install, shouldEnable, onClose]);
 
     useLayoutEffect(() => {

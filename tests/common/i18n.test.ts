@@ -1,5 +1,9 @@
 import {test, expect, describe, beforeEach} from "bun:test";
 import i18n, {t, formatters, type Locale} from "@common/i18n";
+import {hasLegacyBunIntlCrash} from "../setup";
+
+const describeWithNumberFormat = hasLegacyBunIntlCrash ? describe.skip : describe;
+const testWithNumberFormat = hasLegacyBunIntlCrash ? test.skip : test;
 
 describe("i18n", function () {
 
@@ -458,7 +462,7 @@ describe("i18n", function () {
 
 
     describe("formatters", function () {
-        describe("number formatter", function () {
+        describeWithNumberFormat("number formatter", function () {
             test("Should format integer correctly", function () {
                 const formatter = formatters.number();
                 expect(formatter("123")).toBe("123");
@@ -490,7 +494,7 @@ describe("i18n", function () {
             });
         });
 
-        describe("currency formatter", function () {
+        describeWithNumberFormat("currency formatter", function () {
             test("Should format currency correctly", function () {
                 const formatter = formatters.currency();
                 expect(formatter("1234.56")).toBe("$1,234.56");
@@ -582,7 +586,7 @@ describe("i18n", function () {
             expect(typeof formatters.bytes).toBe("function");
         });
 
-        describe("number formatter", function () {
+        describeWithNumberFormat("number formatter", function () {
             test("Should format numbers with default options", function () {
                 const formatter = formatters.number();
                 expect(formatter("123")).toBe("123");
@@ -656,7 +660,7 @@ describe("i18n", function () {
             });
         });
 
-        describe("currency formatter", function () {
+        describeWithNumberFormat("currency formatter", function () {
             test("Should format currency with default USD", function () {
                 const formatter = formatters.currency();
                 expect(formatter("1234.56")).toBe("$1,234.56");
@@ -753,7 +757,7 @@ describe("i18n", function () {
                 });
             });
 
-            test("Should work with number formatter", function () {
+            testWithNumberFormat("Should work with number formatter", function () {
                 const result = t("formatTest.number",
                     {value: "1234567"},
                     {value: formatters.number()}
@@ -761,7 +765,7 @@ describe("i18n", function () {
                 expect(result).toBe("The number is 1,234,567");
             });
 
-            test("Should work with currency formatter", function () {
+            testWithNumberFormat("Should work with currency formatter", function () {
                 const result = t("formatTest.currency",
                     {amount: "1234.56"},
                     {amount: formatters.currency()}
@@ -786,7 +790,7 @@ describe("i18n", function () {
                 expect(result).toMatch(/Created on \w+ \d+, \d{4}/);
             });
 
-            test("Should work with multiple formatters", function () {
+            testWithNumberFormat("Should work with multiple formatters", function () {
                 const testTranslations = {
                     "en-US": {
                         ...mockTranslations["en-US"],
@@ -870,7 +874,7 @@ describe("i18n", function () {
             expect(plurals.t("item", {count: 5})).toBe("5 items");
         });
 
-        test("Should work with formatters in namespaces", function () {
+        testWithNumberFormat("Should work with formatters in namespaces", function () {
             const plurals = i18n.ns("plurals");
 
             const result = plurals.t("item",
