@@ -2,7 +2,7 @@ import ReactDOM from "@modules/reactdom";
 import React from "react";
 import Settings, {type SettingsCollection} from "@stores/settings";
 import JsonStore from "@stores/json";
-import {Filters, getByKeys, getLazy, getMangled, getModule} from "@webpack";
+import {Filters, getByKeys, getByStrings, getLazy, getMangled, getModule} from "@webpack";
 import Patcher from "@modules/patcher";
 
 import AddonPage from "@ui/settings/addonpage";
@@ -30,6 +30,12 @@ import getDebugInfo from "@utils/debug";
 import Tooltip from "@ui/tooltip";
 import type {GroupOnChange} from "./settings/group";
 import {getInternalInstance} from "@utils/react";
+
+const ContextMenu = new ContextMenuPatcher();
+
+// User-approved Stage 4 choice: take upstream 44e21745's stricter opening lookup.
+const UserSettings = getByKeys<any>(["openUserSettings", "USER_SETTINGS_MODAL_KEY"], {firstId: 840065, cacheId: "core-settings-usersettings"});
+const closeUserSettings = getByStrings<() => boolean>(["closeUserSettings"]);
 
 const SettingsRenderer = new class SettingsRenderer {
     private versionInfoObserver?: MutationObserver;
@@ -65,9 +71,10 @@ const SettingsRenderer = new class SettingsRenderer {
         return (...args: Parameters<GroupOnChange>) => {
             onChange(...args);
 
-            // Delay until after switch animation
-            // customcss is here to let the tab show/hide
-            // since that component is out of our control/scope
+            // Fork review: unlike upstream 44e21745, this port still removes and
+            // re-registers the Custom CSS panel with its Builtin lifecycle.
+            // Refresh after the switch animation so an already-open settings
+            // view sees that panel disappear or return immediately.
             if (args.length >= 3 && args[1] === "customcss") {
                 setTimeout(this.forceUpdate.bind(this), 250);
             }
@@ -285,13 +292,14 @@ const SettingsRenderer = new class SettingsRenderer {
                             ...makeSettingsPanelProvider(React.createElement(panel.element!)),
                             icon,
                             title: () => panel.label,
-                            predicate: useCustomCSSViewable,
-                            useSearchTerms: () => [panel.label]
+                            predicate: checkAll(useCustomCSSEnabled, () => !useCustomCSSClickable()),
+                            useSearchTerms: () => [panel.label],
                         });
+
                         insert("customcss_clickable", {
                             icon,
                             title: () => panel.label,
-                            predicate: useCustomCSSClickable,
+                            predicate: checkAll(useCustomCSSEnabled, useCustomCSSClickable),
                             onClick: () => CustomCSS.open(),
                             useSearchTerms: () => [panel.label]
                         });
@@ -581,6 +589,37 @@ const SettingsRenderer = new class SettingsRenderer {
         });
     }
 
+    public closeUserSettingsModal() {
+        // Fork review: keep the proven legacy and layer-pop fallbacks behind
+        // upstream 44e21745's modal-key API for Discord layout/API drift.
+        const liveKey = typeof UserSettings?.USER_SETTINGS_MODAL_KEY === "string" ? UserSettings.USER_SETTINGS_MODAL_KEY : undefined;
+        const modalKeys = [...new Set([liveKey, "USER_SETTINGS_MODAL_MODAL_KEY"].filter((key): key is string => Boolean(key)))];
+
+        if (typeof Modals.ModalActions?.closeModal === "function") {
+            for (const key of modalKeys) {
+                try {
+                    // ModalActions returns void, so only continue down the hierarchy
+                    // when this key/API is unavailable or throws; blindly popping too
+                    // would risk closing an unrelated modal after a normal close.
+                    Modals.ModalActions.closeModal(key);
+                    return;
+                }
+                catch {
+                    // Try the next reviewed settings-close fallback.
+                }
+            }
+        }
+
+        try {
+            if (closeUserSettings?.()) return;
+        }
+        catch {
+            // The dispatcher below is the final compatibility fallback.
+        }
+
+        DiscordModules.Dispatcher?.dispatch({type: "LAYER_POP"});
+    }
+
     forceUpdate() {
         const viewClass = DiscordModules.ViewClasses?.standardSidebarView.split(" ")[0];
         const node = document.querySelector(`.${viewClass}`);
@@ -589,10 +628,6 @@ const SettingsRenderer = new class SettingsRenderer {
         if (stateNode) stateNode.forceUpdate();
     }
 };
-
-const ContextMenu = new ContextMenuPatcher();
-
-const UserSettings = getByKeys<any>(["openUserSettings"], {firstId: 840065, cacheId: "core-settings-usersettings"});
 
 interface PanelLayout {
     buildLayout(): [category: CategoryLayout];
@@ -670,13 +705,17 @@ type LayoutConstructor = {
     onClick(): void;
 });
 
+const checkAll = (...hooks: Array<() => boolean>) => () => hooks.map(hook => hook()).every(x => x);
+
+const useCustomCSSEnabled = () => useStateFromStores(Settings, () => Settings.get<boolean>("settings", "customcss", "customcss"), []);
+
 /** @description On true clicking open will open not open the page. On false will open the page */
 const useCustomCSSClickable = () => {
-    const state = useStateFromStores(Settings, () => Settings.get<string>("settings", "customcss", "openAction"));
+    const state = useStateFromStores(Settings, () => Settings.get<string>("settings", "customcss", "openAction"), []);
+    const isDetached = useStateFromStores(CustomCSS, () => CustomCSS.isDetached, []);
 
-    return ["detached", "external", "system"].includes(state);
+    return isDetached || ["detached", "external", "system"].includes(state);
 };
-const useCustomCSSViewable = () => !useCustomCSSClickable();
 
 function LayerSettingTitle() {
     const [node, setNode] = React.useState<HTMLElement | undefined | null | void>();

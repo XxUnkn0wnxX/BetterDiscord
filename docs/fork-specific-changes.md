@@ -31,11 +31,11 @@ link targets its full 40-character SHA.
 | --- | --- | --- | --- |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
-| BetterDiscord settings integration | Uses upstream settings layout discovery, version rendering, and Custom CSS predicates. | Uses resilient section placement, the current `openUserSettings` discovery, and a DOM-backed version row with debug-copy and tooltip behavior. | Port upstream settings features manually around these hooks. Observable placement/navigation/debug-copy behavior must remain. |
+| BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
-| Custom CSS navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive panel removal, new open actions, and editor layout changes. | Avoids the stale `updateAccount` settings-module lookup. Closing settings uses the discovered `closeUserSettings` export and falls back to `LAYER_POP`. | Take the upstream Custom CSS feature set, but reconcile the two overlapping files and preserve a working close/navigation fallback. |
+| Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
-| System-editor launch failure | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) closes the separate BetterDiscord editor whenever Electron's `shell.openPath()` promise resolves. Electron also resolves failures, using a nonempty error string. | Closes the BetterDiscord editor only when `openPath()` returns an empty success string. A failed system-editor launch leaves the BetterDiscord editor open. | Preserve the result check and its source comment until upstream provides equivalent failure handling. |
+| System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
@@ -117,9 +117,28 @@ Primary files: `src/betterdiscord/ui/settings.tsx` and
 - [`2c4f777b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2c4f777b964fa339b44bebee86a5a22f6cd91395) added resilient BetterDiscord section placement through
   `getBetterDiscordSectionIndex()`.
 
-Upstream may replace obsolete implementation details, but it must preserve the
-visible section placement, settings navigation, version row, debug-copy action,
-and copy tooltip.
+The Stage 4 review deliberately replaces the fork's `openUserSettings`-only
+lookup from `f0eb9941` with upstream's stricter lookup requiring both
+`openUserSettings` and `USER_SETTINGS_MODAL_KEY`. That adoption is not a
+protected divergence; verify it at runtime and prefer the upstream form while
+it works.
+
+The protected settings behavior is:
+
+- `getBetterDiscordSectionIndex()` first places BetterDiscord before Discord's
+  footer section, then tries the activity section/children, and only then
+  appends it. Do not restore upstream's unchecked `findIndex() + 1` placement.
+- Keep the DOM-backed BetterDiscord version row, debug-copy action, and copy
+  tooltip until upstream has runtime-proven equivalent behavior on the current
+  Discord layout.
+- Closing Settings selects the first available, non-throwing tier in this order:
+  a discovered `USER_SETTINGS_MODAL_KEY`, the reviewed
+  `USER_SETTINGS_MODAL_MODAL_KEY` constant, the legacy `closeUserSettings`
+  export, and finally `LAYER_POP`.
+- `ModalActions.closeModal()` returns `void`, so a normal call cannot be
+  followed blindly by another fallback without risking closure of an unrelated
+  modal. Continue down the hierarchy only when the current API/key is missing
+  or throws.
 
 ### `BdApi.UI` settings dependency polarity
 
@@ -147,16 +166,53 @@ The Stage 2 integration and dependency correction are recorded in
 
 ### Custom CSS
 
-Primary files: `src/betterdiscord/builtins/customcss.ts` and
-`src/betterdiscord/ui/settings.tsx`.
+Primary files:
+
+- `src/betterdiscord/builtins/customcss.ts`
+- `src/betterdiscord/ui/settings.tsx`
+- `src/betterdiscord/ui/customcss/csseditor.tsx`
+- `src/betterdiscord/ui/customcss/editor.tsx`
+- `src/betterdiscord/styles/builtins/customcss.css`
 
 - [`eb384c7f`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eb384c7f8e1f9376c630add2708dc01fdc8feade) removed the stale `updateAccount` module dependency.
-- Detached-editor navigation first tries `closeUserSettings`; if unavailable,
-  it falls back to `DiscordModules.Dispatcher` with `LAYER_POP`.
+- Stage 4 adopts upstream's full-page settings editor, React ref handling,
+  enabled/clickable predicates, detached-state updates, system/external editor
+  actions, and already-detached toast.
 
-The larger upstream Custom CSS UI is desired. Only the close/navigation
-compatibility behavior and a correct Builtin enable/disable lifecycle are fork
-requirements.
+Intentional Stage 4 divergence from upstream `44e21745`:
+
+- Do not add upstream's `CustomCSS.initialize()` override as written. It skips
+  `Builtin.initialize()`, so initially enabled Custom CSS would not load,
+  inject, watch its file, or install the main setting listener.
+- Register the Custom CSS panel from `enabled()` and remove it from
+  `disabled()`. Upstream registers it once from `initialize()`, removes it when
+  disabled, and does not put it back on re-enable.
+- Keep the delayed Settings refresh after the main toggle changes. Because this
+  port still removes/re-registers the panel, an already-open Settings view must
+  be rebuilt so the panel disappears or returns immediately.
+- Apply the full-page panel/scroller classes only for `isSettingsPage`, and
+  remove the scroller class from the same scroller node that received it.
+  Upstream applies the effect without checking the flag and removes that class
+  from the wrong element.
+- Suppress ancestor focus only for the remainder of the current Monaco click's
+  event propagation, then immediately unpatch. Never leave
+  `HTMLElement.prototype.focus` globally replaced between clicks or after an
+  editor unmounts.
+- An editor may continue saving while the main Custom CSS toggle is off, but
+  `DOMManager` must receive an empty stylesheet until that toggle is enabled
+  again. This prevents an open editor from silently reactivating disabled CSS.
+- The main toggle controls CSS application, file watching, and panel visibility;
+  it does not close an already-open detached/external editor or reopen one when
+  enabled again. Opening the detached editor from Settings does close Settings.
+- Open the system editor with `shell.openPath()`. Close the Settings or floating
+  source editor only when Electron returns its empty success string; show an
+  error and leave the source editor open for a nonempty error or rejection.
+- Keep the reviewed Settings close hierarchy documented above for detached
+  editor navigation.
+
+Each correction has a nearby `Fork review` source comment. If upstream later
+supplies equivalent behavior, remove the local correction and take the
+upstream implementation rather than preserving divergence for its own sake.
 
 ### Addon Store install completion
 
@@ -173,14 +229,18 @@ Primary file: `src/betterdiscord/ui/modals/installmodal.tsx`.
 
 ### System-editor launch failure
 
-Primary file: `src/editor/preload.ts`.
+Primary files: `src/editor/preload.ts` and
+`src/betterdiscord/builtins/customcss.ts`.
 
 Electron's `shell.openPath()` resolves to an empty string on success and a
-nonempty error string on failure. Upstream
+nonempty error string on failure. In the separate editor preload, upstream
 [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
-closes the separate BetterDiscord editor for either result. The fork checks the
-resolved string and closes only on success, so a failed macOS system-editor
-launch does not leave the user with neither editor open.
+calls `openPath()` but closes for either resolved string. In the Custom CSS
+settings/floating paths, upstream calls asynchronous `openExternal()` and
+closes the source editor immediately without waiting for launch success. The
+fork uses success-gated `openPath()` in both paths and closes only for its empty
+success string, so a failed macOS system-editor launch does not leave the user
+with neither editor open.
 
 An inline fork-review comment records the reason for this divergence. If
 upstream later checks the `openPath()` result or otherwise keeps the editor open

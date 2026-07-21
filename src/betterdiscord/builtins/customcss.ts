@@ -12,7 +12,6 @@ import React from "react";
 import Events from "@modules/emitter";
 import DOMManager from "@modules/dommanager";
 import {t} from "@common/i18n";
-import DiscordModules from "@modules/discordmodules";
 
 import CSSEditor, {type CssEditorRef} from "@ui/customcss/csseditor";
 import FloatingWindows from "@ui/floatingwindows";
@@ -20,9 +19,7 @@ import SettingsTitle from "@ui/settings/title";
 import {debounce, findInTree} from "@common/utils";
 import RemoteAPI from "@polyfill/remote";
 import {PencilIcon} from "lucide-react";
-import {getByStrings} from "@webpack";
-
-const closeUserSettings = getByStrings<() => boolean>(["closeUserSettings"]);
+import Toasts from "@stores/toasts";
 
 export default new class CustomCSS extends Builtin {
     get name() {return "Custom CSS";}
@@ -40,9 +37,16 @@ export default new class CustomCSS extends Builtin {
 
     constructor() {
         super();
+
         this.savedCss = "";
         this.insertedCss = "";
         this.isDetached = false;
+
+        Events.on("setting-updated", (collection, category) => {
+            if (collection != this.collection || category !== this.category) return;
+
+            this.emitChange();
+        });
     }
 
     Page = () => {
@@ -54,14 +58,20 @@ export default new class CustomCSS extends Builtin {
                 css: this.savedCss,
                 save: this.saveCSS.bind(this),
                 update: this.insertCSS.bind(this),
-                openNative: this.openNative.bind(this),
+                openNative: async () => {
+                    if (await this.openNative()) Settings.closeUserSettingsModal();
+                },
                 openDetached: this.openDetached.bind(this),
-                onChange: this.onChange.bind(this)
+                onChange: this.onChange.bind(this),
+                isSettingsPage: true
             })
         ];
     };
 
     async enabled() {
+        // Fork review: upstream 44e21745 moves this into an initialize() override
+        // that skips Builtin.initialize(), then disabled() removes it permanently.
+        // Keep panel registration coupled to each real enable lifecycle instead.
         SettingsStore.registerPanel(this.id, t("Panels.customcss"), {
             order: 2,
             icon: PencilIcon,
@@ -148,7 +158,11 @@ export default new class CustomCSS extends Builtin {
     insertCSS(newCss: string) {
         if (typeof (newCss) === "undefined") newCss = this.insertedCss;
         else this.insertedCss = newCss;
-        DOMManager.updateCustomCSS(newCss);
+
+        // Fork review: an editor may remain open after the main Custom CSS toggle
+        // is disabled. Keep saving its text, but never let it re-apply disabled CSS.
+        const enabled = SettingsStore.get<boolean>("settings", "customcss", "customcss");
+        DOMManager.updateCustomCSS(enabled ? newCss : "");
     }
 
     saveCSS(newCss: string) {
@@ -157,15 +171,30 @@ export default new class CustomCSS extends Builtin {
     }
 
     open() {
-        if (this.isDetached) return;
+        if (this.isDetached) return Toasts.error(t("CustomCSS.cssIsDetached"));
         if (this.nativeOpen) return this.openNative();
         else if (this.startDetached) return this.openDetached(this.savedCss);
         else if (this.startAsExternal) return this.openExternal();
         return Settings.openSettingsPage(this.id);
     }
 
-    openNative() {
-        electron.shell.openExternal(`file://${this.file}`);
+    async openNative() {
+        try {
+            const error = await electron.shell.openPath(this.file);
+
+            // Fork review: upstream 44e21745 closes the source editor without
+            // checking this result. Electron reports failure as a nonempty string.
+            if (error) {
+                Toasts.error(error);
+                return false;
+            }
+
+            return true;
+        }
+        catch (error) {
+            Toasts.error(error instanceof Error ? error.message : String(error));
+            return false;
+        }
     }
 
     openDetached(currentCSS: string) {
@@ -176,13 +205,20 @@ export default new class CustomCSS extends Builtin {
             css: currentCSS,
             save: this.saveCSS.bind(this),
             update: this.insertCSS.bind(this),
-            openNative: this.openNative.bind(this),
-            onChange: debounce(this.onChange.bind(this), 500)
+            openNative: async () => {
+                if (await this.openNative()) FloatingWindows.close("floating-editor-window");
+            },
+            onChange: debounce(this.onChange.bind(this), 500),
+            openDetached: () => {
+                this.openExternal();
+                FloatingWindows.close("floating-editor-window");
+            }
         });
 
         FloatingWindows.open({
             onClose: () => {
                 this.isDetached = false;
+                this.emitChange();
             },
             onResize: () => {
                 if (!editorRef || !editorRef.current || !editorRef.current.resize) return;
@@ -202,10 +238,11 @@ export default new class CustomCSS extends Builtin {
             },
             confirmationText: t("CustomCSS.confirmationText")
         });
-        this.isDetached = true;
 
-        if (closeUserSettings?.()) return;
-        DiscordModules.Dispatcher?.dispatch({type: "LAYER_POP"});
+        this.isDetached = true;
+        this.emitChange();
+
+        Settings.closeUserSettingsModal();
     }
 
     openExternal() {

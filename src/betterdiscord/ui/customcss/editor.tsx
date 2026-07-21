@@ -12,11 +12,13 @@ import {useStateFromStores} from "@ui/hooks";
 
 import type {editor as MonacoEditor} from "monaco-editor";
 import {Braces, CircleX, Info, TriangleAlert} from "lucide-react";
+import Patcher from "@modules/patcher";
+import clsx from "clsx";
 
 type IStandaloneCodeEditor = MonacoEditor.IStandaloneCodeEditor;
 type IStandaloneEditorConstructionOptions = MonacoEditor.IStandaloneEditorConstructionOptions;
 
-const {useState, useCallback, useEffect, forwardRef, useMemo, useImperativeHandle} = React;
+const {useState, useCallback, useEffect, useMemo, useImperativeHandle} = React;
 
 
 const languages = ["abap", "abc", "actionscript", "ada", "apache_conf", "asciidoc", "assembly_x86", "autohotkey", "batchfile", "bro", "c_cpp", "c9search", "cirru", "clojure", "cobol", "coffee", "coldfusion", "csharp", "csound_document", "csound_orchestra", "csound_score", "css", "curly", "d", "dart", "diff", "dockerfile", "dot", "drools", "dummy", "dummysyntax", "eiffel", "ejs", "elixir", "elm", "erlang", "forth", "fortran", "ftl", "gcode", "gherkin", "gitignore", "glsl", "gobstones", "golang", "graphqlschema", "groovy", "haml", "handlebars", "haskell", "haskell_cabal", "haxe", "hjson", "html", "html_elixir", "html_ruby", "ini", "io", "jack", "jade", "java", "javascript", "json", "jsoniq", "jsp", "jssm", "jsx", "julia", "kotlin", "latex", "less", "liquid", "lisp", "livescript", "logiql", "lsl", "lua", "luapage", "lucene", "makefile", "markdown", "mask", "matlab", "maze", "mel", "mushcode", "mysql", "nix", "nsis", "objectivec", "ocaml", "pascal", "perl", "pgsql", "php", "pig", "powershell", "praat", "prolog", "properties", "protobuf", "python", "r", "razor", "rdoc", "red", "rhtml", "rst", "ruby", "rust", "sass", "scad", "scala", "scheme", "scss", "sh", "sjs", "smarty", "snippets", "soy_template", "space", "sql", "sqlserver", "stylus", "svg", "swift", "tcl", "tex", "text", "textile", "toml", "tsx", "twig", "typescript", "vala", "vbscript", "velocity", "verilog", "vhdl", "wollok", "xml", "xquery", "yaml", "django"];
@@ -66,20 +68,25 @@ interface Props {
     id?: string;
     controls: Control[];
     onChange: (c: string) => void;
+    className?: string;
+    ref?: React.Ref<EditorRef>;
 }
 
 export interface EditorRef {
     resize: () => void;
     value: string;
+    node: HTMLDivElement | null;
 }
 
-export default forwardRef(function CodeEditor({
+export default function CodeEditor({
     value,
     language: requestedLang = "css",
     id = "bd-editor",
     controls = [],
-    onChange: notifyParent
-}: Props, editorRef: React.ForwardedRef<EditorRef>) {
+    onChange: notifyParent,
+    className,
+    ref: editorRef
+}: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const windowRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +119,8 @@ export default forwardRef(function CodeEditor({
         return {
             resize,
             get value() {return editor!.getValue();},
-            set value(newValue) {editor!.setValue(newValue);}
+            set value(newValue) {editor!.setValue(newValue);},
+            get node() {return windowRef.current;}
         };
     }, [editor, resize]);
 
@@ -162,6 +170,7 @@ export default forwardRef(function CodeEditor({
 
         let disposed = false;
         let disposer: (() => void) | undefined;
+        let releaseFocusPatch: (() => void) | null = null;
 
         const createMonaco = () => {
             const getOptions = () => ({
@@ -189,6 +198,24 @@ export default forwardRef(function CodeEditor({
             });
 
             const monacoEditor = window.monaco.editor.create(node, getOptions());
+
+            const suppressAncestorFocus = () => {
+                releaseFocusPatch?.();
+
+                // Fork review: upstream 44e21745 leaves HTMLElement.focus patched between clicks.
+                // Limit the suppression to the remainder of this click's bubbling phase instead.
+                const unpatch = Patcher.instead(`monaco~editor-${id}`, HTMLElement.prototype, "focus", () => {});
+                if (!unpatch) return;
+
+                releaseFocusPatch = unpatch;
+                queueMicrotask(() => {
+                    if (releaseFocusPatch !== unpatch) return;
+                    unpatch();
+                    releaseFocusPatch = null;
+                });
+            };
+
+            node.addEventListener("click", suppressAncestorFocus, {passive: true});
 
             setEditor(monacoEditor);
 
@@ -228,6 +255,9 @@ export default forwardRef(function CodeEditor({
             updateThemingVars();
 
             disposer = () => {
+                releaseFocusPatch?.();
+                releaseFocusPatch = null;
+                node.removeEventListener("click", suppressAncestorFocus);
                 monacoEditor.dispose();
                 undo();
                 onDidChangeMarkers.dispose();
@@ -271,7 +301,7 @@ export default forwardRef(function CodeEditor({
     const controlsLeft = controls.filter(c => c.side != "right").map(buildControl.bind(null, () => editor?.getValue()));
     const controlsRight = controls.filter(c => c.side == "right").map(buildControl.bind(null, () => editor?.getValue()));
 
-    return <div id="bd-editor-panel" className={theme} ref={windowRef}>
+    return <div id="bd-editor-panel" className={clsx(theme, className)} ref={windowRef}>
         <div id="bd-editor-controls">
             <div className="controls-section controls-left">
                 {controlsLeft}
@@ -343,4 +373,4 @@ export default forwardRef(function CodeEditor({
             </div>
         )}
     </div>;
-});
+};

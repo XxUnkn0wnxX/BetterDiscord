@@ -202,28 +202,44 @@ This is a reviewed port, not a fork-file replacement.
 
 ### Upstream-exact support files
 
-- [ ] Take `src/betterdiscord/styles/builtins/customcss.css` exactly upstream.
-- [ ] Take the whitespace-only `src/betterdiscord/ui/customcss/mdinstallcss.tsx` change.
+- [x] Take `src/betterdiscord/styles/builtins/customcss.css` exactly upstream.
+- [x] Take the whitespace-only `src/betterdiscord/ui/customcss/mdinstallcss.tsx` change.
 
 ### Upstream plus narrow corrections
 
-- [ ] Take `src/betterdiscord/ui/customcss/csseditor.tsx` substantially upstream.
-- [ ] Scope its settings-page layout effect to `isSettingsPage`.
-- [ ] Remove `bd-custom-css-page-scroller` from the scroller during cleanup, not the panel.
-- [ ] Take `src/betterdiscord/ui/customcss/editor.tsx` substantially upstream.
-- [ ] Omit or redesign only the global `HTMLElement.prototype.focus` patch; it must not remain globally patched between clicks.
+- [x] Take `src/betterdiscord/ui/customcss/csseditor.tsx` substantially upstream.
+- [x] Scope its settings-page layout effect to `isSettingsPage`.
+- [x] Remove `bd-custom-css-page-scroller` from the scroller during cleanup, not the panel.
+- [x] Take `src/betterdiscord/ui/customcss/editor.tsx` substantially upstream.
+- [x] Replace upstream's persistent global `HTMLElement.prototype.focus` patch with an event-scoped patch that unpatches after the current click and on cleanup.
 
 ### Fork-overlap files
 
-- [ ] Port upstream Custom CSS enabled/clickable predicates and close helper into `src/betterdiscord/ui/settings.tsx`.
-- [ ] Preserve `getBetterDiscordSectionIndex()`, the current `openUserSettings` discovery, and the DOM version/debug-copy/tooltip behavior.
-- [ ] Port upstream panel/open-action behavior into `src/betterdiscord/builtins/customcss.ts`.
-- [ ] Preserve a working `closeUserSettings`/`LAYER_POP` fallback unless the replacement is runtime-proven equivalent.
-- [ ] Keep the normal `BuiltinModule.initialize()` lifecycle; do not skip initial enablement, CSS insertion, watching, or the enable/disable listener.
-- [ ] Ensure disable removes the panel and re-enable registers it again exactly once.
-- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
-- [ ] User: test settings placement/search, version debug-copy, enabled/disabled startup, disable/re-enable, live update, saving, watching, all open actions, detached close, and unrelated focus behavior.
-- [ ] After user confirmation, create only the local Stage 4 commit.
+- [x] Port upstream Custom CSS enabled/clickable predicates and modal-key close helper into `src/betterdiscord/ui/settings.tsx`.
+- [x] Take upstream's stricter `openUserSettings` + `USER_SETTINGS_MODAL_KEY` discovery as explicitly approved for Stage 4.
+- [x] Preserve `getBetterDiscordSectionIndex()` and the DOM version/debug-copy/tooltip behavior.
+- [x] Select the first available, non-throwing close tier: live modal key, reviewed hardcoded modal key, `closeUserSettings`, then `LAYER_POP`.
+- [x] Port upstream panel/open-action behavior into `src/betterdiscord/builtins/customcss.ts`.
+- [x] Keep the normal `BuiltinModule.initialize()` lifecycle; do not skip initial enablement, CSS insertion, watching, or the enable/disable listener.
+- [x] Keep panel registration in `enabled()`, removal in `disabled()`, and the Settings refresh needed for disable/re-enable while Settings is open.
+- [x] Keep saving editor text while disabled, but prevent an open editor from re-applying CSS until the main toggle is enabled.
+- [x] Close a Settings/floating source editor after `shell.openPath()` only on its empty success result; toast failures and keep the source editor open.
+- [x] Document every intentional Stage 4 divergence and its removal condition in `docs/fork-specific-changes.md`, with nearby inline source comments marking each correction.
+- [x] Confirm the two upstream-exact support files by blob hash and review every adapted hunk against upstream `44e21745`.
+- [x] Confirm protected injection/OpenAsar, plugin loading, updater, workflow, wrapper, and release paths remain untouched.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Targeted ESLint on all five changed TypeScript/TSX source files.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test tests/`: 267 passed, 24 Bun 1.1.20/Darwin 20 native-Intl assertions skipped, and 0 failed across 18 files.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh `dist/betterdiscord.asar`: `6c814f515d3778b73f2db178e026e19e949518477553a336a20c7884eb50e1ae` (670284 bytes).
+- [x] User confirmed the full-page Custom CSS settings editor works and its sidebar entry hides/returns with the main toggle.
+- [x] User confirmed detached and external editors open, remain open across toggle changes, and are not automatically reopened; this is the intended window lifecycle.
+- [x] User confirmed opening the detached editor closes Discord Settings, covering the strict settings opener and primary live modal-key close path.
+- [x] User confirmed the Settings/version integration still works after Stage 4.
+- [x] User reported the remaining Stage 4 behavior looks fine in a rough runtime pass.
+- Close-helper note: lower tiers are reached only when the preceding API/key is unavailable or throws because `closeModal()` returns no success result.
+- [x] User authorized the local Stage 4 commit.
 
 ## Stage 5: upstream-exact native fetch
 
