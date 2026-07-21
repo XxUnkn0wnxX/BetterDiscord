@@ -32,9 +32,10 @@ link targets its full 40-character SHA.
 | Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
 | BetterDiscord settings integration | Uses upstream settings layout discovery, version rendering, and Custom CSS predicates. | Uses resilient section placement, the current `openUserSettings` discovery, and a DOM-backed version row with debug-copy and tooltip behavior. | Port upstream settings features manually around these hooks. Observable placement/navigation/debug-copy behavior must remain. |
-| `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` disables while its controller is off; `disableWith` disables while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
+| `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Custom CSS navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive panel removal, new open actions, and editor layout changes. | Avoids the stale `updateAccount` settings-module lookup. Closing settings uses the discovered `closeUserSettings` export and falls back to `LAYER_POP`. | Take the upstream Custom CSS feature set, but reconcile the two overlapping files and preserve a working close/navigation fallback. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
+| System-editor launch failure | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) closes the separate BetterDiscord editor whenever Electron's `shell.openPath()` promise resolves. Electron also resolves failures, using a nonempty error string. | Closes the BetterDiscord editor only when `openPath()` returns an empty success string. A failed system-editor launch leaves the BetterDiscord editor open. | Preserve the result check and its source comment until upstream provides equivalent failure handling. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
@@ -130,16 +131,19 @@ adds live dependency handling to plugin-created settings panels. The fork takes
 that implementation, but corrects the two nested-category checks so they agree
 with upstream's top-level handling and the core `SettingsStore`:
 
-- `enableWith: "controller"` means the dependent setting is disabled while
-  `controller` is off.
-- `disableWith: "controller"` means the dependent setting is disabled while
+- `enableWith: "controller"` means the dependent setting is enabled only while
   `controller` is on.
+- `disableWith: "controller"` means the dependent setting is disabled while
+  `controller` is on, and enabled while it is off.
 
 This changes only whether the dependent control is clickable; it does not
 change or reset the stored setting value. An inline fork-review comment marks
 the two corrected lines. If upstream later supplies equivalent logic or
 documents intentionally different category behavior, re-review the correction
 and remove it when it is no longer needed.
+
+The Stage 2 integration and dependency correction are recorded in
+[`9c3117f3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9c3117f3471a19a2f1b3ffd9ca74dc174b33a02d).
 
 ### Custom CSS
 
@@ -166,6 +170,21 @@ Primary file: `src/betterdiscord/ui/modals/installmodal.tsx`.
   [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
   Stage 1 runtime pass and is recorded in
   [`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
+
+### System-editor launch failure
+
+Primary file: `src/editor/preload.ts`.
+
+Electron's `shell.openPath()` resolves to an empty string on success and a
+nonempty error string on failure. Upstream
+[`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
+closes the separate BetterDiscord editor for either result. The fork checks the
+resolved string and closes only on success, so a failed macOS system-editor
+launch does not leave the user with neither editor open.
+
+An inline fork-review comment records the reason for this divergence. If
+upstream later checks the `openPath()` result or otherwise keeps the editor open
+on failure, remove the local correction and take the upstream equivalent.
 
 ### Core updater policy
 
@@ -225,5 +244,7 @@ The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
   `disableWith` states update immediately and each plugin callback runs once.
 - Custom CSS: verify enabled/disabled startup, disable/re-enable, all open actions, file watching, saving, and detached close behavior.
 - Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
+- System editor: verify a successful `openPath()` closes the BetterDiscord
+  editor and a failed launch leaves it open.
 - Updater: verify no BetterDiscord core request occurs while plugin/theme automatic and manual checks still work.
 - Workflows/docs/wrappers: compare them byte-for-byte with fork `develop` unless that stage explicitly changes them.

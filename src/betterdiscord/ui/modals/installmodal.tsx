@@ -96,6 +96,8 @@ export default function InstallModal({addon, transitionState, install, onClose}:
 
     const doInstall = useCallback(() => {
         setInstalling(true);
+        // Fork hotfix: disabled installs emit "read", not "loaded", so close when the install promise settles.
+        // Keep this until upstream no longer makes modal completion depend on addon startup.
         install(shouldEnable).then(() => onClose(), () => onClose());
     }, [install, shouldEnable, onClose]);
 

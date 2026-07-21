@@ -5,7 +5,7 @@ This checklist covers upstream commit
 against fork `develop` at `969320b9`.
 
 The durable inventory of intentional fork behavior is
-[docs/fork-specific-changes.md](docs/fork-specific-changes.md). Read it before
+[docs/fork-specific-changes.md](../docs/fork-specific-changes.md). Read it before
 starting any remaining stage.
 
 ## Integration rule
@@ -41,8 +41,8 @@ The goal is to take as much upstream code as possible.
 | Treatment | Paths | Status |
 | --- | ---: | --- |
 | Stage 1 upstream-exact source files | 10 | Integrated and byte-identical; preview and install-hotfix runtime checks passed |
-| Remaining upstream-exact files | 23 | Accept in coordinated stages |
-| Upstream files plus narrow defect corrections | 4 | Accept the feature; correct only the identified lines |
+| Remaining upstream-exact files | 22 | Accept in coordinated stages |
+| Upstream files plus narrow defect corrections | 5 | Accept the feature; correct only the identified lines |
 | Fork-overlap files requiring manual reconciliation | 4 | Review and port upstream around the fork behavior |
 | Protected paths with no useful code to port | 2 | Keep fork versions |
 
@@ -144,26 +144,57 @@ correction:
 - [ ] Deferred: verify each tested switch fires one individual callback and one panel callback, with no duplicate of either.
 - [ ] Deferred: verify duplicate IDs, `isOpened`, API close, `onClose`, reopening, left-edge resizing, and the non-resizable maximize state.
 - [x] User accepted the available runtime result and authorized the local Stage 2 commit.
+- [x] Stage 2 local commit: [`9c3117f3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9c3117f3471a19a2f1b3ffd9ca74dc174b33a02d).
 
-## Stage 3: upstream-exact editor bundle
+## Stage 3: editor bundle with one safety correction
 
-These ten paths do not overlap intentional fork behavior. Apply them together
-exactly as upstream:
+Before Stage 3, all ten branch blobs matched the merge base. No non-merge fork
+commit after the merge base introduced behavior in them; historical merge
+commits selected upstream content. Stage 3 does not overlap injection/OpenAsar,
+settings placement, Custom CSS navigation, updater policy, workflows, or plugin
+startup.
 
-- [ ] `assets/locales/en-us.json`.
-- [ ] `src/betterdiscord/stores/editor.ts`.
-- [ ] `src/betterdiscord/modules/addonmanager.ts`.
-- [ ] `src/betterdiscord/ui/misc/addoneditor.tsx`.
-- [ ] `src/editor/index.html`.
-- [ ] `src/editor/preload.ts`.
-- [ ] `src/editor/script.ts`.
-- [ ] `src/editor/types/global.d.ts`.
-- [ ] `src/electron/main/modules/editor.ts`.
-- [ ] `src/electron/preload/api/editor.ts`.
-- [ ] Confirm `addonmanager.ts` editor changes do not alter the fork's `pluginmanager.ts` loading rule.
-- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
-- [ ] User: test editor themes, pin/unpin, existing/new windows, system-editor transitions, and unsaved-close behavior.
-- [ ] After user confirmation, create only the local Stage 3 commit.
+### Upstream-exact files
+
+- [x] `assets/locales/en-us.json`.
+- [x] `src/betterdiscord/stores/editor.ts`.
+- [x] `src/betterdiscord/modules/addonmanager.ts`.
+- [x] `src/betterdiscord/ui/misc/addoneditor.tsx`.
+- [x] `src/editor/index.html`.
+- [x] `src/editor/script.ts`.
+- [x] `src/editor/types/global.d.ts`.
+- [x] `src/electron/main/modules/editor.ts`.
+- [x] `src/electron/preload/api/editor.ts`.
+
+### Upstream plus narrow corrections
+
+- [x] Take the typed bridge/settings changes in `src/editor/preload.ts`.
+- [x] Close the BetterDiscord editor after `electron.shell.openPath()` only when its resolved error string is empty; leave it open on failure.
+- [x] Add an inline fork-review comment explaining Electron's resolved error string and when the local correction is no longer needed.
+
+### Stage 3 behavior and verification
+
+- [x] Confirm `addonmanager.ts` changes only editor actions and do not alter the fork's `pluginmanager.ts` loading rule.
+- [x] User chose upstream's normal floating-editor switch behavior: changing editors may close and discard the prior unsaved buffer.
+- [x] Confirm pinning is intentionally one persisted global editor setting: changing one window updates all existing and future editor windows.
+- [x] Confirm no Bun 1.1.20-only syntax or runtime risk in the Stage 3 upstream code.
+- [x] Confirm all nine exact files are byte-for-byte upstream blobs and `src/editor/preload.ts` differs only at the documented `openPath()` result check.
+- [x] Keep direct Electron editor coverage in the runtime gate; the existing suite has no isolated editor-window harness, and adding one would broaden this narrow correction.
+- [x] Confirm protected injector/OpenAsar, plugin-loading, settings-hook, Custom CSS, updater, wrapper, and workflow paths still match the Stage 2 commit.
+- [x] Add the missing inline preservation comment to the already-tested Stage 1 Addon Store completion hotfix; this is documentation-only and does not alter its behavior.
+- [x] Inspect the saved live DOM in `tmp/merge/body1.html`: the primary settings footer anchors (`developer_panel` and `logout_sidebar_item`) are present with BetterDiscord immediately before them, and the primary clickable compact version wrapper is the bound debug-copy anchor. The capture gives no indication that either fallback was needed.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Targeted ESLint on all changed TypeScript and TSX files.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test tests/`: 267 passed, 24 Bun 1.1.20/Darwin 20 native-Intl assertions skipped, and 0 failed across 18 files.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh `dist/betterdiscord.asar`: `0a8c665960a52ab562a72c65060bb2d7f0e56fbcf77e850ea39d14f14803a662`.
+- [x] User confirmed plugin and theme save, normal close behavior, and clean reopening appear correct.
+- [x] User confirmed transitions from the floating editor to both the system and external editor appear correct.
+- [x] User confirmed duplicate external opens, window reuse, and dirty-close handling appear correct.
+- [x] User confirmed pin/unpin behavior and its persisted global state appear correct.
+- [x] User confirmed live theme changes and system-editor handling appear correct.
+- [x] User authorized the local Stage 3 commit.
 
 ## Stage 4: settings and Custom CSS reconciliation
 
