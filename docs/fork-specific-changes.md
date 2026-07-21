@@ -21,6 +21,9 @@ link targets its full 40-character SHA.
 - Port small compatible upstream fixes around the fork behavior where possible.
 - If compatibility is unclear, keep the current fork behavior and ask before changing it.
 - Any injector, recovery, bootstrap, or OpenAsar handoff adjustment requires an explicit user checkpoint.
+- Record reviewed upstream ancestry only after every upstream hunk is accepted,
+  adapted, or intentionally retained from the fork and the resulting tree passes
+  the final verification gate.
 
 ## Upstream versus this fork
 
@@ -29,6 +32,7 @@ link targets its full 40-character SHA.
 | Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
 | BetterDiscord settings integration | Uses upstream settings layout discovery, version rendering, and Custom CSS predicates. | Uses resilient section placement, the current `openUserSettings` discovery, and a DOM-backed version row with debug-copy and tooltip behavior. | Port upstream settings features manually around these hooks. Observable placement/navigation/debug-copy behavior must remain. |
+| `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` disables while its controller is off; `disableWith` disables while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Custom CSS navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive panel removal, new open actions, and editor layout changes. | Avoids the stale `updateAccount` settings-module lookup. Closing settings uses the discovered `closeUserSettings` export and falls back to `LAYER_POP`. | Take the upstream Custom CSS feature set, but reconcile the two overlapping files and preserve a working close/navigation fallback. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
@@ -68,9 +72,11 @@ Non-negotiable installed-recovery and handoff behavior:
   `PATH` and a small environment allowlist; it never runs Bun. Legacy
   `helperRuntime` marker data may be read for safe upgrades but must not be
   written or executed.
-- Direct builds default to a 90-second BetterDiscord recovery timeout and fork
-  workflow builds use 60 seconds. Matching OpenAsar builds add their own
+- Direct builds default to a 90-second BetterDiscord recovery timeout. Fork CI
+  explicitly uses 45 seconds, and matching OpenAsar builds add their own
   10-second BetterDiscord handoff grace.
+- Local staged testing also passes `-mrts 45`; this per-build override does not
+  change the direct-build default.
 - Each recovery run owns its own assets, helper process group, PID marker, and
   cleanup. Preserve the replace-per-run `betterdiscord-bootstrap.log` and
   `betterdiscord-bootstrap-console.log` diagnostics.
@@ -114,6 +120,27 @@ Upstream may replace obsolete implementation details, but it must preserve the
 visible section placement, settings navigation, version row, debug-copy action,
 and copy tooltip.
 
+### `BdApi.UI` settings dependency polarity
+
+Primary file: `src/betterdiscord/api/ui.ts`.
+
+Upstream
+[`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
+adds live dependency handling to plugin-created settings panels. The fork takes
+that implementation, but corrects the two nested-category checks so they agree
+with upstream's top-level handling and the core `SettingsStore`:
+
+- `enableWith: "controller"` means the dependent setting is disabled while
+  `controller` is off.
+- `disableWith: "controller"` means the dependent setting is disabled while
+  `controller` is on.
+
+This changes only whether the dependent control is clickable; it does not
+change or reset the stored setting value. An inline fork-review comment marks
+the two corrected lines. If upstream later supplies equivalent logic or
+documents intentionally different category behavior, re-review the correction
+and remove it when it is no longer needed.
+
 ### Custom CSS
 
 Primary files: `src/betterdiscord/builtins/customcss.ts` and
@@ -137,8 +164,8 @@ Primary file: `src/betterdiscord/ui/modals/installmodal.tsx`.
   guard active indefinitely.
 - This hotfix was found during the
   [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
-  Stage 1 runtime pass. Its commit
-  link will be added after the user confirms both runtime cases.
+  Stage 1 runtime pass and is recorded in
+  [`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
 
 ### Core updater policy
 
@@ -186,14 +213,16 @@ Keep these fork-owned unless explicitly reviewed:
 - local Zsh wrappers
 
 The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
-`tests/setup.ts` and `tests/common/i18n.test.ts`; its commit will be recorded
-after the staged runtime checks pass.
+`tests/setup.ts` and `tests/common/i18n.test.ts`; it is recorded in
+[`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
 
 ## Required checks after an overlapping upstream change
 
 - Injection/OpenAsar: run injection, resource-discovery, recovery, and handoff tests; then ask before live injection changes.
 - Plugin loading: verify disabled plugins stay inert, enablement runs `load()` once, and no library filename bypass exists.
 - Settings: verify placement, search/navigation, the version row, debug-copy, and tooltip behavior.
+- `BdApi.UI` dependencies: verify top-level and nested-category `enableWith` and
+  `disableWith` states update immediately and each plugin callback runs once.
 - Custom CSS: verify enabled/disabled startup, disable/re-enable, all open actions, file watching, saving, and detached close behavior.
 - Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
 - Updater: verify no BetterDiscord core request occurs while plugin/theme automatic and manual checks still work.

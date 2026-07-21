@@ -109,27 +109,41 @@ one of the 43 paths changed by `44e21745`.
 - [x] Re-run `./local-build.zsh dist` after the Stage 1C hotfix.
 - [x] Fresh post-hotfix `dist/betterdiscord.asar`: `aa697f7c5751fbf284666d4b40105462c041f1c051351732857c2041924bd896`.
 - [x] User confirmed the preview/install runtime behavior and authorized the local Stage 1 commit; carry the remaining floating-window API checks into Stage 2.
+- [x] Stage 1 local commit: [`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
 
 ## Stage 2: settings foundation and `BdApi.UI`
 
 Take these files exactly from upstream:
 
-- [ ] `src/betterdiscord/stores/settings.ts`.
-- [ ] `src/betterdiscord/structs/builtin.ts`.
-- [ ] `src/betterdiscord/data/settings.ts`, including upstream defaults and dependency metadata.
+- [x] `src/betterdiscord/stores/settings.ts`.
+- [x] `src/betterdiscord/structs/builtin.ts`.
+- [x] `src/betterdiscord/data/settings.ts`, including upstream defaults and dependency metadata.
 
 Take `src/betterdiscord/api/ui.ts` substantially as upstream, with one narrow
 correction:
 
-- [ ] Port upstream reactive setting dependencies and `openFloatingWindow`.
-- [ ] Correct category `enableWith` to disable when its controller is false.
-- [ ] Correct category `disableWith` to disable when its controller is true.
-- [ ] Leave upstream's already-correct top-level dependency logic unchanged.
+- [x] Port upstream reactive setting dependencies and `openFloatingWindow`.
+- [x] Correct category `enableWith` to disable when its controller is false.
+- [x] Correct category `disableWith` to disable when its controller is true.
+- [x] Leave upstream's already-correct top-level dependency logic unchanged.
+- [x] Add an inline fork-review comment explaining the intentional two-line divergence and when to re-review it.
 - [ ] Verify plugin setting callbacks still run once and the Stage 1 floating-window registry is used.
-- [ ] Confirm `src/betterdiscord/modules/pluginmanager.ts` remains unchanged and has no library filename exception.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
-- [ ] User: test top-level/category dependencies and a plugin-created floating window.
-- [ ] After user confirmation, create only the local Stage 2 commit.
+- [x] Confirm `src/betterdiscord/modules/pluginmanager.ts` remains unchanged and has no active library filename exception.
+- [x] Confirm the three foundation files are byte-for-byte upstream blobs and `api/ui.ts` differs from upstream only at the documented nested-category correction block.
+- [x] Confirm all protected injector/OpenAsar, settings-hook, Custom CSS, updater, wrapper, and fork-owned paths still match fork `develop`.
+- [x] User-directed fork workflow adjustment: change only the CI recovery-timeout input default and fallback from 40 to 45 seconds.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test tests/`: 267 passed, 24 Bun 1.1.20/Darwin 20 native-Intl assertions skipped, and 0 failed across 18 files.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh 45-second `dist/betterdiscord.asar`: `9e04554d8ba7e20333416d30870a3fa307299be0461fd21853b2ca107ddf5012`.
+- [x] Prepare and syntax-check the ignored local helper `tmp/Stage2RuntimeAudit.plugin.js`; do not commit or install it automatically.
+- [x] User: injected build loaded and general functionality looked normal.
+- [ ] Deferred: verify built-in Addon Store and Custom CSS dependents grey/re-enable without resetting their values.
+- [ ] Not currently exercisable: no installed plugin exposes the nested-category dependency pattern.
+- [ ] Deferred: verify each tested switch fires one individual callback and one panel callback, with no duplicate of either.
+- [ ] Deferred: verify duplicate IDs, `isOpened`, API close, `onClose`, reopening, left-edge resizing, and the non-resizable maximize state.
+- [x] User accepted the available runtime result and authorized the local Stage 2 commit.
 
 ## Stage 3: upstream-exact editor bundle
 
@@ -147,7 +161,7 @@ exactly as upstream:
 - [ ] `src/electron/main/modules/editor.ts`.
 - [ ] `src/electron/preload/api/editor.ts`.
 - [ ] Confirm `addonmanager.ts` editor changes do not alter the fork's `pluginmanager.ts` loading rule.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
+- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
 - [ ] User: test editor themes, pin/unpin, existing/new windows, system-editor transitions, and unsaved-close behavior.
 - [ ] After user confirmation, create only the local Stage 3 commit.
 
@@ -176,7 +190,7 @@ This is a reviewed port, not a fork-file replacement.
 - [ ] Preserve a working `closeUserSettings`/`LAYER_POP` fallback unless the replacement is runtime-proven equivalent.
 - [ ] Keep the normal `BuiltinModule.initialize()` lifecycle; do not skip initial enablement, CSS insertion, watching, or the enable/disable listener.
 - [ ] Ensure disable removes the panel and re-enable registers it again exactly once.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
+- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
 - [ ] User: test settings placement/search, version debug-copy, enabled/disabled startup, disable/re-enable, live update, saving, watching, all open actions, detached close, and unrelated focus behavior.
 - [ ] After user confirmation, create only the local Stage 4 commit.
 
@@ -189,7 +203,7 @@ Apply this four-file bundle exactly as upstream:
 - [ ] `src/common/native-fetch.ts` nullable timeout.
 - [ ] `src/electron/preload/api/fetch.ts` eight-second default timeout.
 - [ ] Verify webhook blocking, redirects, aborts, finite timeout, `timeout: null`, and response hydration.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
+- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
 - [ ] User: smoke-test the Addon Store/network consumers after injection.
 - [ ] After user confirmation, create only the local Stage 5 commit.
 
@@ -210,7 +224,7 @@ only its verified failure paths:
 - [ ] Clear or deduplicate rows before `_useCache()` so fallback/re-enable cannot duplicate cards.
 - [ ] Use `[]`, not `{}`, as the cached `known` filename fallback.
 - [ ] Preserve one in-flight catalogue request for concurrent consumers.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
+- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
 - [ ] User: test online, offline-before-start, disconnect, HTTP failure, retry/recovery, both feature toggles, disable/re-enable, catalogue pages, embeds, tags, pagination, and previews.
 - [ ] After user confirmation, create only the local Stage 6 commit.
 
@@ -226,11 +240,11 @@ overlap files rather than keeping their old architecture wholesale.
 - [ ] Avoid a renderer-blocking write where the existing asynchronous write is easy to retain.
 - [ ] In `src/betterdiscord/ui/updater.tsx`, use Addon Store lookups while keeping the manual BetterDiscord core check commented out.
 - [ ] Verify simultaneous plugin/theme checks share one request and both complete.
-- [ ] Run Git check, typecheck, supported Bun tests, and `./local-build.zsh dist`.
+- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
 - [ ] User: verify plugin/theme detection, success/failure downloads, pending state, and manual refresh with no BetterDiscord core request.
 - [ ] After user confirmation, create only the local Stage 7 commit.
 
-## Stage 8: protected and final gate
+## Stage 8: protected and full-tree gate
 
 Keep these two upstream paths entirely from the fork for this commit:
 
@@ -247,8 +261,21 @@ Before final landing review:
 - [ ] Run `git -c core.whitespace=cr-at-eol diff --check`.
 - [ ] Run `bun ./node_modules/typescript/bin/tsc --noEmit`.
 - [ ] Run the full supported Bun suite and the targeted injection/recovery/handoff tests.
-- [ ] Run `./local-build.zsh dist` and record the fresh ASAR hash.
+- [ ] Run `zsh local-build.zsh -mrts 45` and record the fresh ASAR hash.
 - [ ] User: release-inject and verify Settings, editor, Custom CSS, Addon Store, updater, and relevant Stable/PTB/Canary behavior.
 - [ ] Confirm the newest BetterDiscord logs have no new scoped errors.
 - [ ] Prepare the final merged/adapted/corrected/skipped report.
-- [ ] Ask before promoting the reviewed local commits into `develop` or changing Git ancestry.
+
+## Stage 9: upstream ancestry reconciliation
+
+Do this only after every implementation stage, automated gate, and user runtime
+gate above is complete:
+
+- [ ] Compare the completed branch against every path and hunk in upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829).
+- [ ] Classify every upstream hunk as accepted exactly, adapted with a documented reason, or intentionally retained from the fork.
+- [ ] Confirm the final report has no unaccounted upstream code.
+- [ ] Ask before changing ancestry or promoting the branch into `develop`.
+- [ ] Record `44e21745` as an ancestor with a normal reviewed merge, resolving protected conflicts in favor of the already-audited fork tree.
+- [ ] Confirm the ancestry merge is content-neutral against the fully tested pre-merge tree; investigate any tree change before committing it.
+- [ ] Re-run the final Git, type, supported Bun, build, and user runtime gates if the ancestry merge changes any content.
+- [ ] Leave the fork no longer one commit behind upstream while retaining all documented fork behavior.
