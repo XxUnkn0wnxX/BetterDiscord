@@ -36,6 +36,7 @@ link targets its full 40-character SHA.
 | Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
 | System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
+| Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, but resolves relative redirect locations against the current request URL. | Keep the one-line redirect correction until upstream lands equivalent base-URL handling; otherwise prefer the shared upstream implementation. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
@@ -245,6 +246,42 @@ with neither editor open.
 An inline fork-review comment records the reason for this divergence. If
 upstream later checks the `openPath()` result or otherwise keeps the editor open
 on failure, remove the local correction and take the upstream equivalent.
+
+### Native fetch transport
+
+Primary files:
+
+- `src/betterdiscord/api/net.ts`
+- `src/betterdiscord/modules/net.ts`
+- `src/common/native-fetch.ts`
+- `src/electron/preload/api/fetch.ts`
+
+Stage 5 takes upstream's shared native-fetch transport as one atomic change:
+
+- `BdApi.Net.fetch` becomes a thin public wrapper around the new internal
+  `@modules/net` implementation.
+- Existing request/body streaming, abort handling, response hydration,
+  per-redirect webhook blocking, redirect limits, and TLS verification remain.
+- The default timeout moves from three to eight seconds.
+- `timeout: null` explicitly disables the timeout. Stage 6 and Stage 7 must
+  review each no-timeout Addon Store/updater call so a stalled request cannot
+  leave shared state pending forever.
+
+Intentional divergence from upstream `44e21745`:
+
+- Resolve a redirect with `new URL(res.headers.location, uri)`. Upstream's
+  one-argument form throws for ordinary relative locations such as
+  `/download/file`.
+- The correction is also present in upstream's unmerged
+  [`3ce61469`](https://github.com/BetterDiscord/BetterDiscord/commit/3ce614695ef454259f07fd4dda8109ad4a5146fb)
+  fix. Remove the fork comment and take upstream when equivalent handling lands
+  in the reviewed upstream branch.
+
+Inherited limitations such as incomplete `303`/POST redirect semantics,
+non-replayable streamed request bodies across redirects, and copying source
+query parameters onto the redirect target are not introduced by this stage.
+Keep this port narrow rather than rewriting the transport during the
+`44e21745` integration.
 
 ### Core updater policy
 

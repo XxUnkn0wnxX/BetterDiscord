@@ -241,18 +241,28 @@ This is a reviewed port, not a fork-file replacement.
 - Close-helper note: lower tiers are reached only when the preceding API/key is unavailable or throws because `closeModal()` returns no success result.
 - [x] User authorized the local Stage 4 commit.
 
-## Stage 5: upstream-exact native fetch
+## Stage 5: shared native fetch
 
-Apply this four-file bundle exactly as upstream:
+Apply this four-file bundle atomically, with one reviewed correction:
 
-- [ ] `src/betterdiscord/api/net.ts`.
-- [ ] Add `src/betterdiscord/modules/net.ts`.
-- [ ] `src/common/native-fetch.ts` nullable timeout.
-- [ ] `src/electron/preload/api/fetch.ts` eight-second default timeout.
-- [ ] Verify webhook blocking, redirects, aborts, finite timeout, `timeout: null`, and response hydration.
-- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
-- [ ] User: smoke-test the Addon Store/network consumers after injection.
-- [ ] After user confirmation, create only the local Stage 5 commit.
+- [x] Take `src/betterdiscord/api/net.ts` exactly upstream as the thin public wrapper.
+- [x] Add `src/betterdiscord/modules/net.ts` exactly upstream as the shared internal transport.
+- [x] Take `src/common/native-fetch.ts` exactly upstream with nullable timeout typing.
+- [x] Take the eight-second preload default from upstream in `src/electron/preload/api/fetch.ts`.
+- [x] Correct relative redirects with `new URL(res.headers.location, uri)` and an inline fork-review comment.
+- [x] Document the redirect divergence, removal condition, timeout behavior, and downstream no-timeout review requirement in `docs/fork-specific-changes.md`.
+- [x] Confirm the first three files by upstream blob hash and verify the preload file differs only by the documented redirect correction.
+- [x] Verify the public wrapper, response hydration, relative/absolute redirects, aborts, `timeout: null`, and per-hop webhook blocking with the local-only Bun 1.1.20 harness.
+- [x] Verify the finite native HTTP timeout with the same bundled harness under Node; Bun 1.1.20's `node:http` timeout emulation stalls instead of firing, so only that assertion is skipped in the direct Bun run.
+- [x] Confirm protected injection/OpenAsar, plugin loading, Settings, updater-policy, workflow, wrapper, and release paths remain untouched.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Targeted ESLint on all four changed TypeScript source files.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test tests/`: 267 passed, 24 Bun 1.1.20/Darwin 20 native-Intl assertions skipped, and 0 failed across 18 files.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh `dist/betterdiscord.asar`: `016d2bd548cddef39e3c25dbec4b4b8db0f4b4d825194948ea779ecc378f80d2` (670323 bytes).
+- [x] User confirmed the injected client, Addon Store, and network behavior look good in the Stage 5 runtime smoke test.
+- [x] User authorized the local Stage 5 commit.
 
 ## Stage 6: shared Addon Store catalogue
 
