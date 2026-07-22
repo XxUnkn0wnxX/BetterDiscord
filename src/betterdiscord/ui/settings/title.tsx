@@ -2,7 +2,7 @@ import React, {type MouseEvent, type PropsWithChildren} from "react";
 
 import Button from "../base/button";
 
-const {useCallback} = React;
+const {useCallback, useLayoutEffect} = React;
 
 
 const basicClass = "bd-settings-title";
@@ -15,6 +15,21 @@ export type SettingsTitleProps = PropsWithChildren<{
     onClick?(): void;
     text?: React.ReactNode;
 }>;
+
+export interface SettingsTitlePublisherProps {
+    publish(value: React.ReactNode): unknown;
+    title: React.ReactElement<SettingsTitleProps>;
+}
+
+export function SettingsTitlePublisher({publish, title}: SettingsTitlePublisherProps) {
+    // Settings titles render in a separate retained root. Publish only after
+    // this owner commits so a remount cannot leave the previous callbacks alive.
+    useLayoutEffect(() => {
+        publish(title);
+    }, [publish, title]);
+
+    return null;
+}
 
 export default function SettingsTitle({isGroup = false, className = "", button = undefined, onClick = undefined, text, children = []}: SettingsTitleProps) {
     const click = useCallback((event: MouseEvent) => {

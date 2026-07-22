@@ -4,7 +4,7 @@ import DiscordModules from "@modules/discordmodules";
 
 import Button from "@ui/base/button";
 import JsonStore from "@stores/json";
-import SettingsTitle from "@ui/settings/title";
+import SettingsTitle, {SettingsTitlePublisher} from "@ui/settings/title";
 import {BadgeCheckIcon, ChevronRightIcon} from "lucide-react";
 import {SettingsTitleContext} from "@ui/settings";
 import type AddonManager from "@modules/addonmanager";
@@ -58,7 +58,7 @@ export function AddonHeader({children, count, searching}: AddonHeaderProps) {
 
     const set = React.useContext(SettingsTitleContext);
 
-    return set(
+    const header = (
         <SettingsTitle
             text={(
                 <div className="bd-addon-title" data-showing-store={showingStore}>
@@ -76,6 +76,8 @@ export function AddonHeader({children, count, searching}: AddonHeaderProps) {
             {children}
         </SettingsTitle>
     );
+
+    return <SettingsTitlePublisher publish={set} title={header} />;
 }
 
 export function FlowerStar({size = 16}) {
