@@ -40,4 +40,32 @@ describe("Search", () => {
         await act(async () => root.render(<SearchHarness searchKey="after-reload" />));
         expect(container.querySelector<HTMLInputElement>("input")?.value).toBe("partial match");
     });
+
+    test("clears an old query when the search page mode changes", async () => {
+        const changes: string[] = [];
+        const renderSearch = async (key: string) => {
+            await act(async () => root.render(<Search key={key} onChange={(event) => changes.push(event.target.value)} />));
+            return container.querySelector<HTMLInputElement>("input")!;
+        };
+        const enterQuery = async (input: HTMLInputElement, value: string) => {
+            await act(async () => {
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+                input.dispatchEvent(new Event("input", {bubbles: true}));
+            });
+        };
+
+        const installedSearch = await renderSearch("plugin-installed-search");
+        await enterQuery(installedSearch, "partial match");
+        expect(installedSearch.value).toBe("partial match");
+        expect(changes.at(-1)).toBe("partial match");
+
+        const storeSearch = await renderSearch("plugin-store-search");
+        expect(storeSearch.value).toBe("");
+        await enterQuery(storeSearch, "store query");
+        expect(storeSearch.value).toBe("store query");
+        expect(changes.at(-1)).toBe("store query");
+
+        const returnedSearch = await renderSearch("plugin-installed-search");
+        expect(returnedSearch.value).toBe("");
+    });
 });

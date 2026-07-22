@@ -158,10 +158,12 @@ export default function AddonStorePage({type}: AddonStorePageProps) {
         }));
     }, []);
 
+    // The title portal is shared with the installed list. Keep this query
+    // controlled; the Store-only key below guarantees a fresh search per entry.
     const [query, setQuery] = useState("");
 
     const search = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-        setQuery(event.target.value.toLocaleLowerCase());
+        setQuery(event.target.value);
         setPage(0);
     }, []);
 
@@ -249,7 +251,7 @@ export default function AddonStorePage({type}: AddonStorePageProps) {
 
     return [
         <AddonHeader key="title" count={filtered.length} searching={query.length !== 0}>
-            <Search onChange={search} placeholder={`${t("Addons.search", {count: filtered.length, context: type})}...`} />
+            <Search key={`${type}-store-search`} onChange={search} value={query} placeholder={`${t("Addons.search", {count: filtered.length, context: type})}...`} />
         </AddonHeader>,
         <div className="bd-controls bd-addon-controls">
             <div className="bd-controls-basic">

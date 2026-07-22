@@ -111,8 +111,8 @@ function StoreCard() {
 }
 
 export default function AddonList({store}: {store: AddonManager;}) {
-    // Settings can remount its title during an addon reload. Keep the visible
-    // search value controlled here so the input and filtered list cannot diverge.
+    // Settings can remount or retain its title across addon reloads and Store
+    // transitions. Control the value and use a mode key so state cannot leak.
     const [query, setQuery] = useState("");
     const [sort, setSort] = useState<ReturnType<typeof buildSortOptions>[number]["value"]>(getState.bind(null, store.prefix, "sort", "name"));
     const [ascending, setAscending] = useState(getState.bind(null, store.prefix, "ascending", true));
@@ -204,7 +204,7 @@ export default function AddonList({store}: {store: AddonManager;}) {
 
     return [
         <AddonHeader count={renderedCards.length} searching={isSearching}>
-            <Search onChange={search} value={query} placeholder={`${t("Addons.search", {count: addonList.length, context: store.prefix})}...`} />
+            <Search key={`${store.prefix}-installed-search`} onChange={search} value={query} placeholder={`${t("Addons.search", {count: addonList.length, context: store.prefix})}...`} />
         </AddonHeader>,
         <div className={"bd-controls bd-addon-controls"}>
             <div className="bd-controls-basic">
