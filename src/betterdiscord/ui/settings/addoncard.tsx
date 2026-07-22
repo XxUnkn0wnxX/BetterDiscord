@@ -107,13 +107,13 @@ export default function AddonCard({addon, enabled, type, disabled, onChange: par
         if (!hasSettings || !enabled) return;
         const name = getString(addon.name);
         try {
-            Modals.showAddonSettingsModal(name, getSettingsPanel!());
+            Modals.showAddonSettingsModal(name, getSettingsPanel!(), {id: addon.id, type});
         }
         catch (err) {
             Toasts.show(t("Addons.settingsError", {name}), {type: "error"});
             Logger.stacktrace("Addon Settings", "Unable to get settings panel for " + name + ".", err as Error);
         }
-    }, [hasSettings, enabled, addon.name, getSettingsPanel]);
+    }, [hasSettings, enabled, addon.id, addon.name, getSettingsPanel, type]);
 
     const messageAuthor = useCallback(() => {
         if (!addon.authorId) return;

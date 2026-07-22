@@ -148,6 +148,20 @@ export default class Editor {
         return window.webContents;
     }
 
+    public static close(type: "theme" | "plugin", filename: string) {
+        const window = this.windows[type][filename];
+        if (!this.isValidWindow(window)) {
+            delete this.windows[type][filename];
+            return false;
+        }
+
+        // Hot reload must discard the old editor buffer. destroy() deliberately
+        // bypasses the normal unsaved-changes prompt without invoking Save.
+        window.destroy();
+        delete this.windows[type][filename];
+        return true;
+    }
+
     private static isValidWindow(item: any): item is BrowserWindow {
         return item instanceof BrowserWindow && !item.isDestroyed();
     }

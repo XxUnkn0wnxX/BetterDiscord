@@ -21,6 +21,7 @@ import {Filters, getMangled} from "@webpack";
 import AddonError from "@structs/addonerror";
 import AddonErrorsStore from "@stores/addonerrors";
 import SimpleMarkdownExt from "@structs/markdown";
+import {watchAddonSettingsUnload, type AddonSettingsModalIdentity} from "@utils/addonsettingsmodal";
 
 
 const queue: Array<() => void> = [];
@@ -29,6 +30,15 @@ interface ModalActions {
     openModal(e: (p?: any) => ReactNode, o?: object): string | number;
     closeModal(key: string | number): void;
     closeAllModals(): void;
+}
+
+function AddonSettingsModalLifecycle({identity, onClose, children}: {identity?: AddonSettingsModalIdentity; onClose?(): void; children?: ReactNode;}) {
+    React.useEffect(() => {
+        if (!identity || !onClose) return;
+        return watchAddonSettingsUnload(identity, onClose);
+    }, [identity, onClose]);
+
+    return children;
 }
 
 export default class Modals {
@@ -259,7 +269,7 @@ export default class Modals {
         }
     }
 
-    static showAddonSettingsModal(name: string, panel: Element | string | (() => ReactNode) | ReactNode | ComponentType) {
+    static showAddonSettingsModal(name: string, panel: Element | string | (() => ReactNode) | ReactNode | ComponentType, identity?: AddonSettingsModalIdentity) {
 
         let child = panel;
         if (panel instanceof Node || typeof (panel) === "string") {
@@ -301,9 +311,11 @@ export default class Modals {
             confirmText: t("Modals.done")
         };
 
-        return this.openModal((props: any) => {
-            return React.createElement(ErrorBoundary, {id: "showAddonSettingsModal", name: "Modals"}, React.createElement(ConfirmationModal, Object.assign(options, props), child as ReactElement));
-        });
+        return this.openModal((props: any) => React.createElement(
+            AddonSettingsModalLifecycle,
+            {identity, onClose: props.onClose},
+            React.createElement(ErrorBoundary, {id: "showAddonSettingsModal", name: "Modals"}, React.createElement(ConfirmationModal, Object.assign(options, props), child as ReactElement))
+        ));
     }
 
     static hasInitialized = false;

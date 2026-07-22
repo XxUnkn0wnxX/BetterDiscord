@@ -21,6 +21,7 @@ export const GET_ACCENT_COLOR           = "bd-get-accent-color";
 export const OPEN_PATH                  = "bd-open-path";
 export const HANDLE_PROTOCOL            = "bd-handle-protocol";
 export const EDITOR_OPEN                = "bd-editor-open";
+export const EDITOR_CLOSE               = "bd-editor-close";
 export const EDITOR_SHOULD_SHOW_WARNING = "bd-editor-show-warning";
 export const EDITOR_SETTINGS_GET        = "bd-editor-settings-get";
 export const EDITOR_SETTINGS_UPDATE     = "bd-editor-settings-update";

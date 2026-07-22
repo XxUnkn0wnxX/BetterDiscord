@@ -35,6 +35,7 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 | --- | --- | --- | --- |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
+| Plugin/theme settings and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close. Do not replace it with a global modal/window close or make reload invoke normal save/confirm callbacks. |
 | BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
@@ -113,6 +114,47 @@ if (addon.runAt !== point || !this.state[addon.id]) continue;
 
 There must be no active filename exception for `0BDFDB.plugin.js`, BDFDB, or
 ZeresPluginLibrary.
+
+### Plugin/theme hot-reload UI safety
+
+Primary files:
+
+- `src/betterdiscord/modules/addonmanager.ts`
+- `src/betterdiscord/ui/modals.ts`
+- `src/betterdiscord/ui/settings/addoncard.tsx`
+- `src/betterdiscord/ui/settings.tsx`
+- `src/betterdiscord/utils/addonsettingsmodal.ts`
+- `src/common/constants/ipcevents.ts`
+- `src/electron/main/modules/editor.ts`
+- `src/electron/main/modules/ipc.ts`
+- `src/electron/preload/api/editor.ts`
+
+Upstream
+[`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
+rebuilds a plugin or theme card after its file reloads, but it does not replace
+an already-open settings panel or close an editor holding the old source. This
+fork treats those surfaces as owned by the addon instance or file that created
+them:
+
+- Settings entry points pass the addon type and ID into the modal. The modal
+  listens only for that matching `plugin-unloaded` or `theme-unloaded` event.
+- A matching reload invokes the raw modal close function instead of the normal
+  Done/confirm path. BetterDiscord therefore does not request a save, show a
+  toast, or automatically reopen the panel.
+- The in-app detached editor closes through `FloatingWindows` without its
+  normal unsaved-changes prompt or Save control.
+- The separate BetterDiscord editor window closes through a dedicated IPC
+  command that force-destroys only the matching plugin/theme filename window.
+  This bypasses its normal unsaved warning and does not write the editor buffer.
+- A system text editor opened through the operating system is deliberately not
+  closed because BetterDiscord does not own that process.
+
+Ordinary user closes retain the existing upstream behavior. Settings-panel
+persistence remains owned by the plugin or theme, and the detached/external
+editors retain their existing explicit Save and unsaved-warning behavior. The
+reload guard can prevent BetterDiscord from calling a normal save callback, but
+it cannot undo data that third-party settings code already wrote immediately on
+change or deliberately writes from its own unmount cleanup.
 
 ### Settings integration
 

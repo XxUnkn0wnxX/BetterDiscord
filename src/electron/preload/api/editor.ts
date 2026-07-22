@@ -7,6 +7,10 @@ export function open(type: "custom-css" | "theme" | "plugin", filename?: string)
     ipcRenderer.invoke(IPCEvents.EDITOR_OPEN, type, filename);
 }
 
+export function close(type: "theme" | "plugin", filename: string): Promise<boolean> {
+    return ipcRenderer.invoke(IPCEvents.EDITOR_CLOSE, type, filename);
+}
+
 export function updateSettings(settings: import("../../../editor/preload").Settings) {
     ipcRenderer.invoke(IPCEvents.EDITOR_SETTINGS_UPDATE, settings);
 }

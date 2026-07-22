@@ -185,6 +185,9 @@ const registerPreload = (_: IpcMainEvent, path: string) => {
 const openEditor = (_: IpcMainInvokeEvent, type: "plugin" | "theme", filename: string) => {
     Editor.open(type, filename);
 };
+const closeEditor = (_: IpcMainInvokeEvent, type: "plugin" | "theme", filename: string) => {
+    return Editor.close(type, filename);
+};
 
 const updateSettings = (_: IpcMainInvokeEvent, settings: any) => {
     Editor.updateSettings(settings);
@@ -225,6 +228,7 @@ export default class IPCMain {
             ipc.handle(IPCEvents.OPEN_DIALOG, openDialog);
             ipc.handle(IPCEvents.OPEN_WINDOW, createBrowserWindow);
             ipc.handle(IPCEvents.EDITOR_OPEN, openEditor);
+            ipc.handle(IPCEvents.EDITOR_CLOSE, closeEditor);
             ipc.handle(IPCEvents.EDITOR_SETTINGS_UPDATE, updateSettings);
             ipc.handle(IPCEvents.GET_ALLOW_PRELOAD_OVERRIDE, getAllowPreloadOverride);
             ipc.handle(IPCEvents.SET_ALLOW_PRELOAD_OVERRIDE, setAllowPreloadOverride);

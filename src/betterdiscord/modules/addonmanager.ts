@@ -293,6 +293,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         if (!addon) return false;
 
         const fileStillExists = fs.existsSync(path.resolve(this.addonFolder, addon.filename));
+        this.closeAddonEditors(addon);
 
         if (this.state[addon.id]) {
             if (isReload || fileStillExists) this.stopAddon(addon);
@@ -309,6 +310,18 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         }
         Toasts.success(t("Addons.wasUnloaded", {name: addon.name}));
         return true;
+    }
+
+    private closeAddonEditors(addon: T) {
+        const detachedId = "bd-floating-window-" + addon.id;
+        // Direct service closure bypasses the detached editor's normal prompt
+        // and never calls its Save control, so reload discards its UI buffer.
+        if (FloatingWindows.isOpened(detachedId)) FloatingWindows.close(detachedId);
+
+        const externalClose = RemoteAPI.editor.close?.(this.prefix, addon.filename);
+        externalClose?.catch((error: unknown) => {
+            Logger.warn(this.name, `Could not close the stale external editor for ${addon.filename}.`, error);
+        });
     }
 
     reloadAddon(idOrFileOrAddon: string | T) {

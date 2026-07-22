@@ -824,7 +824,7 @@ function useAddonMenu(manager: AddonManager) {
                 const getSettings = (hasSettings && (addon as Plugin).instance.getSettingsPanel!.bind((addon as Plugin).instance)) as () => any;
 
                 if (hasSettings) {
-                    Modals.showAddonSettingsModal(name, getSettings());
+                    Modals.showAddonSettingsModal(name, getSettings(), {id: addon!.id, type: manager.prefix});
                 }
                 else {
                     toasts.warning(t("Addons.noSettings", {name}));
