@@ -1,73 +1,119 @@
-<div align="center">
+# BetterDiscord macOS fork
 
-<a href="https://betterdiscord.app"><img src="https://betterdiscord.app/resources/branding/logo_large.svg" alt="BetterDiscord Logo" style="width: 70%"/></a>
+[![CI Status][ci-badge]][ci-link] [![License][license-badge]][license-link] [![Website][website-badge]][website-link] [![Docs][docs-badge]][docs-link] [![Discord][discord-badge]][discord-link] [![Translate][translate-badge]][translate-link]
 
-[![CI Status][build-badge]][build-link] [![GitHub Releases][downloads-badge]][downloads-link] [![Discord][discord-badge]][discord-link] [![Website][website-badge]][website-link] [![Docs][docs-badge]][docs-link] [![Crowdin][i18n-badge]][i18n-link]
-
-
-[build-badge]: https://img.shields.io/github/actions/workflow/status/XxUnkn0wnxX/BetterDiscord/ci.yml?branch=develop&logo=Github&logoColor=3a71c1&labelColor=0c0d10&color=3a71c1&style=for-the-badge
-[build-link]: https://github.com/XxUnkn0wnxX/BetterDiscord/actions/workflows/ci.yml
-
-[downloads-badge]: https://img.shields.io/github/downloads/BetterDiscord/Installer/total?labelColor=0c0d10&color=3a71c1&style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyLjI1IDM4LjVIMzUuNzVDMzYuNzE2NSAzOC41IDM3LjUgMzkuMjgzNSAzNy41IDQwLjI1QzM3LjUgNDEuMTY4MiAzNi43OTI5IDQxLjkyMTIgMzUuODkzNSA0MS45OTQyTDM1Ljc1IDQySDEyLjI1QzExLjI4MzUgNDIgMTAuNSA0MS4yMTY1IDEwLjUgNDAuMjVDMTAuNSAzOS4zMzE4IDExLjIwNzEgMzguNTc4OCAxMi4xMDY1IDM4LjUwNThMMTIuMjUgMzguNUgzNS43NUgxMi4yNVpNMjMuNjA2NSA2LjI1NThMMjMuNzUgNi4yNUMyNC42NjgyIDYuMjUgMjUuNDIxMiA2Ljk1NzExIDI1LjQ5NDIgNy44NTY0N0wyNS41IDhWMjkuMzMzTDMwLjI5MzEgMjQuNTQwN0MzMC45NzY1IDIzLjg1NzMgMzIuMDg0NiAyMy44NTczIDMyLjc2OCAyNC41NDA3QzMzLjQ1MTQgMjUuMjI0MiAzMy40NTE0IDI2LjMzMjIgMzIuNzY4IDI3LjAxNTZMMjQuOTg5OCAzNC43OTM4QzI0LjMwNjQgMzUuNDc3MiAyMy4xOTg0IDM1LjQ3NzIgMjIuNTE1IDM0Ljc5MzhMMTQuNzM2OCAyNy4wMTU2QzE0LjA1MzQgMjYuMzMyMiAxNC4wNTM0IDI1LjIyNDIgMTQuNzM2OCAyNC41NDA3QzE1LjQyMDIgMjMuODU3MyAxNi41MjgyIDIzLjg1NzMgMTcuMjExNyAyNC41NDA3TDIyIDI5LjMyOVY4QzIyIDcuMDgxODMgMjIuNzA3MSA2LjMyODgxIDIzLjYwNjUgNi4yNTU4TDIzLjc1IDYuMjVMMjMuNjA2NSA2LjI1NThaIiBmaWxsPSIjM2E3MWMxIi8+Cjwvc3ZnPgo=
-[downloads-link]: #auto-installers
-
-[discord-badge]: https://img.shields.io/badge/discord-green?labelColor=0c0d10&color=7289da&style=for-the-badge&logo=discord&logoColor=7289da
-[discord-link]: https://discord.gg/bnSUxedypU
-
-[website-badge]: https://img.shields.io/badge/website-green?labelColor=0c0d10&color=3a71c1&style=for-the-badge&logo=firefoxbrowser&logoColor=3a71c1
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/XxUnkn0wnxX/BetterDiscord/ci.yml?branch=develop&logo=github&label=develop&style=for-the-badge
+[ci-link]: https://github.com/XxUnkn0wnxX/BetterDiscord/actions/workflows/ci.yml
+[license-badge]: https://img.shields.io/badge/license-Apache--2.0-3a71c1?style=for-the-badge
+[license-link]: LICENSE.md
+[website-badge]: https://img.shields.io/badge/upstream-website-3a71c1?logo=firefoxbrowser&style=for-the-badge
 [website-link]: https://betterdiscord.app
-
-[docs-badge]: https://img.shields.io/badge/docs-green?labelColor=0c0d10&color=3a71c1&style=for-the-badge&logo=readthedocs&logoColor=3a71c1
+[docs-badge]: https://img.shields.io/badge/upstream-docs-3a71c1?logo=readthedocs&style=for-the-badge
 [docs-link]: https://docs.betterdiscord.app
+[discord-badge]: https://img.shields.io/badge/upstream-discord-7289da?logo=discord&logoColor=white&style=for-the-badge
+[discord-link]: https://betterdiscord.app/invite
+[translate-badge]: https://img.shields.io/badge/upstream-translate-3a71c1?logo=crowdin&style=for-the-badge
+[translate-link]: https://translate.betterdiscord.app
 
-[i18n-badge]: https://img.shields.io/badge/Translate-green?labelColor=0c0d10&color=3a71c1&style=for-the-badge&logo=crowdin&logoColor=3a71c1
-[i18n-link]: https://translate.betterdiscord.app
+This is an independent, macOS-focused fork of
+[BetterDiscord](https://github.com/BetterDiscord/BetterDiscord). It is built
+for local use from the `develop` branch and does not provide or promote the
+upstream installer downloads.
 
+The maintained workflow for this fork is to build it locally, inject it into a
+standard macOS Discord installation, and open Discord normally.
 
-BetterDiscord is a client modification for Discord with endless flexibility and addons. The only limit to the customization is your own imagination.
+The Website, Docs, Discord, and Translate shields above are upstream community
+resources. This fork deliberately does not link or promote upstream installer
+downloads.
 
-[![Theme Split](https://betterdiscord.app/resources/branding/split.png)](https://betterdiscord.app/)
+## :sparkles: How this fork differs
 
-</div>
+- **:package: Wrapper injection:** Uses an application-ASAR wrapper with macOS update recovery and an
+  identity-matched OpenAsar handoff instead of desktop-core-only injection.
+- **:hammer_and_wrench: Local workflow:** Provides Zsh wrappers for release/dev injection, safe uninject, and
+  Stable, PTB, or Canary selection.
+- **:no_entry_sign: Core updates:** Keeps BetterDiscord core update checks disabled while plugin and theme
+  updates remain active.
+- **:shield: Safer addon updates:** Uses identity-aware plugin/theme updates so a same-filename Store addon
+  cannot silently replace an unrelated forked addon.
+- **:electric_plug: Library-neutral loading:** Gives no special startup treatment to `0BDFDB.plugin.js` or another plugin
+  library; disabled plugins stay disabled.
+- **:paintbrush: Runtime hardening:** Retains fork-specific Settings, Custom CSS, editor, Addon Store, and Discord
+  runtime compatibility fixes around reviewed upstream changes.
 
+See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
+upstream-versus-fork inventory and the rules used for future merges.
 
+## :apple: Supported workflow
 
-# Installation
+This repository is maintained and documented for standard local Discord
+installations on macOS. Upstream code may continue to support other operating
+systems, but Windows and Linux installation are outside this fork's supported
+workflow.
 
-Download the installer for your operating system below. You can check [this page](https://docs.betterdiscord.app/users/getting-started/installation) for a more detailed guide.
+Prerequisites:
 
-[![Windows Installer][windows-badge]][windows-link] [![Mac Installer][mac-badge]][mac-link] [![Linux Installer][linux-badge]][linux-link]
+- macOS with Discord Stable, PTB, or Canary installed normally;
+- [Bun](https://bun.sh/) available in `PATH`;
+- Git and Zsh.
 
-[windows-link]: https://github.com/BetterDiscord/Installer/releases/latest/download/BetterDiscord-Windows.exe
-[windows-badge]: https://img.shields.io/badge/Windows%20(7+)-3a71c1?logo=Windows&logoColor=3a71c1&labelColor=0c0d10&color=3a71c1&style=for-the-badge
+## :hammer_and_wrench: Build and inject
 
-[mac-link]: https://github.com/BetterDiscord/Installer/releases/latest/download/BetterDiscord-Mac.zip
-[mac-badge]: https://img.shields.io/badge/macOS%20(10.10+)-3a71c1?logo=Apple&logoColor=3a71c1&labelColor=0c0d10&color=3a71c1&style=for-the-badge
+Clone the fork's `develop` branch and install its dependencies:
 
-[linux-link]: https://github.com/BetterDiscord/Installer/releases/latest/download/BetterDiscord-Linux.AppImage
-[linux-badge]: https://img.shields.io/badge/Linux-3a71c1?logo=Linux&logoColor=3a71c1&labelColor=0c0d10&color=3a71c1&style=for-the-badge
+```sh
+git clone --branch develop https://github.com/XxUnkn0wnxX/BetterDiscord.git
+cd BetterDiscord
+bun install
+```
 
+Build a release ASAR and inject it into Discord Stable:
 
+```sh
+zsh local-build.zsh -mrts 45
+zsh local-inject.zsh stable
+```
 
-# Manual Installation
+The injector closes the selected Discord client before changing its wrapper.
+Open Discord again after the command finishes. Replace `stable` with `ptb` or
+`canary` when needed.
 
-For normal users, installing via the installers makes the most sense. However when wanting to either develop BetterDiscord, or when the installers do not work, this option can be used. Please see our [detailed documentation](https://docs.betterdiscord.app/users/getting-started/installation#manual-installation) for a guide on how to do this.
+For a quick renderer-development loop:
 
-For this fork, see [docs/manual-install.md](docs/manual-install.md) for Bun build steps, normal injection commands, the local macOS wrappers, and the Discord install manager/OpenAsar wrapper-safe order.
+```sh
+zsh local-build.zsh build --module=betterdiscord
+zsh local-inject.zsh stable dev
+```
 
+Use a release build for final runtime verification. The dev mode points Discord
+at the unpacked `dist/` output and is intended only for local iteration.
 
+## :wastebasket: Remove the fork
 
-# Addons
+Restore the payload that existed before BetterDiscord wrapped it:
 
-Installing addons--like plugins and themes--is easy. All you need to do is select and download an addon from [our website][website-link] and put it in your folder. If you want some more details, or just prefer a visual guide, take a look at our [tutorial on installing addons](https://docs.betterdiscord.app/users/guides/installing-addons) that includes a demonstration video.
+```sh
+zsh local-uninject.zsh stable auto
+```
 
+This preserves a nested OpenAsar payload when one was already installed.
 
+## :book: Documentation
 
-# Platform Support
+- [Manual macOS build and injection](docs/manual-install.md)
+- [Fork-specific changes and upstream policy](docs/fork-specific-changes.md)
+- [Contributing to this fork](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+- [Apache License 2.0](LICENSE.md)
 
-BetterDiscord currently only supports standard local Discord installs. This means snap packages, portable apps, and the web version are all not supported.
+The detailed manual guide covers release and dev injection, dry runs,
+Stable/PTB/Canary selection, update recovery, OpenAsar ordering, and safe
+uninject behavior.
 
-Examples of supported platforms:
-- Windows 7 and newer
-- macOS Yosemite and newer
-- Ubuntu 14.04 and newer
+## :link: Upstream and license
+
+BetterDiscord is the upstream project. This fork preserves upstream authorship
+and remains available under the [Apache License 2.0](LICENSE.md). Fork-specific
+support and changes should be handled in this repository rather than through
+the upstream installer support flow.

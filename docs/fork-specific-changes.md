@@ -12,9 +12,9 @@ and upstream
 on 2026-07-22. Commit labels are abbreviated for readability; every commit
 link targets its full 40-character SHA.
 
-The Stage 7B section documents the current `upstream-merge-44e21745` staging
-tree. It has no fork commit link until its automated and user runtime gates are
-complete.
+The Stage 7B section documents the final `upstream-merge-44e21745` staging
+tree. Its rewritten implementation and core-policy commits are linked below;
+deferred user runtime gates remain tracked separately in the merge checklist.
 
 ## Merge policy
 
@@ -169,7 +169,7 @@ documents intentionally different category behavior, re-review the correction
 and remove it when it is no longer needed.
 
 The Stage 2 integration and dependency correction are recorded in
-[`9c3117f3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9c3117f3471a19a2f1b3ffd9ca74dc174b33a02d).
+[`48a9fb48`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/48a9fb48864cf1a371548960638431417eaf6507).
 
 ### Custom CSS
 
@@ -232,7 +232,7 @@ Primary file: `src/betterdiscord/ui/modals/installmodal.tsx`.
 - This hotfix was found during the
   [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
   Stage 1 runtime pass and is recorded in
-  [`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
+  [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
 
 ### System-editor launch failure
 
@@ -378,6 +378,11 @@ Primary files:
 - `src/betterdiscord/ui/updater.tsx`
 - `src/betterdiscord/stores/json.ts`
 - `src/electron/preload/api/filesystem.ts`
+
+The final rewritten implementation is recorded in
+[`a2ed8d5b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/a2ed8d5b04cd8b8f9975e4cdbc540c20e054615d),
+followed by the core-policy correction in
+[`eeae6df8`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eeae6df8d34b7602e4e5e546aca1e75b3037fb94).
 
 The first Stage 7 port followed upstream's Store-only lookup. Runtime testing
 then proved that a matching filename is not enough: the Store's
@@ -556,7 +561,8 @@ Primary files: `src/betterdiscord/modules/updater.ts` and
   official stable `1.13.14` release was offered over the fork's identical
   `1.13.14` version because upstream intentionally bypassed comparison while
   switching channels. The post-checkpoint hotfix restores the fork policy by
-  commenting that manual call out again.
+  commenting that manual call out again; the rewritten hotfix is
+  [`eeae6df8`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eeae6df8d34b7602e4e5e546aca1e75b3037fb94).
 
 Keep the startup, scheduler, and Updates-panel core-check calls commented with
 their explanation so future merges do not accidentally reactivate them. The
@@ -594,13 +600,32 @@ Keep these fork-owned unless explicitly reviewed:
 - `.github/workflows/crowdin.yml`
 - `.github/workflows/publish-types.yml.disabled`
 - `.gitignore`
+- `CODE_OF_CONDUCT.md`
+- `CONTRIBUTING.md`
+- `LICENSE.md` and its packaging references in `scripts/types.ts`,
+  `types/package.json`, and `types/README.md`
 - `README.md`
 - `docs/manual-install.md`
 - local Zsh wrappers
 
+The root README is the macOS fork landing page. Its fork CI, license,
+repository, and issue links must point to `XxUnkn0wnxX/BetterDiscord`. The
+Website, Docs, Discord, and Translate shields are retained as clearly labelled
+upstream community resources, but upstream installer/download badges and
+instructions are deliberately omitted from the supported local workflow.
+
+`LICENSE.md` is the same Apache License 2.0 legal text previously stored in
+`LICENSE`, with Markdown headings added for rendering. The generated type
+package also publishes `LICENSE.md`, and its repository/support metadata points
+to this fork.
+
 The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
-`tests/setup.ts` and `tests/common/i18n.test.ts`; it is recorded in
-[`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
+`tests/setup.ts` and `tests/common/i18n.test.ts`. The type-package generator
+also invokes the repo-local TypeScript binary explicitly because that Bun
+version does not add `node_modules/.bin` to `Bun.$`'s command path. Root package
+metadata declares Bun 1.1.20 as the supported minimum instead of incorrectly
+requiring 1.2. The test compatibility work is recorded in
+[`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
 
 ## Required checks after an overlapping upstream change
 

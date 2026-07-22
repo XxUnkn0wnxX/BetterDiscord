@@ -22,9 +22,9 @@ usage() {
     print -r -- "Examples:"
     print -r -- "  ./local-build.zsh"
     print -r -- "  ./local-build.zsh build --module=betterdiscord"
-    print -r -- "  ./local-build.zsh -mrts 60"
-    print -r -- "  ./local-build.zsh --macos-recovery-timeout-seconds 60"
-    print -r -- "  ./local-build.zsh dist --macos-recovery-timeout-seconds 60"
+    print -r -- "  ./local-build.zsh -mrts 45"
+    print -r -- "  ./local-build.zsh --macos-recovery-timeout-seconds 45"
+    print -r -- "  ./local-build.zsh dist --macos-recovery-timeout-seconds 45"
 }
 
 for argument in "$@"; do

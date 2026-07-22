@@ -1,6 +1,8 @@
 # @betterdiscord/types
 
-TypeScript type definitions for the [BetterDiscord](https://betterdiscord.app) plugin API (`BdApi`).
+TypeScript type definitions for the
+[BetterDiscord fork](https://github.com/XxUnkn0wnxX/BetterDiscord) plugin API
+(`BdApi`).
 
 These types are generated from the BetterDiscord source and describe the global `BdApi` object,
 the `window.BdApi` augmentation, and the `BetterDiscord` namespace available to plugins.
@@ -46,4 +48,4 @@ based on the shape of the API surface, not the BetterDiscord release version.
 
 ## License
 
-[Apache-2.0](./LICENSE)
+[Apache-2.0](https://github.com/XxUnkn0wnxX/BetterDiscord/blob/develop/LICENSE.md)

@@ -16,7 +16,8 @@ await buildTypes();
 
 async function buildTypes() {
     console.log("Generating declaration files...");
-    await $`tsc -p ./declaration.tsconfig.json`;
+    // Bun 1.1.20 does not add node_modules/.bin to Bun.$'s command path.
+    await $`${process.execPath} ./node_modules/typescript/bin/tsc -p ./declaration.tsconfig.json`;
 
     console.log("Bundling into index.d.ts...");
     const bundle = await rollup({
@@ -62,7 +63,7 @@ async function buildTypes() {
     console.log("Assembling package...");
     await copyFile(`${packageDir}/package.json`, `${outDir}/package.json`);
     await copyFile(`${packageDir}/README.md`, `${outDir}/README.md`);
-    await copyFile("./LICENSE", `${outDir}/LICENSE`);
+    await copyFile("./LICENSE.md", `${outDir}/LICENSE.md`);
 
     // The intermediate per-file declarations are no longer needed.
     await rm(declarationsDir, {recursive: true, force: true});

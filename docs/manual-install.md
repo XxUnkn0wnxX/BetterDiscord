@@ -1,12 +1,16 @@
-# Manual Build And Injection
+# Manual macOS Build and Injection
 
-This document is for this fork of BetterDiscord.
+This is the maintained build and injection workflow for this macOS-focused
+BetterDiscord fork.
 
-Use the normal Bun commands first if you want the baseline manual workflow. The local Zsh wrappers are convenience helpers layered on top of that flow, and they are mainly for macOS.
+The local Zsh wrappers are the recommended user-facing workflow. The underlying
+Bun commands remain documented for development, troubleshooting, and precise
+control over individual build or injection steps.
 
 ## Prerequisites
 
-- A standard local Discord install. Portable builds, Snap packages, and the web app are not supported.
+- A standard local macOS Discord install. Portable builds and the web app are
+  not supported by this workflow.
 - Bun installed and available in `PATH`.
   On macOS, the recommended path for this fork is:
 
@@ -16,7 +20,6 @@ brew install bun
 ```
 
   See the [Homebrew website](https://brew.sh/) and the [Homebrew install page](https://brew.sh/) if you need the full setup details first.
-  Linux and Windows setup is left up to the user.
 - Project dependencies installed with:
 
 ```sh
@@ -45,9 +48,9 @@ The macOS recovery helper waits up to 90 seconds by default. To stamp a
 different positive whole-number timeout into a build:
 
 ```sh
-bun scripts/build.ts --macos-recovery-timeout-seconds 60
-./local-build.zsh dist --macos-recovery-timeout-seconds 60
-./local-build.zsh -mrts 60
+bun scripts/build.ts --macos-recovery-timeout-seconds 45
+./local-build.zsh dist --macos-recovery-timeout-seconds 45
+./local-build.zsh -mrts 45
 ```
 
 `-mrts` is a local-wrapper alias for
@@ -57,7 +60,7 @@ long option.
 `BETTERDISCORD_MACOS_RECOVERY_TIMEOUT_SECONDS` provides the same build-time
 setting for GitHub Actions. OpenAsar adds its own short coordination grace
 when it is waiting for BetterDiscord, so matching configured values are safe.
-The fork's workflow builds explicitly use 60 seconds; direct builds without an
+The fork's workflow builds explicitly use 45 seconds; direct builds without an
 override keep the normal 90-second default.
 
 ### Production Build
@@ -103,10 +106,10 @@ Bun is only used for development tooling: dependency installation, building,
 packing, and manually running the inject/uninject scripts. Installed update
 recovery does not call Bun.
 
-On Windows and Linux, the injector, uninjector, and update migrator recognize
-both `app-X.Y.Z` and plain `X.Y.Z` version directories. They select the newest
-directory containing the modern `resources/app.asar` or application-wrapper
-layout. Old `discord_desktop_core`-only directories are deliberately ignored.
+The inherited injector, uninjector, and update migrator retain cross-platform
+resource discovery, but Windows and Linux installation are technical reference
+only and are not part of this fork's maintained workflow. Old
+`discord_desktop_core`-only directories are deliberately ignored.
 
 ### macOS Update Recovery
 
@@ -222,9 +225,12 @@ These local helpers are:
 - [../local-inject.zsh](../local-inject.zsh)
 - [../local-uninject.zsh](../local-uninject.zsh)
 
-These wrappers are mainly for macOS. They assume macOS app names such as `Discord`, `Discord PTB`, and `Discord Canary`, use AppleScript to quit the app, and detect processes through the `.app/Contents/MacOS/` layout.
+These wrappers are the maintained macOS workflow. They assume app names such as
+`Discord`, `Discord PTB`, and `Discord Canary`, use AppleScript to quit the app,
+and detect processes through the `.app/Contents/MacOS/` layout.
 
-If you want the most portable workflow across checkouts, use the Bun commands above first.
+Use the underlying Bun commands above when developing or diagnosing an
+individual build/injection step.
 
 ### `local-build.zsh`
 
@@ -245,9 +251,9 @@ Examples:
 ./local-build.zsh pack
 ./local-build.zsh dist
 ./local-build.zsh --help
-./local-build.zsh -mrts 60
-./local-build.zsh --macos-recovery-timeout-seconds 60
-./local-build.zsh dist --macos-recovery-timeout-seconds 60
+./local-build.zsh -mrts 45
+./local-build.zsh --macos-recovery-timeout-seconds 45
+./local-build.zsh dist --macos-recovery-timeout-seconds 45
 ```
 
 The timeout option can come first; the wrapper then uses its default `dist`
@@ -325,7 +331,7 @@ Examples:
 
 ## Quick Examples
 
-Build a release bundle and inject it into stable Discord with the normal Bun flow:
+Build a release bundle and inject it into Stable with the underlying Bun flow:
 
 ```sh
 NODE_ENV=production bun scripts/build.ts --minify

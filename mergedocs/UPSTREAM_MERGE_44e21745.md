@@ -109,7 +109,7 @@ one of the 43 paths changed by `44e21745`.
 - [x] Re-run `./local-build.zsh dist` after the Stage 1C hotfix.
 - [x] Fresh post-hotfix `dist/betterdiscord.asar`: `aa697f7c5751fbf284666d4b40105462c041f1c051351732857c2041924bd896`.
 - [x] User confirmed the preview/install runtime behavior and authorized the local Stage 1 commit; carry the remaining floating-window API checks into Stage 2.
-- [x] Stage 1 local commit: [`8a64cd76`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8a64cd76d29b639a7806c23793dfaf3c7e95dbfa).
+- [x] Stage 1 local commit: [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
 
 ## Stage 2: settings foundation and `BdApi.UI`
 
@@ -144,7 +144,7 @@ correction:
 - [ ] Deferred: verify each tested switch fires one individual callback and one panel callback, with no duplicate of either.
 - [ ] Deferred: verify duplicate IDs, `isOpened`, API close, `onClose`, reopening, left-edge resizing, and the non-resizable maximize state.
 - [x] User accepted the available runtime result and authorized the local Stage 2 commit.
-- [x] Stage 2 local commit: [`9c3117f3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9c3117f3471a19a2f1b3ffd9ca74dc174b33a02d).
+- [x] Stage 2 local commit: [`48a9fb48`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/48a9fb48864cf1a371548960638431417eaf6507).
 
 ## Stage 3: editor bundle with one safety correction
 
@@ -397,10 +397,17 @@ Verification and landing checklist for the current Stage 7B tree:
 - [x] `git -c core.whitespace=cr-at-eol diff --check`.
 - [x] `bun test --timeout 10000 tests/` on the existing Bun 1.1.20 after the core-policy hotfix: 340 passed, 24 established Bun 1.1.20/Darwin 20 native-Intl skips, 0 failed, and 882 assertions across 27 files.
 - [x] Two independent final reviews cleared the coordinator concurrency, AddonManager reload/pruning, atomic-write, and state-serialization paths after the active-join and duplicate-modal fixes.
-- [x] Confirm injection/OpenAsar, plugin loading, Settings hooks, Custom CSS, workflow, wrapper, and release paths are byte-for-byte unchanged from Stage 6 commit `69f76e37` across the protected-path audit.
+- [x] Confirm injection/OpenAsar, plugin loading, Settings hooks, Custom CSS, workflow, wrapper, and release paths are byte-for-byte unchanged from rewritten Stage 6 commit `97419d71` across the protected-path audit.
 - [x] `zsh local-build.zsh -mrts 45`; fresh `dist/betterdiscord.asar`: `abbadfcf87b4d35f6bdbae3de47a601b597f3dca0873a1c61f5d62021369005b` (732693 bytes).
 - [x] Post-checkpoint core-policy hotfix build with `zsh local-build.zsh -mrts 45`: `982bcceee54587a1f0fef75c37af81ef64b70650075e619cf0af407a840b6712` (732617 bytes).
-- [ ] User: release-inject and verify declared-URL and Store-only detection for plugins/themes, the JumpToTop collision, Store-disabled updater independence, enabled/disabled addon replacement, startup config pruning/sorting, success/failure UI and its toggle, the shared manual cooldown, and no BetterDiscord core request at startup, on the scheduler, or from manual refresh.
+- [x] User: release-inject the post-hotfix asar and confirm a manual addon update completes without the BetterDiscord core update row returning (2026-07-22).
+- [x] User: confirm the declared-URL identity path with the JumpToTop collision: the installed fork updated from its own `@updateUrl`, never the unrelated same-filename Store addon (2026-07-22).
+- [ ] User: spot-check one Store-only addon and one theme update when suitable outdated test candidates are available.
+- [ ] User: disable **Enable Addon Store** and confirm plugin/theme manual updates still work, then restore the preferred Store setting.
+- [ ] User: confirm an enabled addon stays enabled after replacement and a disabled addon remains disabled after replacement.
+- [ ] User: after one cold restart, confirm `plugins.json` and `themes.json` are sorted and missing-addon keys are pruned without removing a present compile-failed addon.
+- [ ] User: spot-check success/failure UI and **Show Addon Update Notifications** when a safe failure case is available; failure details must still reach the console while toast cards are disabled.
+- [ ] User: confirm repeated manual refreshes are coalesced by the shared cooldown. Treat startup/scheduler core suppression as source-policy verified unless a core request or prompt is observed; do not wait out a multi-hour interval solely for this gate.
 - [x] Create the user-requested local Stage 7B checkpoint commit after the automated gates and fresh asar build, before runtime testing; keep it local and do not push it.
 - [x] Build, verify, and create the separate local core-policy hotfix commit; keep it local and do not push it.
 
@@ -413,29 +420,181 @@ Keep these two upstream paths entirely from the fork for this commit:
 
 Before final landing review:
 
-- [ ] Confirm `scripts/inject.ts`, `scripts/helpers/injection.ts`, `scripts/uninject.ts`, and `scripts/build.ts` match fork `develop`.
-- [ ] Confirm `src/common/discordResources.ts`, `migrator.ts`, `macosrecovery.ts`, and `macoshandoff.ts` match fork `develop`.
-- [ ] Confirm local Zsh wrappers match fork `develop`.
-- [ ] Confirm `pluginmanager.ts` still has generic enabled-state loading and no active library filename exception.
-- [ ] Confirm fork workflows, `.gitignore`, README, and pre-existing docs remain fork-owned.
-- [ ] Run `git -c core.whitespace=cr-at-eol diff --check`.
-- [ ] Run `bun ./node_modules/typescript/bin/tsc --noEmit`.
-- [ ] Run the full supported Bun suite and the targeted injection/recovery/handoff tests.
-- [ ] Run `zsh local-build.zsh -mrts 45` and record the fresh ASAR hash.
+- [x] Confirm `scripts/inject.ts`, `scripts/helpers/injection.ts`, `scripts/uninject.ts`, and `scripts/build.ts` match fork `develop`.
+- [x] Confirm `src/common/discordResources.ts`, `migrator.ts`, `macosrecovery.ts`, and `macoshandoff.ts` match fork `develop`.
+- [x] Confirm local Zsh wrappers match fork `develop`.
+- [x] Confirm `pluginmanager.ts` still has generic enabled-state loading and no active library filename exception.
+- [x] Confirm fork workflows, `.gitignore`, README, and pre-existing docs remain fork-owned. The only reviewed differences are the user-approved CI timeout of 45 seconds, ignored `mergedocs/`, and additive fork inventory.
+- [x] Run `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Run `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] Run the full supported Bun suite and the targeted injection/recovery/handoff tests: 340 passed, 24 established Bun 1.1.20/Darwin 20 Intl skips, 0 failed, and 882 assertions overall; 32 passed, 0 failed, and 150 assertions in the protected subset.
+- [x] Run `zsh local-build.zsh -mrts 45` after the ancestry rewrite; `dist/betterdiscord.asar` is 732617 bytes with SHA-256 `6ecdd418bddc5ce7f2bbb82ae2ddca2d5c7d7d875fb1db9d95e7beb71c871270` and embeds branch `upstream-merge-44e21745` plus rewritten core-policy commit `eeae6df8`.
 - [ ] User: release-inject and verify Settings, editor, Custom CSS, Addon Store, updater, and relevant Stable/PTB/Canary behavior.
 - [ ] Confirm the newest BetterDiscord logs have no new scoped errors.
-- [ ] Prepare the final merged/adapted/corrected/skipped report.
+- [x] Prepare the final merged/adapted/corrected/skipped report in the Stage 9 accounting below.
 
 ## Stage 9: upstream ancestry reconciliation
 
-Do this only after every implementation stage, automated gate, and user runtime
-gate above is complete:
+The review accounting was completed while explicitly deferred runtime checks
+remained visible. After accepting those deferrals, the user authorized the
+content-neutral ancestry rewrite; no deferred checkbox is treated as a result
+that was actually run.
 
-- [ ] Compare the completed branch against every path and hunk in upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829).
-- [ ] Classify every upstream hunk as accepted exactly, adapted with a documented reason, or intentionally retained from the fork.
-- [ ] Confirm the final report has no unaccounted upstream code.
-- [ ] Ask before changing ancestry or promoting the branch into `develop`.
-- [ ] Record `44e21745` as an ancestor with a normal reviewed merge, resolving protected conflicts in favor of the already-audited fork tree.
-- [ ] Confirm the ancestry merge is content-neutral against the fully tested pre-merge tree; investigate any tree change before committing it.
-- [ ] Re-run the final Git, type, supported Bun, build, and user runtime gates if the ancestry merge changes any content.
-- [ ] Leave the fork no longer one commit behind upstream while retaining all documented fork behavior.
+### Final code-accounting audit
+
+The review-only audit compared upstream parent `10fbc6ed` through
+[`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
+against the completed source tree at rewritten core-policy commit `eeae6df8`.
+It parsed all 43 changed paths and all 257 zero-context upstream hunks.
+
+| Final treatment | Paths | Hunks | Result |
+| --- | ---: | ---: | --- |
+| Byte-identical upstream blobs | 25 | 107 | Accepted exactly |
+| Every upstream hunk retained, with later fork additions/corrections | 6 | 15 | Accepted and safely extended |
+| Deliberately reconciled files | 10 | 133 | Upstream behavior adapted around reviewed fixes/fork contracts |
+| Protected fork files retained | 2 | 2 | Upstream hunk intentionally skipped |
+| **Unaccounted** | **0** | **0** | No additional implementation stage required |
+
+The 25 byte-identical upstream paths are:
+
+- `src/betterdiscord/api/contextmenu.ts`
+- `src/betterdiscord/api/net.ts`
+- `src/betterdiscord/api/utils.ts`
+- `src/betterdiscord/data/web.ts`
+- `src/betterdiscord/modules/core.ts`
+- `src/betterdiscord/modules/patcher.ts`
+- `src/betterdiscord/stores/editor.ts`
+- `src/betterdiscord/stores/settings.ts`
+- `src/betterdiscord/structs/builtin.ts`
+- `src/betterdiscord/styles/builtins/customcss.css`
+- `src/betterdiscord/ui/customcss/mdinstallcss.tsx`
+- `src/betterdiscord/ui/floating/container.tsx`
+- `src/betterdiscord/ui/floating/window.tsx`
+- `src/betterdiscord/ui/floatingwindows.tsx`
+- `src/betterdiscord/ui/misc/addoneditor.tsx`
+- `src/betterdiscord/ui/misc/storeembed.tsx`
+- `src/betterdiscord/ui/modals.ts`
+- `src/betterdiscord/ui/settings/addonstore.tsx`
+- `src/betterdiscord/webpack/searching.ts`
+- `src/editor/index.html`
+- `src/editor/script.ts`
+- `src/editor/types/global.d.ts`
+- `src/electron/main/modules/editor.ts`
+- `src/electron/preload/api/editor.ts`
+- `src/electron/preload/api/https.ts`
+
+These six files retain every upstream hunk and add only reviewed later work:
+
+| Path | Later fork work |
+| --- | --- |
+| `assets/locales/en-us.json` | Stage 7B update/notification wording |
+| `src/betterdiscord/builtins/store/addonstore.ts` | Correct codeblock match length and reusable link-opener discovery |
+| `src/betterdiscord/data/settings.ts` | Addon-update notification setting |
+| `src/betterdiscord/modules/addonmanager.ts` | State pruning/sorting and atomic-reload preservation |
+| `src/common/native-fetch.ts` | Internal response guards and stream cancellation |
+| `src/electron/preload/api/fetch.ts` | Relative-redirect correction and updater-only transport safety |
+
+These ten files reconcile upstream with a documented correction or fork
+contract:
+
+| Path | Reconciliation |
+| --- | --- |
+| `src/betterdiscord/api/ui.ts` | Retain the reactive builder/floating API but correct the two inverted nested dependency checks. |
+| `src/betterdiscord/builtins/customcss.ts` | Retain upstream actions while preserving the Builtin lifecycle, panel re-registration, disabled CSS state, and success-gated system-editor close. |
+| `src/betterdiscord/modules/addonstore.ts` | Retain the shared native-fetch catalogue while settling requests, bounding waits, repairing cache/retry behavior, and keeping updater use independent from Store visibility. |
+| `src/betterdiscord/modules/net.ts` | Retain the complete upstream transport and add private response-size/HTTPS-only forwarding for validated addon sources. |
+| `src/betterdiscord/modules/updater.ts` | Retain dormant native-fetch core code but replace filename-only addon selection with the identity-aware coordinator and keep every core entry point commented. |
+| `src/betterdiscord/ui/customcss/csseditor.tsx` | Scope full-page classes to Settings and clean up the class on the correct scroller. |
+| `src/betterdiscord/ui/customcss/editor.tsx` | Replace the persistent global focus patch with event-scoped suppression and cleanup. |
+| `src/betterdiscord/ui/settings.tsx` | Adopt upstream predicates/strict opening while retaining the fork placement/version hook, refresh, and tiered close fallbacks. |
+| `src/betterdiscord/ui/updater.tsx` | Use identity-approved candidates, retryable rows, atomic-success settlement, and addon-only manual refresh. |
+| `src/editor/preload.ts` | Keep the editor open when Electron resolves `openPath()` with a failure string. |
+
+The only fully retained paths are `scripts/inject.ts`, whose upstream hunk only
+fixes a typo in obsolete injector code, and `src/electron/main/migrator.ts`,
+whose upstream hunk suppresses production diagnostics required by the fork's
+recovery/OpenAsar flow.
+
+### Pre-rebase fork documentation pass
+
+This user-requested documentation pass is fork-owned follow-up work, not an
+unaccounted part of upstream `44e21745`. It must be completed before the final
+ancestry rewrite so its resulting commit can be replayed with the other reviewed
+work:
+
+- [x] Rewrite the root README around the supported macOS local-build/injection
+  workflow and a concise fork-versus-upstream overview.
+- [x] Keep the useful Website, Docs, Discord, and Translate shields as clearly
+  labelled upstream resources; keep the fork CI and license shields in the same
+  horizontal badge flow and omit installer/download promotion.
+- [x] Convert the root Apache 2.0 license to `LICENSE.md` without changing its
+  legal wording, update the generated type-package license references, and
+  make its compiler invocation work with the fork's retained Bun 1.1.20; align
+  the root Bun engine metadata with that tested minimum.
+- [x] Update `docs/manual-install.md` for the maintained macOS workflow and the
+  fork workflow's 45-second recovery timeout override while retaining the
+  direct-build 90-second default; align the non-functional `local-build.zsh`
+  help examples with the same 45-second local test value.
+- [x] Replace stale upstream contribution instructions and issue links with the
+  fork's current Bun, branch, build, runtime, and protected-area guidance.
+- [x] Route fork conduct concerns to the fork maintainer and retain
+  `CHANGELOG.md` as an unmodified upstream historical record.
+- [x] Verify the Apache text equivalence, Markdown links, package metadata,
+  type-package assembly, TypeScript, lint, and final diff cleanliness.
+
+Verification passed with the retained Bun 1.1.20: normalized Apache text is
+identical to the previous `LICENSE`, every local Markdown target exists, the
+README shields render as one badge paragraph, both package manifests parse,
+`local-build.zsh` passes `zsh -n`, TypeScript and targeted ESLint pass, and the
+generated type package contains the matching `LICENSE.md`. Type assembly exits
+successfully with only Rollup's pre-existing external `node:https` declaration
+notice.
+
+### Ancestry rehearsal and completed rewrite
+
+A normal merge rehearsal at the completed tip found 12 conflicts and no clean
+automatic content change outside those conflicts. Restoring all 12 paths from
+the reviewed fork tree produced tree `8447cc08`, exactly matching the current
+first-parent tree. A per-hunk `-X ours` resolution is not safe because it still
+reintroduces stale/duplicate upstream code; any tip-level ancestry merge would
+need whole-file reviewed resolutions.
+
+The user requested a clearer final history: the ancestry point was inserted
+immediately before Stage 1 and the reviewed stage commits were replayed above
+it as the last integration stage:
+
+```text
+fork develop 969320b9 ---- e5d7928b ---- 26d9406e ---- ... ---- eeae6df8
+                              /
+upstream 44e21745 ------------
+```
+
+Ancestry point
+[`e5d7928b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/e5d7928b7202eadfdbb4d29a2aa5f34f34188079)
+has `969320b9` as its first parent, upstream `44e21745` as its second parent,
+and the exact `969320b9` tree. The eight replayed commits map 1:1 in
+`git range-diff`, and the rewritten core-policy tip retains tree
+`8447cc081e946377b7016c63cbb44ada54d5717a`, exactly matching local backup
+`backup/upstream-merge-44e21745-pre-ancestry-20260722`.
+
+| Stage | Rewritten commit |
+| --- | --- |
+| Ancestry point | [`e5d7928b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/e5d7928b7202eadfdbb4d29a2aa5f34f34188079) |
+| Stage 1 | [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1) |
+| Stage 2 | [`48a9fb48`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/48a9fb48864cf1a371548960638431417eaf6507) |
+| Stage 3 | [`83a3ae7a`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/83a3ae7a343655bff6210180fe03576956794086) |
+| Stage 4 | [`3753b7b4`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/3753b7b4c5d964014d94a8c89d1d2e8ca2b8e7d0) |
+| Stage 5 | [`7098d262`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/7098d262956c40d228d583099ad88417cbd25752) |
+| Stage 6 | [`97419d71`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/97419d7171d0cf38dcf5a77d5454923df6120be2) |
+| Stage 7B | [`a2ed8d5b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/a2ed8d5b04cd8b8f9975e4cdbc540c20e054615d) |
+| Core-policy hotfix | [`eeae6df8`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eeae6df8d34b7602e4e5e546aca1e75b3037fb94) |
+
+- [x] Compare the completed branch against every path and hunk in upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829).
+- [x] Classify every upstream hunk as accepted exactly, adapted with a documented reason, or intentionally retained from the fork.
+- [x] Confirm the final report has no unaccounted upstream code.
+- [x] Obtain user authorization before changing ancestry; do not promote this local branch into `develop` without a separate instruction.
+- [x] As the final integration stage, insert a content-neutral ancestry point for `44e21745` immediately before Stage 1 and replay the eight reviewed stage/core commits above it.
+- [x] Confirm the ancestry point and rewritten source tip are content-neutral against their respective first-parent/backup trees; the range-diff is 1:1.
+- [x] Re-run final Git, TypeScript, the supported Bun suite, and the release build. The rewrite changed no source content, so the existing user runtime results remain applicable and deferred runtime gates remain visible.
+- [x] Leave the local staging branch with upstream `44e21745` as an ancestor while retaining all documented fork behavior.
+- [ ] Ask before promoting the completed local staging branch into `develop`.
