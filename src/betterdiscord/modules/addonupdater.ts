@@ -1599,7 +1599,7 @@ export class AddonUpdateCoordinator {
     static async checkManually(): Promise<boolean> {
         if (this.#manualCheck) {
             // A concurrent click may join the addon work, but only its initiating caller returns
-            // true and owns the one allowed manual BetterDiscord core check.
+            // true. The fork's optional core-check call remains commented in the Updates panel.
             await this.#manualCheck;
             return false;
         }

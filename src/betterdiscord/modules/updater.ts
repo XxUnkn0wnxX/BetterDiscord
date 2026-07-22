@@ -55,7 +55,7 @@ export default class Updater {
 
     static startUpdateInterval() {
         // Fork behavior: the dynamic one-shot scheduler handles only plugin/theme checks. BetterDiscord
-        // core startup and scheduled checks stay disabled; its explicit Updates-panel check remains.
+        // core startup, scheduled, and manual checks stay disabled; the dormant calls remain commented.
         // CoreUpdater.checkForUpdate();
         AddonUpdateCoordinator.configureSchedule();
     }
@@ -67,8 +67,8 @@ export class CoreUpdater {
     static remoteVersion = "";
 
     static async initialize() {
-        // Fork behavior: BetterDiscord core checks stay disabled at startup and on the scheduler.
-        // The explicit Updates-panel refresh remains the only core check path.
+        // Fork behavior: BetterDiscord core checks stay disabled at startup, on the scheduler,
+        // and from the Updates-panel refresh. Preserve the implementation for future review.
         // if (!SettingsStore.get("addons", "checkForUpdates")) return;
         // this.checkForUpdate();
     }

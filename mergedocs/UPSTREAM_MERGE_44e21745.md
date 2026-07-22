@@ -377,7 +377,7 @@ Implementation checklist:
 - [x] Track every installed plugin/theme whether enabled or disabled, and prune addon/orphaned-URL freshness state at startup, unload, and each manual/scheduled pass when a file is no longer in the manager inventory.
 - [x] Prune missing IDs from `plugins.json`/`themes.json` after startup and file removal while retaining enabled, disabled, and partial/compile-failed manager entries; defer unknown-ID pruning when an addon-looking file still exists but temporarily lacks valid metadata; preserve enabled state across the updater's atomic rename/re-read cycle; serialize unique IDs from numeric-leading through A-Z (canonicalizing duplicate JSON keys to the last parsed value); and do not add a live external-config watcher.
 - [x] Keep the existing 2–12 hour interval slider and four-hour default, schedule the earliest stale addon, and make a recent check affect only that plugin/theme rather than the whole batch.
-- [x] Make manual refresh use one plugin/theme coordinator with a 60-second repeat cooldown and active-check joining; give the initiating caller sole ownership of the allowed core check; force actual addon file-read events after a 750-millisecond debounce without making passive UI reads perform network requests.
+- [x] Make manual refresh use one plugin/theme coordinator with a 60-second repeat cooldown and active-check joining; keep its dormant core-check call commented; force actual addon file-read events after a 750-millisecond debounce without making passive UI reads perform network requests.
 - [x] Limit raw requests to three globally and two per queued origin, serialize descriptor APIs, install **Update All** sequentially under one batch/addon attempt owner, and stop queued same-origin work when a rate limit is observed.
 - [x] Honor provider reset headers before 1/5/15/60-minute fallback backoff plus jitter; classify only `429` or evidenced `403` as throttling; log rate-limit/offline deferral and recovery without toast spam; and resume unfinished work after a mid-flight disconnect without shortening longer provider resets.
 - [x] Keep addons with neither a declared update URL nor a matching Store row silent and give declared `404`/`410` sources a silent 30-minute negative cache.
@@ -385,21 +385,24 @@ Implementation checklist:
 - [x] Add the default-on **Show Addon Update Notifications** setting for success toasts and persistent single/batch failure cards. Keep console failure logging unconditional, batch failures summarized behind one **View** action, and rate-limit warnings console-only.
 - [x] Preserve pending-row and spinner settlement: only confirmed atomic success removes a row; every failed install remains retryable and logged.
 - [x] Snapshot enabled addons from disk through a private asynchronous preload path because plugin/theme initialization discards `fileContent`; validate the snapshot before download and recheck it immediately before atomic rename without changing the public renderer `fs` shim.
-- [x] Keep BetterDiscord core startup and scheduled checks commented out; retain the explicit Updates-panel core check as the sole manual path, sharing the coordinator's repeat cooldown. Plugin/theme startup, schedule, file-event, and manual paths remain active.
+- [x] Keep BetterDiscord core startup, scheduled, and Updates-panel checks commented out while preserving their dormant implementation. Plugin/theme startup, schedule, file-event, and manual paths remain active.
+- [x] Correct the post-checkpoint runtime regression where upstream classified `upstream-merge-44e21745` as Canary and offered official stable `1.13.14` over the fork's identical version after a manual refresh; the manual button is addon-only again.
 - [x] Document the Stage 7B fork contract in `docs/fork-specific-changes.md` and distinguish all pre-7B evidence from the current tree.
 
 Verification and landing checklist for the current Stage 7B tree:
 
-- [x] Focused identity, URL-normalizer, manager/updater state, native-fetch, atomic-filesystem, Store-independence, coordinator, restart, and notification tests on Bun 1.1.20: 72 passed, 0 failed, and 267 assertions across 9 test files.
+- [x] Focused identity, URL-normalizer, manager/updater state, native-fetch, atomic-filesystem, Store-independence, coordinator, restart, notification, and core-policy tests on Bun 1.1.20: 73 passed, 0 failed, and 276 assertions across 9 test files.
 - [x] Targeted ESLint on every changed/new Stage 7B TypeScript and TSX source/test file.
 - [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
 - [x] `git -c core.whitespace=cr-at-eol diff --check`.
-- [x] `bun test --timeout 10000 tests/` on the existing Bun 1.1.20: 339 passed, 24 established Bun 1.1.20/Darwin 20 native-Intl skips, 0 failed, and 873 assertions across 27 files.
+- [x] `bun test --timeout 10000 tests/` on the existing Bun 1.1.20 after the core-policy hotfix: 340 passed, 24 established Bun 1.1.20/Darwin 20 native-Intl skips, 0 failed, and 882 assertions across 27 files.
 - [x] Two independent final reviews cleared the coordinator concurrency, AddonManager reload/pruning, atomic-write, and state-serialization paths after the active-join and duplicate-modal fixes.
 - [x] Confirm injection/OpenAsar, plugin loading, Settings hooks, Custom CSS, workflow, wrapper, and release paths are byte-for-byte unchanged from Stage 6 commit `69f76e37` across the protected-path audit.
 - [x] `zsh local-build.zsh -mrts 45`; fresh `dist/betterdiscord.asar`: `abbadfcf87b4d35f6bdbae3de47a601b597f3dca0873a1c61f5d62021369005b` (732693 bytes).
-- [ ] User: release-inject and verify declared-URL and Store-only detection for plugins/themes, the JumpToTop collision, Store-disabled updater independence, enabled/disabled addon replacement, startup config pruning/sorting, success/failure UI and its toggle, the shared manual cooldown, no startup/scheduled BetterDiscord core request, and one core check from an allowed explicit refresh.
+- [x] Post-checkpoint core-policy hotfix build with `zsh local-build.zsh -mrts 45`: `982bcceee54587a1f0fef75c37af81ef64b70650075e619cf0af407a840b6712` (732617 bytes).
+- [ ] User: release-inject and verify declared-URL and Store-only detection for plugins/themes, the JumpToTop collision, Store-disabled updater independence, enabled/disabled addon replacement, startup config pruning/sorting, success/failure UI and its toggle, the shared manual cooldown, and no BetterDiscord core request at startup, on the scheduler, or from manual refresh.
 - [x] Create the user-requested local Stage 7B checkpoint commit after the automated gates and fresh asar build, before runtime testing; keep it local and do not push it.
+- [x] Build, verify, and create the separate local core-policy hotfix commit; keep it local and do not push it.
 
 ## Stage 8: protected and full-tree gate
 

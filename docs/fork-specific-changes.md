@@ -43,7 +43,7 @@ complete.
 | Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, resolves relative redirects correctly, and adds updater-only HTTPS/credential, redirect-query, and response-size guards through opt-in request fields. Normal `BdApi.Net.fetch` calls keep their upstream behavior. | Preserve the relative-redirect correction and opt-in updater safety fields until upstream provides equivalent handling. Do not make the updater's restrictions global without a separate review. |
 | Shared Addon Store catalogue | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) lets the Store and addon updater share a native-fetch catalogue, but its initiating caller does not await the request and offline, timeout, cache, retry, and disable/re-enable paths can hang or race. | Keeps one returned in-flight promise, a 30-second inactivity timeout, cancellation and stale-result guards, replacement cache fallback, fixed retry delays, response validation, and lifecycle logging. | Preserve the narrow request-state corrections until upstream provides equivalent settlement, cancellation, cache, and recovery handling. Keep Stage 1 install completion intact. |
 | Identity-aware plugin/theme updater | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) matches installed addons to Store rows by type/filename, downloads the Store source, and writes it synchronously. That can replace a same-filename fork with an unrelated Store addon. | Stage 7B shares one coordinator across plugins and themes, compares a declared `@updateUrl` with an identity-approved Store candidate, chooses the highest comparable newer version, reuses checked bytes through a bounded memory cache, and replaces the installed file atomically. Per-addon freshness, restart restoration, conditional requests, bounded concurrency, provider backoff, and optional update notifications are fork additions. | Preserve identity-before-version selection, safe source validation, atomic replacement, and per-addon scheduling. Future upstream updater work should be adapted around these guarantees instead of restoring filename-only Store replacement. |
-| BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup and on the scheduler. The explicit Updates-panel refresh is the only core-check path and shares the manual cooldown; plugin/theme automatic and manual checks remain enabled. | Keep startup/scheduler calls commented. Preserve the deliberate manual-only core check without adding another automatic path. |
+| BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates-panel refresh. Plugin/theme startup, scheduled, file-event, and manual checks remain enabled. | Keep every core-check call commented while preserving the dormant implementation for future review. Never couple the fork's core updater back into addon refreshes. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
 | Local Bun test compatibility | Newer Bun can execute all native Intl assertions. | Bun 1.1.20 on macOS 11 uses a test-only PluralRules shim and skips only the native NumberFormat/currency assertions that abort that binary. | Keep the condition exact to Bun 1.1.20/Darwin 20 so newer Bun always runs the native tests. |
@@ -537,9 +537,10 @@ Completion and notification rules:
 - The existing persistent "updates available" notice is a separate navigation
   notice and is not controlled by the success/failure notification switch.
 
-The core-ASAR downloader retains the fork's finite 30-second timeout. Stage 7B
-does not enable BetterDiscord core startup or scheduled requests; only the
-explicit Updates-panel refresh may perform the core metadata check.
+The core-ASAR downloader retains the fork's finite 30-second timeout as dormant
+code. Stage 7B does not enable BetterDiscord core requests at startup, on the
+scheduler, or from the Updates-panel refresh; that literal button checks only
+plugins and themes.
 
 ### Core updater policy
 
@@ -549,13 +550,20 @@ Primary files: `src/betterdiscord/modules/updater.ts` and
 - [`ca9b45c3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/ca9b45c3f39ecef562a0a7f5debcd967539cb920) first suppressed automatic checks on fork/develop builds.
 - [`bf396278`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/bf39627879589c9f4e8aca291d27d7a16404b481) retained plugin/theme automatic checks while making core checks manual-only.
 - [`8bd22d5b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8bd22d5ba36e36303ec6671985de3062d4551122) later disabled startup, scheduled, and manual core checks while plugin/theme checks stayed active.
-- Stage 7B deliberately restores only the explicit Updates-panel core check. It shares the 60-second manual refresh cooldown; startup and scheduled core checks remain commented out.
+- The initial Stage 7B checkpoint briefly restored the explicit Updates-panel
+  core check. Runtime testing exposed upstream's broad `branch !== "main"`
+  Canary classification: the staging branch was treated as Canary and the
+  official stable `1.13.14` release was offered over the fork's identical
+  `1.13.14` version because upstream intentionally bypassed comparison while
+  switching channels. The post-checkpoint hotfix restores the fork policy by
+  commenting that manual call out again.
 
-Keep the startup and scheduler core-check calls commented with their
-explanation so future merges do not accidentally reactivate them. Keep the
-literal Updates-panel refresh as the sole manual core path. The old
-`shouldSkipAutoCheck()` helper remains unnecessary because there is no
-automatic core path to branch-gate.
+Keep the startup, scheduler, and Updates-panel core-check calls commented with
+their explanation so future merges do not accidentally reactivate them. The
+core updater implementation remains available for future fork-updater work,
+but no current UI or lifecycle entry point invokes it. The old
+`shouldSkipAutoCheck()` helper remains unnecessary because there is no active
+core path to branch-gate.
 
 ### Runtime compatibility hardening
 
@@ -605,5 +613,5 @@ The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
 - Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
 - System editor: verify a successful `openPath()` closes the BetterDiscord
   editor and a failed launch leaves it open.
-- Updater: verify no BetterDiscord core request occurs at startup or on the scheduler, the explicit Updates-panel refresh performs at most one cooldown-gated core check, and plugin/theme automatic/manual checks still work with the Addon Store UI both enabled and disabled.
+- Updater: verify no BetterDiscord core request occurs at startup, on the scheduler, or from the explicit Updates-panel refresh; plugin/theme automatic/manual checks must still work with the Addon Store UI both enabled and disabled.
 - Workflows/docs/wrappers: compare them byte-for-byte with fork `develop` unless that stage explicitly changes them.

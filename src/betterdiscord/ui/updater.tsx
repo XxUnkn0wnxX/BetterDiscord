@@ -104,21 +104,22 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
         };
     }, [refreshState]);
 
-    const checkCoreUpdate = useCallback(async () => {
-        await coreUpdater.checkForUpdate(false);
-        setCoreUpdate(coreUpdater.hasUpdate);
-    }, [coreUpdater]);
+    // Fork behavior: retain the dormant manual core helper for future review, but keep it
+    // commented alongside its invocation below so addon refreshes cannot contact upstream.
+    // const checkCoreUpdate = useCallback(async () => {
+    //     await coreUpdater.checkForUpdate(false);
+    //     setCoreUpdate(coreUpdater.hasUpdate);
+    // }, [coreUpdater]);
 
     const checkForUpdates = useCallback(async () => {
         Toasts.info(t("Updater.checking"));
-        // The literal button stays immediate, while the coordinator shares one catalogue refresh
-        // and prevents repeated clicks from producing addon or core request bursts. Core startup
-        // and scheduled checks remain disabled in modules/updater.ts.
-        const checked = await AddonUpdateCoordinator.checkManually();
-        if (checked) await checkCoreUpdate();
+        // Fork behavior: the literal button checks plugins/themes only. Keep the core call beside
+        // the manual path for future review, but disabled just like startup and scheduled checks.
+        await AddonUpdateCoordinator.checkManually();
+        // await checkCoreUpdate();
         refreshState();
         Toasts.info(t("Updater.finishedChecking"));
-    }, [checkCoreUpdate, refreshState]);
+    }, [refreshState]);
 
     const updateCore = useCallback(async () => {
         await coreUpdater.update();
