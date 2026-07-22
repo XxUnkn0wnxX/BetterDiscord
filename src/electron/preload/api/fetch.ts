@@ -23,11 +23,60 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
         let stream: ReadableStream | null = null;
 
         if (!bodylessStatusCodes.has(status)) {
+            let settled = false;
             stream = new ReadableStream({
                 start(controller) {
-                    res.on("data", (data) => controller.enqueue(data));
-                    res.on("error", (err) => controller.error(err));
-                    res.once("end", () => controller.close());
+                    let receivedBytes = 0;
+
+                    const fail = (error: Error) => {
+                        if (settled) return;
+                        settled = true;
+                        controller.error(error);
+                        res.destroy(error);
+                    };
+
+                    // Register before the Content-Length fast-fail so destroying the response
+                    // cannot emit an unhandled error on older Bun/Node compatibility layers.
+                    res.on("error", (error) => {
+                        if (settled) return;
+                        settled = true;
+                        controller.error(error);
+                    });
+
+                    const contentLength = Number(res.headers["content-length"]);
+                    if (init.maxResponseBytes && Number.isFinite(contentLength) && contentLength > init.maxResponseBytes) {
+                        const error = new Error(`Response exceeded the ${init.maxResponseBytes}-byte limit.`);
+                        error.name = "ResponseSizeError";
+                        fail(error);
+                        return;
+                    }
+
+                    res.on("data", (data: Buffer | string) => {
+                        if (settled) return;
+                        const chunk = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+                        receivedBytes += chunk.byteLength;
+                        if (init.maxResponseBytes && receivedBytes > init.maxResponseBytes) {
+                            const error = new Error(`Response exceeded the ${init.maxResponseBytes}-byte limit.`);
+                            error.name = "ResponseSizeError";
+                            fail(error);
+                            return;
+                        }
+                        controller.enqueue(chunk);
+                    });
+                    res.once("end", () => {
+                        if (settled) return;
+                        settled = true;
+                        controller.close();
+                    });
+                },
+                cancel() {
+                    if (settled) return;
+                    settled = true;
+
+                    // Cancelling the renderer-side body must stop the native response too. The
+                    // data handler checks `settled`, so a final buffered chunk cannot enqueue into
+                    // a ReadableStream that has already been closed by cancellation.
+                    res.destroy();
                 },
                 type: "bytes"
             });
@@ -47,6 +96,24 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
     const timeout = ((t) => init.timeout === null || !isFinite(t) ? undefined : t)(init.timeout ?? DEFAULT_TIMEOUT);
 
     async function execute(uri: string) {
+        let parsedUri: URL;
+        try {
+            parsedUri = new URL(uri);
+        }
+        catch (error) {
+            reject(error);
+            return;
+        }
+
+        // Fork review: addon update URLs may redirect through third-party hosts. Their opt-in
+        // transport mode must never downgrade to plaintext or accept embedded credentials.
+        if (init.httpsOnly && (parsedUri.protocol !== "https:" || parsedUri.username || parsedUri.password)) {
+            const error = new Error("HTTPS-only request rejected an unsafe URL or redirect.");
+            error.name = "UnsafeRedirectError";
+            reject(error);
+            return;
+        }
+
         // Mirror the renderer's former webhook block for BdApi.Net.fetch, which runs here over
         // Node's https and does not inherit the origin/referrer of Discord.com which Discord
         // uses to block requests to webhooks by default. Checked per hop so a redirect into a
@@ -56,7 +123,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
             return;
         }
 
-        const httpModule = uri.startsWith("http:") ? http : uri.startsWith("https:") ? https : null;
+        const httpModule = parsedUri.protocol === "http:" ? http : parsedUri.protocol === "https:" ? https : null;
         if (!httpModule) {
             reject(new Error(`Unsupported protocol: ${uri.slice(0, uri.indexOf(":"))}:`));
             return;
@@ -70,6 +137,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
         }, (res) => {
             if (redirectCodes.has(res.statusCode!)) {
                 if (init.redirect === "error") {
+                    res.destroy();
                     request.destroy(new Error("Failed to fetch"));
                     return;
                 }
@@ -78,6 +146,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
                     return;
                 }
                 if (redirectCount >= maxRedirects) {
+                    res.destroy();
                     reject(new Error(`Maximum amount of redirects reached (${maxRedirects})`));
                     return;
                 }
@@ -90,15 +159,24 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
                         final = new URL(res.headers.location, uri);
                     }
                     catch (error) {
+                        res.destroy();
                         reject(error);
                         return;
                     }
 
-                    for (const [key, value] of new URL(uri).searchParams) {
-                        final.searchParams.set(key, value);
+                    const current = new URL(uri);
+                    // Upstream preserves the current query across redirects. In the updater's
+                    // HTTPS-only mode, never copy a token-bearing query onto another origin.
+                    if (!init.httpsOnly || current.origin === final.origin) {
+                        for (const [key, value] of current.searchParams) {
+                            final.searchParams.set(key, value);
+                        }
                     }
 
                     redirectCount++;
+                    // A redirect body is irrelevant and may itself be unbounded. Close this hop
+                    // after reading Location instead of draining bytes outside maxResponseBytes.
+                    res.destroy();
 
                     return execute(final.href);
                 }

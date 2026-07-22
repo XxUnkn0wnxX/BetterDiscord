@@ -6,7 +6,7 @@ import Logger from "@common/logger";
 import {useInsertionEffect, useState} from "react";
 
 
-export type Files = "settings" | "plugins" | "themes" | "misc" | "addon-store";
+export type Files = "settings" | "plugins" | "themes" | "misc" | "addon-store" | "addon-updater";
 
 class JsonStore extends Store {
     private cache: Record<Files, Record<string, unknown> | undefined> = {
@@ -14,7 +14,8 @@ class JsonStore extends Store {
         "plugins": undefined,
         "themes": undefined,
         "misc": undefined,
-        "addon-store": undefined
+        "addon-store": undefined,
+        "addon-updater": undefined
     };
 
     private pluginCache: Record<string, Record<string, unknown>> = {};

@@ -1,12 +1,10 @@
-import fileSystem from "fs";
 import path from "path";
 
 import Logger from "@common/logger";
-import Net from "../api/net";
 
 import Config from "@stores/config";
 
-import {comparator as semverComparator, regex as semverRegex} from "@common/semver";
+import {comparator as semverComparator} from "@common/semver";
 
 import Events from "./emitter";
 import IPC from "./ipc";
@@ -14,66 +12,18 @@ import {t} from "@common/i18n";
 import JsonStore from "@stores/json";
 import React from "./react";
 import SettingsStore from "@stores/settings";
-import Settings from "@ui/settings";
-import PluginManager from "./pluginmanager";
-import ThemeManager from "./thememanager";
-
-import Toasts from "@stores/toasts";
 import Notifications from "@ui/notifications";
 import Modals from "@ui/modals";
 import UpdaterPanel from "@ui/updater";
-import Web from "@data/web";
-import type AddonManager from "./addonmanager";
 import type {Release} from "@typed/github";
-import type {BdWebAddon} from "@typed/betterdiscordweb";
 import {Logo} from "@ui/logo";
 import {RefreshCcwIcon} from "lucide-react";
-import type {AddonType} from "@typed/addon";
+import {fetch} from "./net";
+import {AddonUpdateCoordinator, PluginUpdater, ThemeUpdater} from "./addonupdater";
 
-const FETCH_TIMEOUT = 15000;
-const net = new Net();
-const fetch = net.fetch.bind(net);
-
-const getJSON = async (url: string) => {
-    try {
-        const response = await fetch(url, {
-            headers: {
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache"
-            },
-            timeout: FETCH_TIMEOUT
-        });
-
-        if (!response.ok) return [];
-        return JSON.parse(await response.text());
-    }
-    catch {
-        return [];
-    }
-};
-
-async function fetchText(url: string, headers: Record<string, string> = {}) {
-    const response = await fetch(url, {
-        headers,
-        timeout: FETCH_TIMEOUT
-    });
-
-    if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
-    }
-
-    return response.text();
-}
-
-const reducer = (acc: Record<string, {name: string; version: string; id: number;}> | Record<string, never>, addon: BdWebAddon) => {
-    if (addon.version === "Unknown") return acc;
-    acc[addon.file_name] = {name: addon.name, version: addon.version, id: addon.id};
-    return acc;
-};
+export {AddonUpdater, PluginUpdater, ThemeUpdater} from "./addonupdater";
 
 export default class Updater {
-    static updateCheckInterval: ReturnType<typeof setInterval> | null = null;
-
     static initialize() {
         // TODO: get rid of element creation
         SettingsStore.registerPanel("updates", t("Panels.updates"), {
@@ -88,6 +38,7 @@ export default class Updater {
             }
         });
 
+        AddonUpdateCoordinator.initialize();
         CoreUpdater.initialize();
         PluginUpdater.initialize();
         ThemeUpdater.initialize();
@@ -103,44 +54,22 @@ export default class Updater {
     }
 
     static startUpdateInterval() {
-        if (this.updateCheckInterval) {
-            clearInterval(this.updateCheckInterval);
-            this.updateCheckInterval = null;
-        }
-
-        if (!SettingsStore.get("addons", "checkForUpdates")) return;
-
-        const hours = SettingsStore.get<number>("addons", "updateInterval");
-        this.updateCheckInterval = setInterval(() => {
-            // Fork behavior: keep plugin/theme auto-checks, but disable BD core update checks for this fork.
-            // Manual BD core update checks are disabled in the Updates panel too.
-            // CoreUpdater.checkForUpdate();
-            PluginUpdater.checkAll();
-            ThemeUpdater.checkAll();
-        }, hours * 60 * 60 * 1000);
+        // Fork behavior: the dynamic one-shot scheduler handles only plugin/theme checks. BetterDiscord
+        // core startup and scheduled checks stay disabled; its explicit Updates-panel check remains.
+        // CoreUpdater.checkForUpdate();
+        AddonUpdateCoordinator.configureSchedule();
     }
 }
-
-
 export class CoreUpdater {
 
     static hasUpdate = false;
     static apiData: Release;
     static remoteVersion = "";
 
-    static shouldSkipAutoCheck() {
-        const branch = Config.get("branch");
-        const commit = Config.get("commit");
-
-        // Local/fork develop-style builds should not nag on startup, but manual checks remain available.
-        return !branch || !commit || branch === "develop";
-    }
-
     static async initialize() {
-        // Fork behavior: never check BetterDiscord core updates automatically.
-        // Manual BD core update checks are disabled in the Updates panel too.
+        // Fork behavior: BetterDiscord core checks stay disabled at startup and on the scheduler.
+        // The explicit Updates-panel refresh remains the only core check path.
         // if (!SettingsStore.get("addons", "checkForUpdates")) return;
-        // if (this.shouldSkipAutoCheck()) return;
         // this.checkForUpdate();
     }
 
@@ -275,130 +204,3 @@ export class CoreUpdater {
         }
     }
 }
-
-
-
-export class AddonUpdater {
-    manager: AddonManager;
-    type: AddonType;
-    cache: Record<string, {name: string; version: string; id: number;}> | Record<string, never>;
-    pending: string[];
-
-    constructor(type: AddonType) {
-        this.manager = type === "plugin" ? PluginManager : ThemeManager;
-        this.type = type;
-        this.cache = {};
-        this.pending = [];
-    }
-
-    async initialize() {
-        await this.updateCache();
-        if (SettingsStore.get("addons", "checkForUpdates")) this.checkAll();
-
-        Events.on(`${this.type}-read`, addon => {
-            if (!SettingsStore.get("addons", "checkForUpdates")) return;
-            this.checkForUpdate(addon.filename, addon.version);
-        });
-
-        Events.on(`${this.type}-unloaded`, addon => {
-            const index = this.pending.indexOf(addon.filename);
-            if (index >= 0) this.pending.splice(index, 1);
-        });
-    }
-
-    async updateCache() {
-        this.cache = {};
-        this.pending.length = 0;
-        const addonData = (await getJSON(Web.store[(this.type + "s") as keyof typeof Web.store] as string)) as BdWebAddon[];
-        addonData.reduce(reducer, this.cache as Record<string, never>);
-    }
-
-    clearPending() {
-        this.pending.splice(0, this.pending.length);
-    }
-
-    async checkAll(showNotice = true) {
-        await this.updateCache();
-        for (const addon of this.manager.addonList) this.checkForUpdate(addon.filename, addon.version);
-        if (showNotice) this.showUpdateNotice();
-    }
-
-    checkForUpdate(filename: string, currentVersion: string) {
-        if (this.pending.includes(filename)) return;
-        const info = this.cache[path.basename(filename)];
-        if (!info) return;
-        let hasUpdate = info.version > currentVersion;
-        if (semverRegex.test(info.version) && semverRegex.test(currentVersion)) {
-            hasUpdate = semverComparator(currentVersion, info.version) > 0;
-        }
-        if (!hasUpdate) return;
-        this.pending.push(filename);
-    }
-
-    async updateAddon(filename: string) {
-        const info = this.cache[filename];
-        try {
-            const body = await fetchText(Web.redirects.github(info.id.toString()), {
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache"
-            });
-
-            const file = path.join(path.resolve(this.manager.addonFolder), filename);
-            fileSystem.writeFile(file, body, () => {
-                Toasts.success(t("Updater.addonUpdated", {name: info.name, version: info.version}));
-                this.pending.splice(this.pending.indexOf(filename), 1);
-            });
-        }
-        catch (error) {
-            Logger.stacktrace("AddonUpdater", `Failed to download body for ${info.id}:`, error as Error);
-            Toasts.error(t("Updater.addonUpdateFailed", {name: info.name, version: info.version}));
-        }
-    }
-
-    showUpdateNotice() {
-        if (!this.pending.length) return;
-
-        const addonDetails = this.pending.map(filename => {
-            const info = this.cache[path.basename(filename)];
-            return {
-                name: info ? info.name : filename,
-                version: info ? info.version : ""
-            };
-        });
-
-        Notifications.show({
-            id: `addon-updates-${this.type}`,
-            title: t("Updater.addonUpdaterNotificationTitle"),
-            content: [
-                t("Updater.addonUpdatesAvailable", {count: this.pending.length, context: this.type}),
-                React.createElement("ul", {className: "bd-notification-updates-list"},
-                    addonDetails.map(addon =>
-                        React.createElement("li", {}, [
-                            addon.name, " ", React.createElement("i", {}, `(${addon.version})`)
-                        ])
-                    )
-                )
-            ],
-            type: "info",
-            icon: () => React.createElement(Logo, {size: 16, accent: true}),
-            duration: Infinity,
-            actions: [
-                {
-                    label: t("Updater.viewUpdates"),
-                    onClick: () => Settings.openSettingsPage("updates")
-                },
-                {
-                    label: t("Updater.updateAll"),
-                    onClick: () => {
-                        for (const filename of this.pending) {
-                            this.updateAddon(filename);
-                        }
-                    }
-                }
-            ]
-        });
-    }
-}
-
-export const PluginUpdater = new AddonUpdater("plugin");
-export const ThemeUpdater = new AddonUpdater("theme");

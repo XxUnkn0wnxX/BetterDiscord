@@ -12,6 +12,10 @@ and upstream
 on 2026-07-22. Commit labels are abbreviated for readability; every commit
 link targets its full 40-character SHA.
 
+The Stage 7B section documents the current `upstream-merge-44e21745` staging
+tree. It has no fork commit link until its automated and user runtime gates are
+complete.
+
 ## Merge policy
 
 - Prefer upstream behavior and ancestry by default.
@@ -36,9 +40,10 @@ link targets its full 40-character SHA.
 | Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
 | System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
-| Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, but resolves relative redirect locations against the current request URL. | Keep the one-line redirect correction until upstream lands equivalent base-URL handling; otherwise prefer the shared upstream implementation. |
+| Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, resolves relative redirects correctly, and adds updater-only HTTPS/credential, redirect-query, and response-size guards through opt-in request fields. Normal `BdApi.Net.fetch` calls keep their upstream behavior. | Preserve the relative-redirect correction and opt-in updater safety fields until upstream provides equivalent handling. Do not make the updater's restrictions global without a separate review. |
 | Shared Addon Store catalogue | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) lets the Store and addon updater share a native-fetch catalogue, but its initiating caller does not await the request and offline, timeout, cache, retry, and disable/re-enable paths can hang or race. | Keeps one returned in-flight promise, a 30-second inactivity timeout, cancellation and stale-result guards, replacement cache fallback, fixed retry delays, response validation, and lifecycle logging. | Preserve the narrow request-state corrections until upstream provides equivalent settlement, cancellation, cache, and recovery handling. Keep Stage 1 install completion intact. |
-| BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
+| Identity-aware plugin/theme updater | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) matches installed addons to Store rows by type/filename, downloads the Store source, and writes it synchronously. That can replace a same-filename fork with an unrelated Store addon. | Stage 7B shares one coordinator across plugins and themes, compares a declared `@updateUrl` with an identity-approved Store candidate, chooses the highest comparable newer version, reuses checked bytes through a bounded memory cache, and replaces the installed file atomically. Per-addon freshness, restart restoration, conditional requests, bounded concurrency, provider backoff, and optional update notifications are fork additions. | Preserve identity-before-version selection, safe source validation, atomic replacement, and per-addon scheduling. Future upstream updater work should be adapted around these guarantees instead of restoring filename-only Store replacement. |
+| BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup and on the scheduler. The explicit Updates-panel refresh is the only core-check path and shares the manual cooldown; plugin/theme automatic and manual checks remain enabled. | Keep startup/scheduler calls commented. Preserve the deliberate manual-only core check without adding another automatic path. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
 | Local Bun test compatibility | Newer Bun can execute all native Intl assertions. | Bun 1.1.20 on macOS 11 uses a test-only PluralRules shim and skips only the native NumberFormat/currency assertions that abort that binary. | Keep the condition exact to Bun 1.1.20/Darwin 20 so newer Bun always runs the native tests. |
@@ -264,24 +269,32 @@ Stage 5 takes upstream's shared native-fetch transport as one atomic change:
 - Existing request/body streaming, abort handling, response hydration,
   per-redirect webhook blocking, redirect limits, and TLS verification remain.
 - The default timeout moves from three to eight seconds.
-- `timeout: null` explicitly disables the timeout. Stage 6 gives the shared
-  catalogue a finite timeout; Stage 7 must still review updater downloads so a
-  stalled request cannot leave shared state pending forever.
+- `timeout: null` explicitly disables the timeout. The shared catalogue retains
+  its finite 30-second inactivity timeout, while Stage 7B addon and descriptor
+  requests use their own finite limits.
 
 Intentional divergence from upstream `44e21745`:
 
 - Resolve a redirect with `new URL(res.headers.location, uri)`. Upstream's
   one-argument form throws for ordinary relative locations such as
   `/download/file`.
+- Expose opt-in `httpsOnly` and `maxResponseBytes` fields to internal callers.
+  Stage 7B enables them for addon sources: every redirect must remain HTTPS,
+  embedded URL credentials are rejected, and response bodies are stopped at
+  the transport boundary. These restrictions are not silently applied to
+  ordinary `BdApi.Net.fetch` calls.
+- In HTTPS-only mode, do not copy a token-bearing query string onto a redirect
+  with a different origin. Same-origin redirects retain upstream's query
+  preservation behavior.
 - The correction is also present in upstream's unmerged
   [`3ce61469`](https://github.com/BetterDiscord/BetterDiscord/commit/3ce614695ef454259f07fd4dda8109ad4a5146fb)
   fix. Remove the fork comment and take upstream when equivalent handling lands
   in the reviewed upstream branch.
 
 Inherited limitations such as incomplete `303`/POST redirect semantics,
-non-replayable streamed request bodies across redirects, and copying source
-query parameters onto the redirect target are not introduced by this stage.
-Keep this port narrow rather than rewriting the transport during the
+non-replayable streamed request bodies across redirects, and query preservation
+outside the updater's HTTPS-only mode are not introduced by this stage. Keep
+this port narrow rather than rewriting the public transport during the
 `44e21745` integration.
 
 ### Shared Addon Store catalogue
@@ -297,8 +310,8 @@ Primary files:
 Stage 6 takes upstream's Store/native-fetch catalogue design. Settings now
 initialize before the catalogue, embeds and settings pages subscribe through
 the common Store hook, and the catalogue starts only while the Addon Store or
-addon updater needs it. Until Stage 7 is applied, the old updater still makes
-its own requests.
+addon updater needs it. Stage 7B's shared plugin/theme coordinator uses this
+catalogue for Store candidates instead of retaining a private Store request.
 
 Intentional request-lifecycle corrections:
 
@@ -316,9 +329,14 @@ Intentional request-lifecycle corrections:
   Store is enabled, successful Store refreshes use the configured hourly
   interval; failed Store refreshes retry after five minutes, or 30 seconds for
   `ECONNRESET`, without multiplying that delay by the interval setting.
-  Updater-only scheduling remains owned by the updater path reviewed in Stage 7.
+  Updater-only scheduling remains owned by the Stage 7B coordinator.
 - Disable removes reconnect listeners and scheduled Store refreshes. Reconnect
   starts a fresh request only while the Store or addon updater is enabled.
+- The Addon Store UI and plugin/theme updates are independent consumers. Turning
+  off **Enable Addon Store** may hide/stop the Store itself, but it does not
+  impair automatic addon checks while **Automatically Check For Updates** is
+  enabled. An explicit manual updater refresh may request the catalogue even
+  when both background consumers are off.
 
 Logging is deliberately tiered:
 
@@ -348,6 +366,181 @@ installed-addons page. The listener targets only that panel's current
 `data-list-item-id`; it does not alter the fork's Settings placement or refresh
 hooks.
 
+### Identity-aware plugin/theme updater (Stage 7B)
+
+Primary files:
+
+- `src/betterdiscord/modules/addonupdater.ts`
+- `src/betterdiscord/utils/addonupdate.ts`
+- `src/betterdiscord/utils/addonupdateurl.ts`
+- `src/betterdiscord/utils/addonupdatestate.ts`
+- `src/betterdiscord/modules/updater.ts`
+- `src/betterdiscord/ui/updater.tsx`
+- `src/betterdiscord/stores/json.ts`
+- `src/electron/preload/api/filesystem.ts`
+
+The first Stage 7 port followed upstream's Store-only lookup. Runtime testing
+then proved that a matching filename is not enough: the Store's
+`JumpToTop.plugin.js` is a different addon from this fork's installed
+`JumpToTop.plugin.js`. Stage 7B replaces that filename-only decision with one
+shared plugin/theme coordinator while continuing to use the Stage 6 catalogue
+for eligible Store candidates.
+
+Source and identity rules:
+
+- Inspect an installed addon's declared `@updateUrl` and its same-type,
+  same-filename Store row independently. A matching filename is only a lookup
+  key; identity is decided before any version comparison.
+- A candidate is identity-approved when its repository, Discord `authorId`, or
+  normalized author name matches the installed addon. A confirmed Store
+  repository mismatch is rejected unless an independent author match proves
+  the identity. A Store row with no positive identity evidence remains
+  ineligible.
+- A declared URL with no repository or author evidence may use the narrow
+  fallback of a fully validated matching addon name. This fallback is not
+  granted to Store rows because the installed addon explicitly chose the URL.
+- The installed JumpToTop source identifies
+  `github.com/XxUnkn0wnxX/BDPlugins`; the Store row identifies
+  `github.com/snappycreeper/BetterDiscordPlugins`. Their repository and author
+  identities do not match, so the Store row is rejected regardless of which
+  version number is larger.
+- Compare strict SemVer first, then loose dotted numeric versions. Opaque
+  versions are never ordered lexically. Only identity-approved candidates that
+  are newer than the installed version are offered; the highest comparable
+  version wins, and equal candidates prefer the addon's declared update URL.
+
+URL normalization and source validation:
+
+- Convert supported web/file forms into raw sources for GitHub and Gists;
+  GitLab and snippets; Gitea/Forgejo hosts including Codeberg, Gitea.com, and
+  `git.slowb.ro`; Bitbucket Cloud, Server, and snippets; Azure DevOps;
+  SourceHut; Pastebin, dpaste, Pastes.io, and maintained Hastebin-compatible
+  hosts. An already-direct generic HTTPS source remains usable.
+- Gists and snippets resolve through bounded provider metadata calls and must
+  select the exact installed filename, or the only plugin/theme file when no
+  filename is available. Descriptor calls are serialized and bounded in size
+  and pagination rather than guessing among multiple files.
+- Require HTTPS, reject embedded credentials, remove fragments, follow at most
+  five redirects, and reject a downgrade or unsafe redirect. Known
+  PrivateBin/ZeroBin pages are rejected because their client-side encrypted
+  payload is not a raw addon file.
+- Limit addon source bodies to 16 MiB at the native transport boundary and
+  request identity encoding. The unusual size is allowed up to that hard
+  safety ceiling; exceeding it fails the update and leaves the installed copy
+  unchanged.
+- Require fatal UTF-8 decoding and reject HTML/login responses, binary/control
+  bytes, and Git LFS pointer files. The filename/type must be a plugin or theme,
+  the first JSDoc metadata block must begin on the first line, its name must
+  match the installed addon, and its version must be comparable. Identity and
+  version are checked again on the downloaded body before installation.
+- Reuse exact validated bytes through a 128 MiB aggregate in-memory LRU and
+  persist only their hash and bounded metadata. If the body was evicted or the
+  client restarted, installation safely refetches and revalidates it instead of
+  trusting metadata alone. Materialization releases the shared-cache entry once
+  the attempt owns the checked bytes, including descriptor-resolved raw URLs.
+- Installation writes the checked bytes to a temporary file, rereads the
+  installed source and modification time immediately before replacement, and
+  atomically renames only when both still match the renderer snapshot. A failed
+  fetch, validation, stale-file check, temporary write, or rename cannot
+  truncate the working copy. The public renderer `fs` shim remains unchanged.
+  The initial snapshot comes from a private asynchronous preload method because
+  PluginManager and ThemeManager deliberately discard `fileContent` after an
+  enabled addon initializes; loaded addons must not become impossible to update.
+
+Freshness, scheduling, and request control:
+
+- Store per-channel updater state in `${channelPath}/addon-updater.json`.
+  Freshness is per plugin/theme and per URL fingerprint, not one global "last
+  checked" value. The file may contain content hashes, bounded validated
+  metadata, ETags, `Last-Modified`, and provider-origin backoff state, but never
+  a raw update URL or sensitive query string.
+- Persist an opaque resolved-URL fingerprint so fresh validated pending updates
+  can be reconstructed after restart without an immediate network burst. Raw
+  URLs and bodies are never written to this state; descriptor pages such as
+  gists/snippets are safely resolved again when their restored update is
+  installed.
+- Treat the current plugin/theme manager lists as the persisted-state inventory,
+  including both enabled and disabled addons. Startup, manual/scheduled checks,
+  and unloads prune addon freshness plus orphaned URL metadata for files no
+  longer present; deleted addons do not remain as historical entries.
+- Apply the same manager-list inventory rule to `plugins.json` and
+  `themes.json`: enabled, disabled, and partial/compile-failed addons retain
+  their state key while present, but a genuinely missing file loses its key.
+  If an addon-looking file still exists but is temporarily missing valid
+  metadata during an editor write, defer unknown-ID pruning and retain its
+  previous key; fixing that same file lets the watcher read and restart it
+  again. Atomic updater renames are treated as reloads and preserve the enabled
+  state while the replacement is synchronously re-read. Each write
+  serializes numeric-leading IDs first in natural numeric order, then A-Z
+  case-insensitively, with punctuation/other names last. Canonical object
+  serialization emits each addon ID once; if hand-edited JSON repeats a key,
+  the last parsed value is retained and the next startup/write removes the
+  duplicate text.
+- This pruning does not add a live watcher for external edits to
+  `plugins.json`/`themes.json`. BetterDiscord continues to read those files at
+  startup and write them immediately for normal UI/API toggles; hand edits take
+  effect on the next client start.
+- Send `If-None-Match`/`If-Modified-Since` when validators exist and reuse the
+  cached validated metadata on `304`. Downloaded bodies remain memory-only and
+  a body needed after eviction/restart receives one unconditional refetch.
+- Keep the existing 2–12 hour **Update Check Interval** setting and four-hour
+  default. Startup and scheduled passes check only stale addons; a one-shot
+  timer follows the earliest per-addon due time so a recent addon does not hide
+  an older one.
+- The manual refresh checks plugins and themes through the same coordinator,
+  forces the first pass immediately, joins any active per-addon check, and
+  refuses repeated manual bursts for 60 seconds. It performs at most one needed
+  catalogue refresh rather than one request per manager. Concurrent manual
+  callers share the same owner, so the joined caller cannot duplicate the one
+  allowed core metadata check.
+- A real plugin/theme file-read event receives one forced recheck after a
+  750-millisecond debounce so a local downgrade or metadata change is noticed.
+  Passive Settings/Store renders only read updater state and do not start
+  network traffic.
+- Raw-source requests allow at most three globally and two for each queued HTTPS
+  request origin; redirect hops remain inside the global three-request bound.
+  Descriptor/API discovery is serialized. **Update All** installs sequentially,
+  one active batch owns each addon attempt, and joined actions cannot duplicate
+  a write or failure card.
+- An offline pass makes no source requests, logs that it is deferred, and
+  resumes stale checks after the browser reports reconnection. A connection
+  lost during raw-source requests arms the same recovery for only unfinished
+  targets without shortening a longer provider reset. Transient network/server
+  failures retry later instead of spinning.
+- Provider `429` responses, and `403` responses carrying real rate-limit
+  evidence, pause the initial and final redirect origins. Ordinary access-denied
+  `403` responses are treated as settled source failures rather than throttles.
+  Backoff prefers `Retry-After`, then `X-RateLimit-Reset`, then
+  `RateLimit-Reset`; otherwise it uses 1, 5, 15, then 60 minutes with small
+  jitter. Rate-limit pauses and resumptions are console-only warnings/info, not
+  user toasts.
+- Addons with neither a declared update URL nor a matching Store row are silent.
+  A declared source returning `404`/`410` receives a silent 30-minute
+  negative cache. Invalid permanent sources wait for the normal interval;
+  missing metadata is not printed as an error for every addon.
+
+Completion and notification rules:
+
+- Recheck the installed addon's object, version, update URL, modification time,
+  and source snapshot before handing off replacement, then compare the source
+  and modification time again in preload immediately before the atomic rename.
+  If it changed while the request was in flight, cancel the stale update, keep
+  the installed file, log the reason, and queue a fresh debounced check.
+- Remove a pending row and show success only after validation and atomic disk
+  replacement settle. Failed rows stop spinning, remain retryable, and always
+  log a clear warning/error for the affected plugin or theme.
+- The **Show Addon Update Notifications** setting defaults on. It controls
+  success toasts plus non-expiring single/batch failure cards; console logging
+  remains active when it is off. A batch produces one persistent summary with
+  a **View** action listing every failed addon, while the console records each
+  failure. Provider rate-limit messages never create failure cards.
+- The existing persistent "updates available" notice is a separate navigation
+  notice and is not controlled by the success/failure notification switch.
+
+The core-ASAR downloader retains the fork's finite 30-second timeout. Stage 7B
+does not enable BetterDiscord core startup or scheduled requests; only the
+explicit Updates-panel refresh may perform the core metadata check.
+
 ### Core updater policy
 
 Primary files: `src/betterdiscord/modules/updater.ts` and
@@ -355,10 +548,14 @@ Primary files: `src/betterdiscord/modules/updater.ts` and
 
 - [`ca9b45c3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/ca9b45c3f39ecef562a0a7f5debcd967539cb920) first suppressed automatic checks on fork/develop builds.
 - [`bf396278`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/bf39627879589c9f4e8aca291d27d7a16404b481) retained plugin/theme automatic checks while making core checks manual-only.
-- [`8bd22d5b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8bd22d5ba36e36303ec6671985de3062d4551122) is the current policy: BetterDiscord core startup, scheduled, and manual checks are all disabled; plugin/theme checks remain active.
+- [`8bd22d5b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8bd22d5ba36e36303ec6671985de3062d4551122) later disabled startup, scheduled, and manual core checks while plugin/theme checks stayed active.
+- Stage 7B deliberately restores only the explicit Updates-panel core check. It shares the 60-second manual refresh cooldown; startup and scheduled core checks remain commented out.
 
-Keep the commented core-check calls and their explanation so future merges do
-not accidentally reactivate them.
+Keep the startup and scheduler core-check calls commented with their
+explanation so future merges do not accidentally reactivate them. Keep the
+literal Updates-panel refresh as the sole manual core path. The old
+`shouldSkipAutoCheck()` helper remains unnecessary because there is no
+automatic core path to branch-gate.
 
 ### Runtime compatibility hardening
 
@@ -408,5 +605,5 @@ The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
 - Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
 - System editor: verify a successful `openPath()` closes the BetterDiscord
   editor and a failed launch leaves it open.
-- Updater: verify no BetterDiscord core request occurs while plugin/theme automatic and manual checks still work.
+- Updater: verify no BetterDiscord core request occurs at startup or on the scheduler, the explicit Updates-panel refresh performs at most one cooldown-gated core check, and plugin/theme automatic/manual checks still work with the Addon Store UI both enabled and disabled.
 - Workflows/docs/wrappers: compare them byte-for-byte with fork `develop` unless that stage explicitly changes them.

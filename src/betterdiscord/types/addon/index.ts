@@ -17,6 +17,7 @@ export interface Addon {
     size: number;
     slug: string;
     source?: string;
+    updateUrl?: string;
     version: string;
     website?: string;
     runAt?: string;

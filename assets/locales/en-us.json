@@ -86,11 +86,15 @@
                 },
                 "checkForUpdates": {
                     "name": "Automatically Check For Updates",
-                    "note": "Periodically checks for updates to your addons and core BD"
+                    "note": "Periodically checks for plugin and theme updates"
+                },
+                "addonUpdateNotifications": {
+                    "name": "Show Addon Update Notifications",
+                    "note": "Shows success notifications and persistent failure cards for plugin and theme updates. Failures are always logged to the console."
                 },
                 "updateInterval": {
                     "name": "Update Check Interval",
-                    "note": "How often to check for addon/core updates"
+                    "note": "How often to check for plugin and theme updates"
                 }
             },
             "customcss": {
@@ -415,6 +419,11 @@
         },
         "addonUpdated": "{{name}} has been updated to version {{version}}!",
         "addonUpdateFailed": "Failed to update {{name}}. Please try again later.",
+        "addonUpdateFailedTitle": "Addon Update Failed",
+        "addonUpdateFailedPersistent": "{{name}} could not be updated. The installed copy was left unchanged.",
+        "addonUpdateBatchFailedTitle": "Some Addons Failed to Update",
+        "addonUpdateBatchFailed": "{{count}} addon updates failed. The installed copies were left unchanged.",
+        "viewFailures": "View",
         "checking": "Checking for updates!",
         "finishedChecking": "Finished checking for updates!",
         "checkForUpdates": "Check For Updates!",

@@ -22,6 +22,8 @@ export interface NativeRequestInit {
     // Custom
     timeout?: number | null;
     maxRedirects?: number;
+    maxResponseBytes?: number;
+    httpsOnly?: boolean;
     rejectUnauthorized?: boolean;
 }
 
@@ -37,6 +39,8 @@ export interface DriedRequest {
     // Custom
     timeout: number | null | undefined;
     maxRedirects: number;
+    maxResponseBytes?: number;
+    httpsOnly?: boolean;
     rejectUnauthorized: boolean;
 }
 
@@ -63,13 +67,16 @@ export function dryReadableStream(stream: ReadableStream<Uint8Array<ArrayBufferL
 }
 
 export function hydrateReadableStream(stream: DryReadableStream) {
+    let cancelled = false;
     return new ReadableStream({
         async start(controller) {
             while (true) {
+                if (cancelled) break;
                 const {
                     done, value
                 } = await stream.read();
 
+                if (cancelled) break;
                 if (done) {
                     controller.close();
                     break;
@@ -78,6 +85,10 @@ export function hydrateReadableStream(stream: DryReadableStream) {
                     controller.enqueue(value);
                 }
             }
+        },
+        async cancel(reason) {
+            cancelled = true;
+            await stream.cancel(reason);
         },
         type: "bytes"
     }) as ReadableStream<Uint8Array<ArrayBuffer>>;

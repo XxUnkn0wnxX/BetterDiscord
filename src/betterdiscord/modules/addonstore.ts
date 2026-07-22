@@ -19,6 +19,7 @@ import type {BdWebGuild, BdWebAddon} from "../types/betterdiscordweb";
 import {parseJsDoc} from "@common/utils";
 import type {Addon as AddonType} from "@typed/addon";
 import Store from "@stores/base";
+import {getAddonUpdateRateLimitDelay, isAddonUpdateRateLimitResponse} from "@utils/addonupdatestate";
 import {fetch} from "./net";
 
 
@@ -363,13 +364,19 @@ interface CatalogueRequest {
 
 const addonStore = new class AddonStore extends Store {
     public hasDoneFirstRequest = false;
+    /** Last successful network catalogue load; updater freshness may reuse Store activity. */
+    public lastSuccessfulRequestAt = 0;
 
     // Fork review: retain the actual transport promise and its identity; upstream's detached
     // resolver lets initiating callers continue early and can be left pending by offline exits.
     #promise: Promise<void> = Promise.resolve();
     #activeRequest: CatalogueRequest | null = null;
     #requestSequence = 0;
+    #successfulRequestSequence = 0;
     #waitingForOnline = false;
+    #rateLimitBlockedUntil = 0;
+    #rateLimitFailureCount = 0;
+    #rateLimitSkipWarningUntil = 0;
 
     public get promise() {
         return this.#promise;
@@ -654,8 +661,8 @@ const addonStore = new class AddonStore extends Store {
         return false;
     }
 
-    public requestAddons(firstRun = false): Promise<void> {
-        if (!this._isEnabled()) {
+    public requestAddons(firstRun = false, forceUpdaterRequest = false): Promise<void> {
+        if (!this._isEnabled() && !forceUpdaterRequest) {
             Logger.debug("AddonStore", "Skipped catalogue request because no catalogue consumer is enabled.");
             this.#promise = Promise.resolve();
             return this.#promise;
@@ -665,6 +672,22 @@ const addonStore = new class AddonStore extends Store {
             // Fork review: Store and updater consumers must wait on the exact same request.
             Logger.debug("AddonStore", `Reusing in-flight catalogue request #${this.#activeRequest.id}.`);
             return this.#activeRequest.promise;
+        }
+
+        const now = Date.now();
+        if (this.#rateLimitBlockedUntil > now) {
+            if (this.#rateLimitSkipWarningUntil !== this.#rateLimitBlockedUntil) {
+                this.#rateLimitSkipWarningUntil = this.#rateLimitBlockedUntil;
+                Logger.warn("AddonStore", "Skipped a catalogue refresh while its provider rate-limit pause is still active.");
+            }
+            this._useCache();
+            this.#promise = Promise.resolve();
+            return this.#promise;
+        }
+        if (this.#rateLimitBlockedUntil) {
+            Logger.info("AddonStore", "Catalogue rate-limit pause ended; refresh requests may resume.");
+            this.#rateLimitBlockedUntil = 0;
+            this.#rateLimitSkipWarningUntil = 0;
         }
 
         if (!window.navigator.onLine) {
@@ -755,6 +778,11 @@ const addonStore = new class AddonStore extends Store {
                 this._writeCache(data);
 
                 this.error = null;
+                this.lastSuccessfulRequestAt = Date.now();
+                this.#successfulRequestSequence++;
+                this.#rateLimitBlockedUntil = 0;
+                this.#rateLimitFailureCount = 0;
+                this.#rateLimitSkipWarningUntil = 0;
                 Logger.debug("AddonStore", `Catalogue request #${catalogueRequest.id} loaded ${json.length} addons.`);
             })
             .catch((error) => {
@@ -763,13 +791,28 @@ const addonStore = new class AddonStore extends Store {
                 if (!this._isCurrentRequest(catalogueRequest, "failure")) return;
 
                 const failure = error instanceof Error ? error : new Error(`Failed to request addons: Status ${response?.status || "Unknown"}`);
+                const rateLimited = Boolean(response && isAddonUpdateRateLimitResponse(response.status, response.headers));
+                void response?.body?.cancel().catch(() => {});
 
                 if (!window.navigator.onLine) {
                     this._handleOffline(catalogueRequest, failure);
                     return;
                 }
 
-                if (/timed out/i.test(failure.message)) {
+                if (rateLimited) {
+                    const rateLimit = getAddonUpdateRateLimitDelay(response!.headers, {
+                        now: Date.now(),
+                        failureCount: this.#rateLimitFailureCount,
+                        jitter: base => Math.min(5_000, Math.max(250, Math.round(base * 0.02 * Math.random())))
+                    });
+                    this.#rateLimitBlockedUntil = rateLimit.blockedUntil;
+                    this.#rateLimitFailureCount = rateLimit.nextFailureCount;
+                    this.#rateLimitSkipWarningUntil = 0;
+                    // Fork review: rate limits are scheduling information, not an addon failure.
+                    // Keep them in diagnostics and make manual refreshes honor the same reset.
+                    Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} was rate limited; retrying after the provider reset window.`, failure);
+                }
+                else if (/timed out/i.test(failure.message)) {
                     Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} timed out after ${CATALOGUE_TIMEOUT_MS / 1000} seconds of inactivity.`, failure);
                 }
                 else if (failure.name === "AddonStoreHTTPError") {
@@ -782,9 +825,11 @@ const addonStore = new class AddonStore extends Store {
                     Logger.stacktrace("AddonStore", `Catalogue request #${catalogueRequest.id} failed`, failure);
                 }
 
-                Toasts.show(t("Addons.failedToFetch"), {
-                    type: "error"
-                });
+                if (!rateLimited) {
+                    Toasts.show(t("Addons.failedToFetch"), {
+                        type: "error"
+                    });
+                }
 
                 this.error = failure;
 
@@ -806,9 +851,12 @@ const addonStore = new class AddonStore extends Store {
         return promise;
     }
 
-    public async updaterRequestAddons() {
-        await this.requestAddons(this.hasDoneFirstRequest);
+    public async updaterRequestAddons(force = false): Promise<boolean> {
+        // Manual addon checks still work when automatic checks and the Store UI are disabled.
+        const previousSuccessSequence = this.#successfulRequestSequence;
+        await this.requestAddons(this.hasDoneFirstRequest, force);
         this.hasDoneFirstRequest = true;
+        return this.#successfulRequestSequence > previousSuccessSequence;
     }
 
     private _scheduleNextRequest() {
@@ -824,7 +872,10 @@ const addonStore = new class AddonStore extends Store {
         }
 
         let delay: number;
-        if (this.error) {
+        if (this.#rateLimitBlockedUntil > Date.now()) {
+            delay = this.#rateLimitBlockedUntil - Date.now();
+        }
+        else if (this.error) {
             // Fork review: upstream multiplies these failure delays by the hourly interval.
             const code = "code" in this.error ? (this.error as ErrnoException).code : undefined;
             delay = code === "ECONNRESET" ? 30_000 : 5 * 60 * 1000;

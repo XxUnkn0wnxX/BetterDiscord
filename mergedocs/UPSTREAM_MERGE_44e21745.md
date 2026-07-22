@@ -293,7 +293,7 @@ only its verified failure paths:
 - [x] Replace rows before `_useCache()` so fallback/re-enable cannot duplicate cards.
 - [x] Normalize cached `known` filenames to `[]` and log invalid cache repair.
 - [x] Reject non-success HTTP status and non-array catalogue data.
-- [x] While the Addon Store is enabled, keep successful Store refreshes on the configured interval and retry failed Store refreshes after five minutes or 30 seconds for `ECONNRESET`; leave updater-only scheduling to Stage 7's updater path.
+- [x] While the Addon Store is enabled, keep successful Store refreshes on the configured interval and retry failed Store refreshes after five minutes or 30 seconds for `ECONNRESET`; leave updater-only scheduling to the Stage 7B coordinator.
 - [x] Add subtle debug/info/warn/error logging for every new lifecycle guard and failure path.
 - [x] Document the Stage 6 fork divergences and removal conditions in `docs/fork-specific-changes.md`.
 - [x] Early targeted ESLint and TypeScript checks.
@@ -315,21 +315,91 @@ only its verified failure paths:
 - [x] Accept the Stage 6 runtime smoke: the Store catalogue loads and both addon sections return correctly; keep disconnect/reconnect as optional future fault-path coverage backed by the focused harness.
 - [x] User confirmed the runtime result and authorized the local Stage 6 commit.
 
-## Stage 7: updater conflict reconciliation
+## Stage 7A: initial updater conflict reconciliation (superseded)
 
-Port upstream's shared-catalogue/native-fetch updater design into the two
-overlap files rather than keeping their old architecture wholesale.
+Port upstream's shared-catalogue/native-fetch updater design into the overlap
+files rather than keeping their old architecture wholesale. The reviewed async
+write correction also adds one private preload filesystem method and its focused
+test; the public renderer `fs` polyfill remains byte-for-byte unchanged.
 
-- [ ] In `src/betterdiscord/modules/updater.ts`, use the Stage 6 Addon Store catalogue.
-- [ ] Preserve the fork's commented BetterDiscord core startup and scheduled checks.
-- [ ] Preserve plugin/theme startup, scheduled, and manual checks.
-- [ ] Keep failed fetch/write handling user-visible and prevent rejected updates from leaving stale pending state.
-- [ ] Avoid a renderer-blocking write where the existing asynchronous write is easy to retain.
-- [ ] In `src/betterdiscord/ui/updater.tsx`, use Addon Store lookups while keeping the manual BetterDiscord core check commented out.
-- [ ] Verify simultaneous plugin/theme checks share one request and both complete.
-- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
-- [ ] User: verify plugin/theme detection, success/failure downloads, pending state, and manual refresh with no BetterDiscord core request.
-- [ ] After user confirmation, create only the local Stage 7 commit.
+This was the first Store-only port. Its runtime test exposed the same-filename
+JumpToTop collision, so Stage 7A was not approved or committed and Stage 7B
+supersedes its updater architecture. The checked build/test evidence in this
+section applies only to the pre-7B tree and must not be used to approve the
+current working tree.
+
+- [x] In `src/betterdiscord/modules/updater.ts`, use the Stage 6 Addon Store catalogue and remove the updater's private cache/request code.
+- [x] Preserve the fork's commented BetterDiscord core startup and scheduled checks.
+- [x] Preserve the commented manual core check in `src/betterdiscord/ui/updater.tsx`; remove the stale helper wording that incorrectly said manual core checks remained available.
+- [x] Preserve plugin/theme startup, scheduled, event-driven, and manual checks.
+- [x] Record the superseded Stage 7A behavior: its manual refresh ran the plugin and theme managers in sequence. Stage 7B instead uses one shared coordinator and at most one needed catalogue refresh.
+- [x] Use only current, type-matched catalogue rows and retain the old updater's `version === "Unknown"` filter.
+- [x] Keep existing pending rows visible while the catalogue request is in flight, then replace them from the settled catalogue.
+- [x] Give addon downloads a 15-second inactivity timeout and no-cache headers.
+- [x] Keep failed fetch/body/write handling user-visible and logged; leave every failed row pending and retryable.
+- [x] Return success only after download and disk write complete; guard pending removal and update React state immutably.
+- [x] Release a still-mounted update-button spinner in `finally`, including on failure.
+- [x] Add the private preload `writeFileAsync()` bridge so the updater can await a real asynchronous write without advertising an incomplete public `fs.promises` API.
+- [x] Keep the dormant core-ASAR download at the fork's finite 30-second timeout rather than upstream's unlimited wait.
+- [x] Verify overlapping plugin/theme checks reuse one shared in-flight catalogue request and both complete; keep their existing rows visible until settlement.
+- [x] Pre-7B focused harness on Bun 1.1.20: 6 updater cases plus 2 filesystem cases, 35 assertions, and 0 failures across core-policy entry points, shared settlement, update detection, `Unknown`, success, HTTP/timeout/write failure, and missing metadata.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Targeted ESLint on all Stage 7 source and committed test files.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test --timeout 10000 tests/`: 269 passed, 24 established Bun 1.1.20/Darwin 20 skips, and 0 failed across 19 files.
+  The default five-second run hit the same established macOS recovery fallback timing edge seen in Stage 6; that test passed alone in 4.82 seconds, and the unchanged suite passed cleanly with a ten-second per-test ceiling.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh `dist/betterdiscord.asar`: `ead69836550524520aff6b8bf6ebcc67d62c3ae4b6ea6480b7c7cd636224f3a4` (675417 bytes).
+- [x] Two independent read-only reviews confirmed every upstream Stage 7A hunk was accepted or intentionally adapted and no injection, OpenAsar, Settings-hook, workflow, or library-neutrality path changed in that pre-7B tree.
+- [x] User runtime testing found that the Store's `JumpToTop.plugin.js` replaced the installed fork with a different same-filename addon. Do not approve or land the Store-only implementation.
+- [x] Continue directly into Stage 7B without creating a Stage 7A commit.
+
+## Stage 7B: identity-aware external addon updater
+
+Replace Stage 7A's Store-only decision with a shared plugin/theme coordinator.
+Preserve the fork's BetterDiscord core-updater policy and keep injection,
+OpenAsar/bootstrap, Settings-hook, plugin-loading, workflow, and wrapper paths
+outside this implementation.
+
+Implementation checklist:
+
+- [x] Check an addon's declared `@updateUrl` and same-type Store row as separate candidates; require identity approval before comparing versions.
+- [x] Accept repository, Discord author ID, or normalized author matches; reject Store repository collisions without independent author evidence, and reserve validated same-name fallback for the installed addon's declared URL.
+- [x] Cover the real JumpToTop collision: `XxUnkn0wnxX/BDPlugins` must reject the unrelated `snappycreeper/BetterDiscordPlugins` Store row regardless of version.
+- [x] Compare strict SemVer and then loose dotted numeric versions without lexical guessing; select the highest eligible newer version and prefer the declared URL on an equal-version tie.
+- [x] Share the same logic across plugins and themes, including URL-only, Store-only, competing-source, and no-update-path cases.
+- [x] Add one pure URL normalizer for GitHub/Gists, GitLab/snippets, Gitea/Forgejo/Codeberg/`git.slowb.ro`, Bitbucket Cloud/Server/snippets, Azure DevOps, SourceHut, Pastebin/dpaste/Pastes.io/Hastebin-compatible services, raw URLs, and generic HTTPS sources.
+- [x] Reject non-HTTPS/credentialed URLs, unsafe redirects, ambiguous multi-file descriptors, and known encrypted PrivateBin/ZeroBin pages.
+- [x] Validate the exact downloaded body before it can be installed: 16 MiB source ceiling, fatal UTF-8, no HTML/login/binary/LFS pointer, correct plugin/theme suffix and type, first-line JSDoc, matching addon name, comparable version, and approved identity.
+- [x] Reuse checked source bytes through a 128 MiB aggregate memory LRU, safely refetch/revalidate after eviction or restart, release materialized entries, persist only bounded metadata/hash/validators, and replace through a temporary file plus final source/mtime comparison and atomic rename.
+- [x] Persist per-channel `addon-updater.json` state with per-addon/per-URL freshness, opaque URL fingerprints, ETags/`Last-Modified`, and per-origin backoff; never persist a raw update URL or sensitive query string.
+- [x] Restore fresh pending URL, descriptor, and Store candidates after restart from bounded metadata plus opaque resolved fingerprints without persisting raw URLs/bodies or forcing an immediate network burst.
+- [x] Track every installed plugin/theme whether enabled or disabled, and prune addon/orphaned-URL freshness state at startup, unload, and each manual/scheduled pass when a file is no longer in the manager inventory.
+- [x] Prune missing IDs from `plugins.json`/`themes.json` after startup and file removal while retaining enabled, disabled, and partial/compile-failed manager entries; defer unknown-ID pruning when an addon-looking file still exists but temporarily lacks valid metadata; preserve enabled state across the updater's atomic rename/re-read cycle; serialize unique IDs from numeric-leading through A-Z (canonicalizing duplicate JSON keys to the last parsed value); and do not add a live external-config watcher.
+- [x] Keep the existing 2–12 hour interval slider and four-hour default, schedule the earliest stale addon, and make a recent check affect only that plugin/theme rather than the whole batch.
+- [x] Make manual refresh use one plugin/theme coordinator with a 60-second repeat cooldown and active-check joining; give the initiating caller sole ownership of the allowed core check; force actual addon file-read events after a 750-millisecond debounce without making passive UI reads perform network requests.
+- [x] Limit raw requests to three globally and two per queued origin, serialize descriptor APIs, install **Update All** sequentially under one batch/addon attempt owner, and stop queued same-origin work when a rate limit is observed.
+- [x] Honor provider reset headers before 1/5/15/60-minute fallback backoff plus jitter; classify only `429` or evidenced `403` as throttling; log rate-limit/offline deferral and recovery without toast spam; and resume unfinished work after a mid-flight disconnect without shortening longer provider resets.
+- [x] Keep addons with neither a declared update URL nor a matching Store row silent and give declared `404`/`410` sources a silent 30-minute negative cache.
+- [x] Keep Addon Store visibility independent from plugin/theme updates: disabling the Store UI must not impair automatic addon checks, and an explicit manual check may force the shared catalogue even when both background consumers are disabled.
+- [x] Add the default-on **Show Addon Update Notifications** setting for success toasts and persistent single/batch failure cards. Keep console failure logging unconditional, batch failures summarized behind one **View** action, and rate-limit warnings console-only.
+- [x] Preserve pending-row and spinner settlement: only confirmed atomic success removes a row; every failed install remains retryable and logged.
+- [x] Snapshot enabled addons from disk through a private asynchronous preload path because plugin/theme initialization discards `fileContent`; validate the snapshot before download and recheck it immediately before atomic rename without changing the public renderer `fs` shim.
+- [x] Keep BetterDiscord core startup and scheduled checks commented out; retain the explicit Updates-panel core check as the sole manual path, sharing the coordinator's repeat cooldown. Plugin/theme startup, schedule, file-event, and manual paths remain active.
+- [x] Document the Stage 7B fork contract in `docs/fork-specific-changes.md` and distinguish all pre-7B evidence from the current tree.
+
+Verification and landing checklist for the current Stage 7B tree:
+
+- [x] Focused identity, URL-normalizer, manager/updater state, native-fetch, atomic-filesystem, Store-independence, coordinator, restart, and notification tests on Bun 1.1.20: 72 passed, 0 failed, and 267 assertions across 9 test files.
+- [x] Targeted ESLint on every changed/new Stage 7B TypeScript and TSX source/test file.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] `bun test --timeout 10000 tests/` on the existing Bun 1.1.20: 339 passed, 24 established Bun 1.1.20/Darwin 20 native-Intl skips, 0 failed, and 873 assertions across 27 files.
+- [x] Two independent final reviews cleared the coordinator concurrency, AddonManager reload/pruning, atomic-write, and state-serialization paths after the active-join and duplicate-modal fixes.
+- [x] Confirm injection/OpenAsar, plugin loading, Settings hooks, Custom CSS, workflow, wrapper, and release paths are byte-for-byte unchanged from Stage 6 commit `69f76e37` across the protected-path audit.
+- [x] `zsh local-build.zsh -mrts 45`; fresh `dist/betterdiscord.asar`: `abbadfcf87b4d35f6bdbae3de47a601b597f3dca0873a1c61f5d62021369005b` (732693 bytes).
+- [ ] User: release-inject and verify declared-URL and Store-only detection for plugins/themes, the JumpToTop collision, Store-disabled updater independence, enabled/disabled addon replacement, startup config pruning/sorting, success/failure UI and its toggle, the shared manual cooldown, no startup/scheduled BetterDiscord core request, and one core check from an allowed explicit refresh.
+- [x] Create the user-requested local Stage 7B checkpoint commit after the automated gates and fresh asar build, before runtime testing; keep it local and do not push it.
 
 ## Stage 8: protected and full-tree gate
 

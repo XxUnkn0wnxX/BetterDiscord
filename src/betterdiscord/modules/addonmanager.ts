@@ -21,6 +21,7 @@ import RemoteAPI from "@polyfill/remote";
 import {parseJsDoc} from "@common/utils";
 import Modals from "@ui/modals";
 import type {Addon, AddonType} from "@typed/addon";
+import {pruneMissingAddonState, sortAddonState} from "@utils/addonmanagerstate";
 
 export default abstract class AddonManager<T extends Addon = Addon> extends Store {
     abstract name: string;
@@ -44,6 +45,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
 
     timeCache: Record<string, number> = {};
     state: Record<string, boolean> = {};
+    private unrepresentedAddonFiles = new Map<string, string | undefined>();
     windows = new Set<string>();
     hasInitialized = false;
     initialAddonsLoaded = 0;
@@ -72,7 +74,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
     }
 
     saveState() {
-        JsonStore.set(`${this.prefix}s` as Files, this.state);
+        JsonStore.set(`${this.prefix}s` as Files, sortAddonState(this.state));
     }
 
     showAddonError(addon: Addon, message: string, info: ErrorInfo) {
@@ -115,6 +117,8 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
             }
 
             await new Promise(r => setTimeout(r, 100));
+            const existingAddon = this.resolveAddon(filename);
+            const previousStateId = existingAddon?.id ?? this.unrepresentedAddonFiles.get(filename);
 
             try {
                 const stats = fs.statSync(absolutePath);
@@ -125,18 +129,37 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
 
                 // Load/reload the addon if it's been created/updated
                 if (eventType == "rename") {
-                    this.unloadAddon(filename);
-                    this.readAddon(filename, true);
+                    // Atomic updater replacement is reported as rename on macOS. Preserve the
+                    // enabled state while the still-present file is re-read and restarted.
+                    this.unloadAddon(filename, true);
+                    this.readAddon(filename, true, previousStateId);
                 }
                 else if (eventType == "change") {
-                    this.reloadAddon(filename);
+                    // A reload that discovers malformed metadata has already read and reported the
+                    // file once. Only use the direct read path when no prior addon object existed,
+                    // otherwise the same error modal would be opened twice for one file event.
+                    if (existingAddon) this.reloadAddon(existingAddon);
+                    else this.readAddon(filename, true, previousStateId);
                 }
+
+                // The re-read above is synchronous. Prune only after it had a chance to restore a
+                // valid/partial addon to addonList; compile failures stay listed, while a file that
+                // can no longer be represented by the manager loses its obsolete saved-state key.
+                this.pruneState();
+                this.saveState();
             }
             catch (err) {
                 // Unload the addon if it's been deleted
                 if ((err as SystemError).code !== "ENOENT" && !(err as SystemError)?.message.startsWith("ENOENT")) return;
                 delete this.timeCache[filename];
+                this.unrepresentedAddonFiles.delete(filename);
                 this.unloadAddon(filename);
+                // The old object may already have been removed by the reload path before its
+                // synchronous re-read lost an ENOENT race. Prune/save even when unload cannot
+                // resolve it a second time, so the stale config ID cannot survive.
+                if (previousStateId) delete this.state[previousStateId];
+                this.pruneState();
+                this.saveState();
             }
         });
     }
@@ -179,10 +202,26 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
             this.readAddon(filename);
         }
 
+        this.pruneState();
         this.saveState();
     }
 
-    readAddon(filename: string, startAfter?: boolean) {
+    pruneState() {
+        const removed = pruneMissingAddonState(
+            this.state,
+            this.addonList.map(addon => addon.id),
+            this.unrepresentedAddonFiles.size === 0
+        );
+        if (!removed.length && this.unrepresentedAddonFiles.size) {
+            Logger.debug(this.name, `Deferred addon-state pruning while ${this.unrepresentedAddonFiles.size} addon file could not be represented safely.`);
+        }
+        if (removed.length) {
+            Logger.debug(this.name, `Pruned ${removed.length} addon state entr${removed.length === 1 ? "y" : "ies"} whose files are no longer installed.`);
+        }
+        return removed;
+    }
+
+    readAddon(filename: string, startAfter?: boolean, previousStateId?: string) {
         const filePath = path.resolve(this.addonFolder, filename);
         let fileContent = fs.readFileSync(filePath, "utf8");
 
@@ -196,11 +235,12 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         // Validate that there is a meta comment
         const hasMetaComment = firstLine.includes("/**");
         if (!hasMetaComment) {
+            this.unrepresentedAddonFiles.set(filename, previousStateId);
             Modals.showAddonError(new AddonError(filename, filename, t("Addons.metaNotFound"), {
                 message: "",
                 stack: fileContent
             }, this.prefix));
-            return;
+            return false;
         }
 
         const stats = fs.statSync(filePath);
@@ -221,10 +261,12 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         addon.size = stats.size;
         addon.fileContent = fileContent;
 
+        this.unrepresentedAddonFiles.delete(filename);
         this.addonList.push(addon as T);
         this.trigger("read", addon);
 
         if (startAfter && this.state[addon.id]) this.startAddon(addon as T);
+        return true;
     }
 
     abstract initAddon(addon: T): boolean;
@@ -250,13 +292,21 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         const addon = this.resolveAddon(idOrFileOrAddon);
         if (!addon) return false;
 
+        const fileStillExists = fs.existsSync(path.resolve(this.addonFolder, addon.filename));
+
         if (this.state[addon.id]) {
-            if (isReload) this.stopAddon(addon);
+            if (isReload || fileStillExists) this.stopAddon(addon);
             else this.disableAddon(addon);
         }
 
         this.addonList.splice(this.addonList.indexOf(addon), 1);
         this.trigger("unloaded", addon);
+        if (!fileStillExists) {
+            this.unrepresentedAddonFiles.delete(addon.filename);
+            delete this.state[addon.id];
+            this.pruneState();
+            this.saveState();
+        }
         Toasts.success(t("Addons.wasUnloaded", {name: addon.name}));
         return true;
     }
@@ -269,8 +319,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         const didUnload = this.unloadAddon(addon, true);
         if (!didUnload) return false;
 
-        this.readAddon(addon.filename, true);
-        return true;
+        return this.readAddon(addon.filename, true, addon.id);
     }
 
     isLoaded(idOrFile: string) {

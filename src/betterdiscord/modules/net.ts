@@ -76,6 +76,8 @@ export async function fetch(input: string | URL | Request, init?: NativeRequestI
 
         timeout: init?.timeout,
         maxRedirects: init?.maxRedirects ?? MAX_DEFAULT_REDIRECTS,
+        maxResponseBytes: init?.maxResponseBytes,
+        httpsOnly: init?.httpsOnly,
         rejectUnauthorized: init?.rejectUnauthorized ?? true
     });
 

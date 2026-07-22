@@ -13,6 +13,7 @@ import SettingsTitle from "@ui/settings/title";
 
 import {ArrowDownToLineIcon, CheckIcon, RefreshCwIcon, RotateCwIcon} from "lucide-react";
 import type {CoreUpdater, ThemeUpdater, PluginUpdater, AddonUpdater} from "@modules/updater";
+import {AddonUpdateCoordinator} from "@modules/addonupdater";
 import {SettingsTitleContext} from "./settings";
 
 
@@ -31,11 +32,15 @@ function makeButton(tooltip: string, children: ReactNode, action: () => Promise<
     const onClick = async (event: MouseEvent) => {
         const button = event.currentTarget.closest("button")!;
         button.classList.add("animate");
-        await action();
-
-        if (!stopAnimation) return;
-        await new Promise(r => setTimeout(r, 500)); // Allow animation to complete at least once.
-        button?.classList?.remove("animate"); // Stop animation if it hasn't been removed from the DOM
+        try {
+            await action();
+        }
+        finally {
+            // Fork review: failed updates remain visible, so always release their spinner. The
+            // manual refresh keeps the upstream minimum cycle before its spinner is removed.
+            if (stopAnimation) await new Promise(r => setTimeout(r, 500));
+            button?.classList?.remove("animate"); // Stop animation if it hasn't been removed from the DOM
+        }
     };
 
     return <DiscordModules.Tooltip color="primary" position="top" text={tooltip}>
@@ -65,15 +70,15 @@ function AddonUpdaterPanel({pending: filenames, type, updater, update, updateAll
         collapsible={true}
         titleChildren={filenames.length > 1 ? makeButton(t("Updater.updateAll"), <RotateCwIcon size="20px" />, () => updateAll(type)) : null}>
         {!filenames.length && <NoUpdates type={type} />}
-        {filenames.map(f => {
-            const info = updater.cache[f];
-            const addon = updater.manager.addonList.find(a => a.filename === f)!;
+        {filenames.map(filename => {
+            const info = updater.getUpdateCandidate(filename);
+            const addon = updater.manager.addonList.find(a => a.filename === filename);
 
-            if (!info) return null;
+            if (!info || !addon) return null;
 
             return <SettingItem key={addon.filename} name={`${addon.name} v${addon.version}`} note={t("Updater.versionAvailable", {version: info.version})} inline={true} id={addon.name}>
-                {makeButton(t("Updater.updateButton"), <RotateCwIcon />, () => update(type, f))}
-                {/* <Button size={Button.Sizes.SMALL} onClick={() => update(type, f)}>{t("Updater.updateButton")}</Button> */}
+                {makeButton(t("Updater.updateButton"), <RotateCwIcon />, () => update(type, filename))}
+                {/* <Button size={Button.Sizes.SMALL} onClick={() => update(type, filename)}>{t("Updater.updateButton")}</Button> */}
             </SettingItem>;
         })}
     </Drawer>;
@@ -83,29 +88,21 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
     const [hasCoreUpdate, setCoreUpdate] = useState(coreUpdater.hasUpdate);
     const [updates, setUpdates] = useState({plugins: pluginUpdater.pending.slice(0), themes: themeUpdater.pending.slice(0)});
 
-    const checkAddons = useCallback(async (type: "plugins" | "themes") => {
-        const updater = type === "plugins" ? pluginUpdater : themeUpdater;
-        await updater.checkAll(false);
-        setUpdates({...updates, [type]: updater.pending.slice(0)});
-    }, [updates, pluginUpdater, themeUpdater]);
-
-    const update = useCallback(() => {
-        checkAddons("plugins");
-        checkAddons("themes");
-    }, [checkAddons]);
+    const refreshState = useCallback(() => {
+        setUpdates({
+            plugins: pluginUpdater.pending.slice(0),
+            themes: themeUpdater.pending.slice(0)
+        });
+    }, [pluginUpdater, themeUpdater]);
 
     useEffect(() => {
-        Events.on(`plugin-read`, update);
-        Events.on(`plugin-unloaded`, update);
-        Events.on(`theme-read`, update);
-        Events.on(`theme-unloaded`, update);
+        // Fork review: addon lifecycle events update this panel only. The coordinator owns its
+        // targeted debounce so mounting the UI cannot create duplicate full network batches.
+        Events.on("addon-updates-changed", refreshState);
         return () => {
-            Events.off(`plugin-read`, update);
-            Events.off(`plugin-unloaded`, update);
-            Events.off(`theme-read`, update);
-            Events.off(`theme-unloaded`, update);
+            Events.off("addon-updates-changed", refreshState);
         };
-    }, [update]);
+    }, [refreshState]);
 
     const checkCoreUpdate = useCallback(async () => {
         await coreUpdater.checkForUpdate(false);
@@ -114,16 +111,14 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
 
     const checkForUpdates = useCallback(async () => {
         Toasts.info(t("Updater.checking"));
-        // Fork behavior: keep manual plugin/theme checks, but disable BD core update checks.
-        // await checkCoreUpdate();
-        await checkAddons("plugins");
-        await checkAddons("themes");
-        setUpdates({
-            plugins: pluginUpdater.pending.slice(0),
-            themes: themeUpdater.pending.slice(0)
-        });
+        // The literal button stays immediate, while the coordinator shares one catalogue refresh
+        // and prevents repeated clicks from producing addon or core request bursts. Core startup
+        // and scheduled checks remain disabled in modules/updater.ts.
+        const checked = await AddonUpdateCoordinator.checkManually();
+        if (checked) await checkCoreUpdate();
+        refreshState();
         Toasts.info(t("Updater.finishedChecking"));
-    }, [checkAddons, checkCoreUpdate, pluginUpdater, themeUpdater]);
+    }, [checkCoreUpdate, refreshState]);
 
     const updateCore = useCallback(async () => {
         await coreUpdater.update();
@@ -132,19 +127,23 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
 
     const updateAddon = useCallback(async (type: "plugins" | "themes", filename: string) => {
         const updater = type === "plugins" ? pluginUpdater : themeUpdater;
-        await updater.updateAddon(filename);
-        setUpdates(prev => {
-            prev[type].splice(prev[type].indexOf(filename), 1);
-            return prev;
+        const succeeded = await updater.updateAddon(filename);
+        if (!succeeded) return;
+
+        // Fork review: only a confirmed download+write may remove the row. Return a new object and
+        // list so React rerenders, and never let index -1 remove an unrelated final update.
+        setUpdates(previous => {
+            if (!previous[type].includes(filename)) return previous;
+            return {...previous, [type]: previous[type].filter(pending => pending !== filename)};
         });
     }, [pluginUpdater, themeUpdater]);
 
     const updateAllAddons = useCallback(async (type: "plugins" | "themes") => {
         const toUpdate = updates[type].slice(0);
-        for (const filename of toUpdate) {
-            await updateAddon(type, filename);
-        }
-    }, [updateAddon, updates]);
+        const updater = type === "plugins" ? pluginUpdater : themeUpdater;
+        await updater.updateAll(toUpdate);
+        refreshState();
+    }, [pluginUpdater, refreshState, themeUpdater, updates]);
 
     const set = React.useContext(SettingsTitleContext);
 
