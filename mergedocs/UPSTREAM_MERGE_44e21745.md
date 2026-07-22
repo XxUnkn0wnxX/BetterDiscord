@@ -268,22 +268,52 @@ Apply this four-file bundle atomically, with one reviewed correction:
 
 Take these surrounding files exactly from upstream:
 
-- [ ] `src/betterdiscord/modules/core.ts`.
-- [ ] `src/betterdiscord/builtins/store/addonstore.ts`.
-- [ ] `src/betterdiscord/ui/misc/storeembed.tsx`.
-- [ ] `src/betterdiscord/ui/settings/addonstore.tsx`.
+- [x] `src/betterdiscord/modules/core.ts`.
+- [x] `src/betterdiscord/ui/misc/storeembed.tsx`.
+- [x] `src/betterdiscord/ui/settings/addonstore.tsx`.
+- [x] Confirm all three by upstream blob hash.
+
+Take `src/betterdiscord/builtins/store/addonstore.ts` upstream with only two
+reviewed corrections:
+
+- [x] Use `exec[0].length` so links inside codeblocks are excluded correctly.
+- [x] Cache the resolved link-opener module/key pair so disable/re-enable can reapply the patch.
+- [x] Document that both corrections also appear in upstream audit commit `7dc97d1588c1d9dc3f1d133c998feb9071d86e3f`.
+- [x] Verify its diff from `44e21745` contains only those corrections and their comments.
 
 Take `src/betterdiscord/modules/addonstore.ts` substantially upstream and fix
 only its verified failure paths:
 
-- [ ] Keep the upstream Store/native-fetch/shared-catalogue architecture.
-- [ ] Settle the shared promise on offline early returns and offline/ENOTFOUND wait paths.
-- [ ] Clear or deduplicate rows before `_useCache()` so fallback/re-enable cannot duplicate cards.
-- [ ] Use `[]`, not `{}`, as the cached `known` filename fallback.
-- [ ] Preserve one in-flight catalogue request for concurrent consumers.
-- [ ] Run Git check, typecheck, supported Bun tests, and `zsh local-build.zsh -mrts 45`.
-- [ ] User: test online, offline-before-start, disconnect, HTTP failure, retry/recovery, both feature toggles, disable/re-enable, catalogue pages, embeds, tags, pagination, and previews.
-- [ ] After user confirmation, create only the local Stage 6 commit.
+- [x] Keep the upstream Store/native-fetch/shared-catalogue architecture.
+- [x] Return one real in-flight promise to both initiating and concurrent consumers.
+- [x] Use a 30-second inactivity timeout instead of upstream's unlimited catalogue wait.
+- [x] Abort on disconnect or when both catalogue consumers are disabled.
+- [x] Ignore stale completion/failure paths so an old request cannot overwrite a newer request.
+- [x] Remove reconnect listeners and refresh timers when both consumers are disabled.
+- [x] Replace rows before `_useCache()` so fallback/re-enable cannot duplicate cards.
+- [x] Normalize cached `known` filenames to `[]` and log invalid cache repair.
+- [x] Reject non-success HTTP status and non-array catalogue data.
+- [x] While the Addon Store is enabled, keep successful Store refreshes on the configured interval and retry failed Store refreshes after five minutes or 30 seconds for `ECONNRESET`; leave updater-only scheduling to Stage 7's updater path.
+- [x] Add subtle debug/info/warn/error logging for every new lifecycle guard and failure path.
+- [x] Document the Stage 6 fork divergences and removal conditions in `docs/fork-specific-changes.md`.
+- [x] Early targeted ESLint and TypeScript checks.
+- [x] Focused request-state harness: 1 passed, 31 assertions, and 0 failed across shared promise, timeout, offline-before-start, disconnect/reconnect, disable/re-enable, stale response, cache replacement, HTTP/schema failure, retry timing, and log levels.
+- [x] `git -c core.whitespace=cr-at-eol diff --check`.
+- [x] Targeted ESLint on all five Stage 6 source files.
+- [x] `bun ./node_modules/typescript/bin/tsc --noEmit`.
+- [x] `bun test tests/`: 267 passed, 24 established Bun 1.1.20/Darwin 20 skips, and 0 failed across 18 files.
+  An initial parallel run hit the existing five-second macOS recovery timing edge; its isolated rerun and the sequential full-suite rerun passed.
+- [x] `zsh local-build.zsh -mrts 45`.
+- [x] Fresh `dist/betterdiscord.asar`: `7b04ffe631846657e71fe6a775d780283f8f83a99f05d5a876f7d7bf1bc65e1c` (674855 bytes).
+- [x] Confirm protected injection/OpenAsar, plugin loading, Settings placement/version, updater-policy, workflow, wrapper, and release paths remain untouched.
+- [x] User: confirm the injected Addon Store catalogue loads normally.
+- [x] Treat the hidden `bdAddonStore` disable/re-enable path as focused-harness coverage: its settings category uses `shown: false`, so there is no normal user-facing master off switch.
+- [x] Add the user-requested local navigation hotfix: reselecting Plugins or Themes while its Store subview is open returns to that addon's installed page without changing the Settings hook.
+- [x] Verify the navigation hotfix against both exact live-DOM sidebar IDs, targeted lint, TypeScript, the 31-assertion Stage 6 harness, and the supported suite: 267 passed, 24 established skips, and 0 failed.
+- [x] Rebuild with `zsh local-build.zsh -mrts 45`; post-hotfix `dist/betterdiscord.asar`: `a3a3d7554b578cebd324b5211d46ded65b775204f830cdbf3889eb4fe4ea0157` (675160 bytes).
+- [x] User confirmed reselecting Plugins and Themes exits their respective Store subviews; the larger installed-plugin list takes slightly longer to render than Themes but completes correctly.
+- [x] Accept the Stage 6 runtime smoke: the Store catalogue loads and both addon sections return correctly; keep disconnect/reconnect as optional future fault-path coverage backed by the focused harness.
+- [x] User confirmed the runtime result and authorized the local Stage 6 commit.
 
 ## Stage 7: updater conflict reconciliation
 

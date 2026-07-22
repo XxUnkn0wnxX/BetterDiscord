@@ -18,6 +18,8 @@ import AddonManager from "./addonmanager";
 import type {BdWebGuild, BdWebAddon} from "../types/betterdiscordweb";
 import {parseJsDoc} from "@common/utils";
 import type {Addon as AddonType} from "@typed/addon";
+import Store from "@stores/base";
+import {fetch} from "./net";
 
 
 function showConfirmDelete(addon: AddonType) {
@@ -32,7 +34,6 @@ function showConfirmDelete(addon: AddonType) {
 }
 
 export class Guild {
-
     name: string;
     id: string;
     invite: string;
@@ -81,7 +82,6 @@ export class Guild {
 }
 
 export class Addon {
-
     id: number;
     name: string;
     avatar: string;
@@ -348,13 +348,55 @@ export class Addon {
     }
 }
 
-const addonStore = new class AddonStore {
-    initialize() {
-        this._cache = (JsonStore.get("addon-store") as {addons: Record<string, BdWebAddon>; known: string[]; version: string;}) || {addons: {}, known: [], version: ""};
+const CATALOGUE_TIMEOUT_MS = 30_000;
+
+type CatalogueCancelReason = "disabled" | "offline";
+
+interface CatalogueRequest {
+    id: number;
+    controller: AbortController;
+    cancelReason: CatalogueCancelReason | null;
+    offlineListener: () => void;
+    staleLogged: boolean;
+    promise: Promise<void>;
+}
+
+const addonStore = new class AddonStore extends Store {
+    public hasDoneFirstRequest = false;
+
+    // Fork review: retain the actual transport promise and its identity; upstream's detached
+    // resolver lets initiating callers continue early and can be left pending by offline exits.
+    #promise: Promise<void> = Promise.resolve();
+    #activeRequest: CatalogueRequest | null = null;
+    #requestSequence = 0;
+    #waitingForOnline = false;
+
+    public get promise() {
+        return this.#promise;
+    }
+
+    public initialize() {
+        const stored = JsonStore.get("addon-store") as Partial<{addons: Record<string, BdWebAddon>; known: string[]; version: string;}> | undefined;
+
+        // Fork review: old or malformed cache shapes must not turn `known` into a non-array.
+        const storedAddons = stored?.addons;
+        const storedKnown = stored?.known;
+        const addonsAreValid = Boolean(storedAddons) && typeof storedAddons === "object" && !Array.isArray(storedAddons);
+        const knownIsValid = Array.isArray(storedKnown);
+
+        if (stored && Object.prototype.hasOwnProperty.call(stored, "addons") && !addonsAreValid) Logger.warn("AddonStore", "Cached addon catalogue was invalid; resetting it.");
+        if (stored && Object.prototype.hasOwnProperty.call(stored, "known") && !knownIsValid) Logger.warn("AddonStore", "Cached known-addon list was invalid; resetting it.");
+
+        this._cache = {
+            addons: addonsAreValid ? storedAddons as Record<string, BdWebAddon> : {},
+            known: knownIsValid ? [...storedKnown] : [],
+            version: typeof stored?.version === "string" ? stored.version : ""
+        };
 
         if (this._cache.version !== Web.API_VERSION) {
+            Logger.debug("AddonStore", "Resetting the cached catalogue for a new API version.");
             this._cache = {
-                known: this._cache.known || [],
+                known: this._cache.known,
                 addons: {},
                 version: Web.API_VERSION
             };
@@ -362,13 +404,46 @@ const addonStore = new class AddonStore {
 
         // window.AddonStore = this;
 
-        this._useCache();
-        this.requestAddons(true);
+        const isEnabled = () => (
+            Settings.get<boolean>("settings", "store", "bdAddonStore")
+            || Settings.get<boolean>("settings", "addons", "checkForUpdates")
+        );
+
+        let wasEnabled = isEnabled();
+
+        const handle = () => {
+            const isNowEnabled = isEnabled();
+            if (wasEnabled === isNowEnabled) return;
+
+            wasEnabled = isNowEnabled;
+
+            if (isNowEnabled) {
+                Logger.debug("AddonStore", "A catalogue consumer was enabled; loading the addon catalogue.");
+                this._useCache();
+                void this.requestAddons(!this.hasDoneFirstRequest);
+                this.hasDoneFirstRequest = true;
+                return;
+            }
+
+            this._stopCatalogueActivity();
+        };
+
+        Settings.on("settings", "store", "bdAddonStore", handle);
+        Settings.on("settings", "addons", "checkForUpdates", handle);
+
+        if (wasEnabled) {
+            this._useCache();
+            void this.requestAddons(true);
+            this.hasDoneFirstRequest = true;
+        }
     }
 
     // Caching stuff
-    _cache: {addons: Record<string, BdWebAddon>; known: string[]; version: string;} = {addons: {}, known: [], version: ""};
+    private _cache: {addons: Record<string, BdWebAddon>; known: string[]; version: string;} = {addons: {}, known: [], version: ""};
     private _useCache() {
+        // Fork review: cache fallback replaces the visible catalogue so retries cannot duplicate cards.
+        this.addons.length = 0;
+
         for (const key in this._cache.addons) {
             if (Object.prototype.hasOwnProperty.call(this._cache.addons, key)) {
                 this.addons.push(
@@ -392,32 +467,32 @@ const addonStore = new class AddonStore {
         const cache = this.getAddon(idOrName);
         if (typeof cache === "object") return Promise.resolve(cache);
 
-        return this._singleAddonCache[idOrName] ??= new Promise<Addon>((resolve, reject) => {
-            request(Web.store.addon(idOrName), {
+        let res: Response | undefined;
+
+        return this._singleAddonCache[idOrName] ??= (
+            fetch(Web.store.addon(idOrName), {
                 headers: {
                     "Cache-Control": "no-cache",
                     "Pragma": "no-cache"
-                }
-                // TODO: fix typing when converting request polyfill
-            }, (err: Error, req: {aborted: boolean, statusMessage: string; ok: boolean; statusCode: number;}, body: string) => {
-                try {
-                    if (err || req.aborted || req.statusMessage !== "OK") {
-                        throw err || req;
-                    }
+                },
+                // Individual addon requests use the shared transport's finite default timeout.
+            })
+                .then(x => {
+                    res = x;
+                    return x.json();
+                })
+                .then((addon: BdWebAddon) => {
+                    if (!res!.ok) throw new Error((addon as unknown as {title: string;}).title);
 
-                    const data = JSON.parse(body);
+                    this._singleAddonCache[addon.name] = this._singleAddonCache[idOrName];
+                    this._singleAddonCache[addon.id] = this._singleAddonCache[idOrName];
 
-                    if (!req.ok || data.status === 404) {
-                        throw new Error(data.title);
-                    }
-
-                    this._singleAddonCache[data.name] = this._singleAddonCache[idOrName];
-                    this._singleAddonCache[data.id] = this._singleAddonCache[idOrName];
-
-                    resolve(Addon.from(data as BdWebAddon));
-                }
-                catch (error) {
-                    Logger.stacktrace("AddonStore", `Failed to fetch ${idOrName}`, error as Error);
+                    return Addon.from(addon);
+                })
+                .catch((error) => {
+                    const failure = error instanceof Error ? error : new Error(`Failed to request addon: Status ${res?.status || "Unknown"}`);
+                    if (/timed out/i.test(failure.message)) Logger.warn("AddonStore", `Timed out fetching addon '${idOrName}'.`, failure);
+                    else Logger.stacktrace("AddonStore", `Failed to fetch ${idOrName}`, failure);
 
                     Toasts.show(t("Addons.failedToFetch"), {
                         type: "error"
@@ -426,12 +501,9 @@ const addonStore = new class AddonStore {
                     // To allow future fetches
                     delete this._singleAddonCache[idOrName];
 
-                    reject(
-                        error instanceof Error ? error : new Error(`Failed to request addons: Status ${req.statusCode}`)
-                    );
-                }
-            });
-        });
+                    throw failure;
+                })
+        );
     }
 
     /**
@@ -444,7 +516,7 @@ const addonStore = new class AddonStore {
             if (Object.prototype.hasOwnProperty.call(Addon.cache, key)) {
                 const addon = Addon.cache[key];
 
-                if (addon.id.toString() === decoded || addon.name.toLowerCase() === decoded) return addon;
+                if (addon.id.toString() === decoded || addon.name.toLowerCase() === decoded || addon.filename.toLowerCase() === decoded) return addon;
             }
         }
     }
@@ -476,90 +548,202 @@ const addonStore = new class AddonStore {
     error: Error | null = null;
     loading = false;
 
-    /**
-     * Listener for when the user is offline and tries to fetch the addons
-     */
-    private _onLineListener = () => {
+    private _isEnabled() {
+        return Boolean(
+            Settings.get<boolean>("settings", "store", "bdAddonStore")
+            || Settings.get<boolean>("settings", "addons", "checkForUpdates")
+        );
+    }
+
+    private _clearRetry() {
+        if (!this._setTimeout) return;
+        window.clearTimeout(this._setTimeout);
+        this._setTimeout = null;
+        Logger.debug("AddonStore", "Cleared the scheduled catalogue refresh.");
+    }
+
+    private _removeOnlineListener() {
         window.removeEventListener("online", this._onLineListener);
-        this.requestAddons();
+        this.#waitingForOnline = false;
+    }
+
+    private _waitForOnline() {
+        if (this.#waitingForOnline) return;
+        this.#waitingForOnline = true;
+        window.addEventListener("online", this._onLineListener);
+    }
+
+    private _onLineListener = () => {
+        this._removeOnlineListener();
+
+        if (!this._isEnabled()) {
+            Logger.debug("AddonStore", "Ignored reconnect refresh because no catalogue consumer is enabled.");
+            return;
+        }
+
+        Logger.info("AddonStore", "Connection restored; refreshing the addon catalogue.");
+        void this.requestAddons();
     };
 
-    async requestAddons(firstRun = false) {
-        Logger.debug("AddonStore", "Requesting all addons");
+    private _stopCatalogueActivity() {
+        this._clearRetry();
+
+        if (this.#waitingForOnline) {
+            Logger.debug("AddonStore", "Stopped waiting for a reconnect because no catalogue consumer is enabled.");
+            this._removeOnlineListener();
+        }
+
+        const activeRequest = this.#activeRequest;
+        if (activeRequest) {
+            // Fork review: abort and detach so a late completion cannot restore loading or timers.
+            activeRequest.cancelReason = "disabled";
+            window.removeEventListener("offline", activeRequest.offlineListener);
+            Logger.warn("AddonStore", `Cancelling catalogue request #${activeRequest.id} because the Addon Store and addon updates are disabled.`);
+            activeRequest.controller.abort();
+            this.#activeRequest = null;
+        }
+
+        if (this.loading || activeRequest) {
+            this.loading = false;
+            this.emitChange();
+        }
+
+        this.#promise = Promise.resolve();
+    }
+
+    private _handleOffline(catalogueRequest?: CatalogueRequest, requestFailure?: Error) {
+        const firstDisconnectNotice = !this.#waitingForOnline;
+        this._clearRetry();
+
+        if (catalogueRequest && this.#activeRequest === catalogueRequest) {
+            catalogueRequest.cancelReason = "offline";
+            window.removeEventListener("offline", catalogueRequest.offlineListener);
+            if (requestFailure) {
+                Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} failed because the client went offline.`, requestFailure);
+            }
+            else {
+                Logger.warn("AddonStore", `Cancelling catalogue request #${catalogueRequest.id} because the client went offline.`);
+                catalogueRequest.controller.abort();
+            }
+            this.#activeRequest = null;
+        }
+
+        this.loading = false;
+        this.error = new Error("Failed to request addons: User is offline!");
+        this._useCache();
+        this._waitForOnline();
+
+        if (firstDisconnectNotice) {
+            Logger.info("AddonStore", "Connection lost; using the cached catalogue until the client reconnects.");
+            Toasts.show(t("Addons.failedToFetch"), {type: "error"});
+        }
+
+        this.emitChange();
+    }
+
+    private _isCurrentRequest(catalogueRequest: CatalogueRequest, phase: string) {
+        if (this.#activeRequest === catalogueRequest) return true;
+
+        if (!catalogueRequest.staleLogged) {
+            const message = `Ignored ${phase} from stale catalogue request #${catalogueRequest.id}.`;
+            if (catalogueRequest.cancelReason) Logger.debug("AddonStore", message, `Cancellation reason: ${catalogueRequest.cancelReason}.`);
+            else Logger.warn("AddonStore", message);
+            catalogueRequest.staleLogged = true;
+        }
+
+        return false;
+    }
+
+    public requestAddons(firstRun = false): Promise<void> {
+        if (!this._isEnabled()) {
+            Logger.debug("AddonStore", "Skipped catalogue request because no catalogue consumer is enabled.");
+            this.#promise = Promise.resolve();
+            return this.#promise;
+        }
+
+        if (this.#activeRequest) {
+            // Fork review: Store and updater consumers must wait on the exact same request.
+            Logger.debug("AddonStore", `Reusing in-flight catalogue request #${this.#activeRequest.id}.`);
+            return this.#activeRequest.promise;
+        }
+
+        if (!window.navigator.onLine) {
+            if (this.#waitingForOnline) Logger.debug("AddonStore", "Skipped repeated catalogue request while waiting for reconnect.");
+            else Logger.warn("AddonStore", "Skipping catalogue request because the client is offline.");
+            this._handleOffline();
+            this.#promise = Promise.resolve();
+            return this.#promise;
+        }
+
+        if (this.#waitingForOnline) {
+            this._removeOnlineListener();
+            Logger.info("AddonStore", "Connection is available again; refreshing the addon catalogue.");
+        }
+
+        this._clearRetry();
+
+        const catalogueRequest: CatalogueRequest = {
+            id: ++this.#requestSequence,
+            controller: new AbortController(),
+            cancelReason: null,
+            offlineListener: () => {},
+            staleLogged: false,
+            promise: Promise.resolve()
+        };
+
+        catalogueRequest.offlineListener = () => this._handleOffline(catalogueRequest);
+
+        Logger.debug("AddonStore", `Starting catalogue request #${catalogueRequest.id}.`);
 
         if (!(firstRun && Object.keys(this._cache.addons).length)) {
             this.addons.length = 0;
         }
 
         this.loading = true;
+        this.emitChange();
 
-        if (this._setTimeout) window.clearTimeout(this._setTimeout);
-        this._setTimeout = null;
+        window.addEventListener("offline", catalogueRequest.offlineListener);
 
-        this._emitChange();
-
-        // If the user goes offline it will silent error
-        // This is to go around that, so the store wont get stuck "loading" forever
-        let failed = false;
-        const offLineListener = () => {
-            window.removeEventListener("offline", offLineListener);
-
-            failed = true;
-
-            this.loading = false;
-
-            Logger.debug("AddonStore", "User is offline waiting for connection...");
-
-            window.removeEventListener("online", this._onLineListener);
-            window.addEventListener("online", this._onLineListener);
-
-            Toasts.show(t("Addons.failedToFetch"), {
-                type: "error"
-            });
-
-            this.error = new Error("Failed to request addons: User is offline!");
-
-            this._useCache();
-
-            this._emitChange();
-        };
-
-        if (window.navigator.onLine) {
-            window.addEventListener("offline", offLineListener);
-        }
-        else {
-            offLineListener();
-            return;
-        }
-
-        request(Web.store.addons, {
+        let response: Response | undefined;
+        const promise = fetch(Web.store.addons, {
             headers: {
                 "Cache-Control": "no-cache",
                 "Pragma": "no-cache"
-            }
-            // TODO: fix typing when converting request polyfill
-        }, (err: Error, req: {aborted: boolean, statusMessage: string; ok: boolean; statusCode: number;}, body: string) => {
-            window.removeEventListener("offline", offLineListener);
-            if (failed) return;
+            },
+            signal: catalogueRequest.controller.signal,
+            // Fork review: upstream's unlimited wait can leave the shared Store promise and UI pending forever.
+            timeout: CATALOGUE_TIMEOUT_MS
+        })
+            .then(async (res) => {
+                response = res;
+                if (!this._isCurrentRequest(catalogueRequest, "response")) return;
 
-            try {
-                if (err || req.aborted || req.statusMessage !== "OK") {
-                    throw err || req;
+                if (!res.ok) {
+                    const error = new Error(`Addon catalogue returned HTTP ${res.status} ${res.statusText}`.trim());
+                    error.name = "AddonStoreHTTPError";
+                    throw error;
                 }
 
-                const json = JSON.parse(body) as BdWebAddon[];
+                const json = await res.json() as unknown;
+                if (!this._isCurrentRequest(catalogueRequest, "decoded response")) return;
+
+                if (!Array.isArray(json)) {
+                    const error = new Error("Addon catalogue response was not an array.");
+                    error.name = "AddonStoreDataError";
+                    throw error;
+                }
 
                 const isFirstRun = this._cache.known.length === 0 && Object.keys(this._cache.addons).length === 0;
 
                 const data: {addons: Record<string, BdWebAddon>, version: string, known: string[];} = {
-                    known: this._cache.known || {},
+                    known: [...this._cache.known],
                     addons: {},
                     version: Web.API_VERSION
                 };
 
                 this.addons.length = 0;
 
-                for (const addon of json) {
+                for (const addon of json as BdWebAddon[]) {
                     this.addons.push(Addon.from(addon));
 
                     data.addons[addon.file_name.toLowerCase()] = addon;
@@ -571,90 +755,103 @@ const addonStore = new class AddonStore {
                 this._writeCache(data);
 
                 this.error = null;
-            }
-            catch (error) {
-                Logger.stacktrace("AddonStore", "Failed to request addons", error as Error);
+                Logger.debug("AddonStore", `Catalogue request #${catalogueRequest.id} loaded ${json.length} addons.`);
+            })
+            .catch((error) => {
+                if (catalogueRequest.cancelReason) return;
+
+                if (!this._isCurrentRequest(catalogueRequest, "failure")) return;
+
+                const failure = error instanceof Error ? error : new Error(`Failed to request addons: Status ${response?.status || "Unknown"}`);
+
+                if (!window.navigator.onLine) {
+                    this._handleOffline(catalogueRequest, failure);
+                    return;
+                }
+
+                if (/timed out/i.test(failure.message)) {
+                    Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} timed out after ${CATALOGUE_TIMEOUT_MS / 1000} seconds of inactivity.`, failure);
+                }
+                else if (failure.name === "AddonStoreHTTPError") {
+                    Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} received an HTTP error.`, failure);
+                }
+                else if (failure.name === "AbortError") {
+                    Logger.warn("AddonStore", `Catalogue request #${catalogueRequest.id} was cancelled unexpectedly.`, failure);
+                }
+                else {
+                    Logger.stacktrace("AddonStore", `Catalogue request #${catalogueRequest.id} failed`, failure);
+                }
 
                 Toasts.show(t("Addons.failedToFetch"), {
                     type: "error"
                 });
 
-                this.error = error instanceof Error ? error : new Error(`Failed to request addons: Status ${req.statusCode}`);
+                this.error = failure;
 
                 this._useCache();
-            }
+            })
+            .finally(() => {
+                window.removeEventListener("offline", catalogueRequest.offlineListener);
+                if (!this._isCurrentRequest(catalogueRequest, "completion")) return;
 
-            this.loading = false;
+                this.#activeRequest = null;
+                this.loading = false;
+                this.emitChange();
+                this._scheduleNextRequest();
+            });
 
-            this._emitChange();
-
-            let minutes = 60;
-
-            if (this.error) {
-                minutes = 5;
-
-                // If the user is not online, just wait until the user is online
-                if (this.error.message.startsWith("getaddrinfo ENOTFOUND") && !window.navigator.onLine) {
-                    Logger.debug("AddonStore", "User is offline waiting for connection...");
-
-                    window.removeEventListener("online", this._onLineListener);
-                    window.addEventListener("online", this._onLineListener);
-                    return;
-                }
-            }
-
-            this._setTimeout = window.setTimeout(() => this.requestAddons(), minutes * 60 * 1000);
-        });
+        catalogueRequest.promise = promise;
+        this.#activeRequest = catalogueRequest;
+        this.#promise = promise;
+        return promise;
     }
 
+    public async updaterRequestAddons() {
+        await this.requestAddons(this.hasDoneFirstRequest);
+        this.hasDoneFirstRequest = true;
+    }
+
+    private _scheduleNextRequest() {
+        if (!Settings.get<boolean>("settings", "store", "bdAddonStore")) {
+            Logger.debug("AddonStore", "Skipped the Store refresh timer because only the addon updater needs the catalogue.");
+            return;
+        }
+
+        if (this.error && !window.navigator.onLine) {
+            Logger.info("AddonStore", "Connection unavailable; waiting to refresh the catalogue after reconnect.");
+            this._waitForOnline();
+            return;
+        }
+
+        let delay: number;
+        if (this.error) {
+            // Fork review: upstream multiplies these failure delays by the hourly interval.
+            const code = "code" in this.error ? (this.error as ErrnoException).code : undefined;
+            delay = code === "ECONNRESET" ? 30_000 : 5 * 60 * 1000;
+        }
+        else {
+            const hours = Settings.get<number>("addons", "updateInterval");
+            delay = hours * 60 * 60 * 1000;
+        }
+
+        Logger.debug("AddonStore", `Scheduled the next catalogue request in ${Math.round(delay / 1000)} seconds.`);
+        this._setTimeout = window.setTimeout(() => {
+            this._setTimeout = null;
+            void this.requestAddons();
+        }, delay);
+    }
 
     private _setTimeout: number | null = null;
-
-    // Listener stuff
-    private _subscribers = new Set<() => void>();
-    private _emitChange() {
-        for (const subscriber of this._subscribers) {
-            subscriber();
-        }
-    }
 
     /**
      * get important data from the store to use in the ui
      */
-    private getState() {
+    public getState() {
         return {
             error: this.error,
             addons: this.getAddons(),
             loading: this.loading
         };
-    }
-
-    /**
-     * A react hook for {@link getState}
-     */
-    public useState() {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const [state, setState] = React.useState(() => this.getState());
-
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        React.useEffect(() => {
-            setState(this.getState());
-
-            const callback = () => setState(this.getState());
-
-            this._subscribers.add(callback);
-            return () => void this._subscribers.delete(callback);
-        }, []);
-
-        return state;
-    }
-
-    /**
-     * Add a listener to subscribe when the store changes
-     */
-    public addChangeListener(listener: () => void) {
-        this._subscribers.add(listener);
-        return () => void this._subscribers.delete(listener);
     }
 };
 

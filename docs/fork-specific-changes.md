@@ -37,6 +37,7 @@ link targets its full 40-character SHA.
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
 | System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
 | Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, but resolves relative redirect locations against the current request URL. | Keep the one-line redirect correction until upstream lands equivalent base-URL handling; otherwise prefer the shared upstream implementation. |
+| Shared Addon Store catalogue | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) lets the Store and addon updater share a native-fetch catalogue, but its initiating caller does not await the request and offline, timeout, cache, retry, and disable/re-enable paths can hang or race. | Keeps one returned in-flight promise, a 30-second inactivity timeout, cancellation and stale-result guards, replacement cache fallback, fixed retry delays, response validation, and lifecycle logging. | Preserve the narrow request-state corrections until upstream provides equivalent settlement, cancellation, cache, and recovery handling. Keep Stage 1 install completion intact. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates panel. Plugin and theme update checks remain enabled. | Port shared catalogue/native-fetch work around the commented core-check calls. Do not disable plugin/theme updating. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
@@ -263,9 +264,9 @@ Stage 5 takes upstream's shared native-fetch transport as one atomic change:
 - Existing request/body streaming, abort handling, response hydration,
   per-redirect webhook blocking, redirect limits, and TLS verification remain.
 - The default timeout moves from three to eight seconds.
-- `timeout: null` explicitly disables the timeout. Stage 6 and Stage 7 must
-  review each no-timeout Addon Store/updater call so a stalled request cannot
-  leave shared state pending forever.
+- `timeout: null` explicitly disables the timeout. Stage 6 gives the shared
+  catalogue a finite timeout; Stage 7 must still review updater downloads so a
+  stalled request cannot leave shared state pending forever.
 
 Intentional divergence from upstream `44e21745`:
 
@@ -282,6 +283,70 @@ non-replayable streamed request bodies across redirects, and copying source
 query parameters onto the redirect target are not introduced by this stage.
 Keep this port narrow rather than rewriting the transport during the
 `44e21745` integration.
+
+### Shared Addon Store catalogue
+
+Primary files:
+
+- `src/betterdiscord/modules/core.ts`
+- `src/betterdiscord/builtins/store/addonstore.ts`
+- `src/betterdiscord/modules/addonstore.ts`
+- `src/betterdiscord/ui/misc/storeembed.tsx`
+- `src/betterdiscord/ui/settings/addonstore.tsx`
+
+Stage 6 takes upstream's Store/native-fetch catalogue design. Settings now
+initialize before the catalogue, embeds and settings pages subscribe through
+the common Store hook, and the catalogue starts only while the Addon Store or
+addon updater needs it. Until Stage 7 is applied, the old updater still makes
+its own requests.
+
+Intentional request-lifecycle corrections:
+
+- The initiating caller and every concurrent caller receive the same real
+  in-flight promise. Upstream creates a detached promise but does not return or
+  await the fetch chain on the initiating path.
+- The bulk catalogue uses a 30-second network-inactivity timeout instead of
+  `timeout: null`.
+- Going offline or disabling both catalogue consumers aborts the active
+  request. Request identity checks prevent a cancelled or older response from
+  changing the newer catalogue, loading state, or retry timer.
+- Offline fallback replaces the visible rows instead of appending the cache,
+  and persisted `known` filenames are normalized to an array.
+- Non-success HTTP responses and non-array JSON are failures. While the Addon
+  Store is enabled, successful Store refreshes use the configured hourly
+  interval; failed Store refreshes retry after five minutes, or 30 seconds for
+  `ECONNRESET`, without multiplying that delay by the interval setting.
+  Updater-only scheduling remains owned by the updater path reviewed in Stage 7.
+- Disable removes reconnect listeners and scheduled Store refreshes. Reconnect
+  starts a fresh request only while the Store or addon updater is enabled.
+
+Logging is deliberately tiered:
+
+- `debug`: request start/success, shared-request reuse, stale-result discard,
+  timer scheduling/cleanup, and harmless disabled guards.
+- `info`: connection loss and reconnection/recovery.
+- `warn`: deliberate request cancellation, skipped offline requests, finite
+  timeouts, invalid cache repair, HTTP failures, and unexpected cancellation.
+- `stacktrace`/console error: unexpected networking, JSON, or catalogue-shape
+  failures.
+
+The Addon Store builtin also takes two narrow corrections from upstream audit
+commit
+[`7dc97d15`](https://github.com/BetterDiscord/BetterDiscord/commit/7dc97d1588c1d9dc3f1d133c998feb9071d86e3f):
+use the full regex match length when excluding links inside codeblocks, and
+cache the resolved link-opener module/key pair rather than its exhausted
+generator. The direct protocol-array lookup still comes from `44e21745`.
+
+Stage 1's install-modal promise completion and the unchanged `Addon.download()`
+path remain responsible for closing successful downloads when **Automatically
+Enable** is either on or off.
+
+The Store subview also keeps a narrow navigation convenience in
+`src/betterdiscord/ui/settings/addonpage.tsx`: while the Plugin or Theme Store
+is open, clicking its already-selected sidebar item returns to the respective
+installed-addons page. The listener targets only that panel's current
+`data-list-item-id`; it does not alter the fork's Settings placement or refresh
+hooks.
 
 ### Core updater policy
 

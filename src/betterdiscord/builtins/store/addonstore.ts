@@ -10,11 +10,9 @@ import ErrorBoundary from "@ui/errorboundary";
 import Web from "@data/web";
 
 import RemoteAPI from "@polyfill/remote";
-import {Filters, getLazy, getLazyBySource, getWithKey} from "@webpack";
+import {Filters, getBySource, getLazy, getLazyBySource, getWithKey} from "@webpack";
 import {findInTree} from "@common/utils";
-import DiscordModules from "@modules/discordmodules";
 import {getInternalInstance, getOwnerInstance} from "@utils/react";
-
 
 let MessageAccessories;
 
@@ -55,7 +53,8 @@ function extractAddonLinks(text: string, max = Infinity) {
         // if <betterdiscord://addon/id> not betterdiscord://addon/id
         if (exec[0][0] === "h" && text[exec.index - 1] === "<") continue;
 
-        const endIndex = exec.index + exec.length;
+        // Fork review: use the full match length so links inside codeblocks are ignored reliably.
+        const endIndex = exec.index + exec[0].length;
 
         let isInCodeblock = false;
         for (const [start, end] of codeblocks) {
@@ -133,11 +132,12 @@ export default new class AddonStoreBuiltin extends Builtin {
         }
     }
 
-    private linkOpener?: Generator;
+    private linkOpener?: [any, string];
     async patchLinkOpener() {
-        const [module, key] = this.linkOpener ??= getWithKey((m) => String(m).includes(".trackAnnouncementMessageLinkClicked("), {
+        // Fork review: cache the resolved pair because a consumed generator cannot reapply this patch.
+        const [module, key] = this.linkOpener ??= [...getWithKey((m) => String(m).includes(".trackAnnouncementMessageLinkClicked("), {
             target: await getLazyBySource([".trackAnnouncementMessageLinkClicked("])
-        });
+        })] as [any, string];
 
         this.before(module, key, (_, args) => {
             if (args[0].href) {
@@ -158,25 +158,10 @@ export default new class AddonStoreBuiltin extends Builtin {
     private extractDiscordProtocolList() {
         if (this.protocolList) return this.protocolList;
 
-        let protocols: string[] = [];
-
-        const link = DiscordModules.LinkParser;
-
-        const includes = Array.prototype.includes;
-        Array.prototype.includes = function (...args) {
-            if (includes.call(this, "discord:")) {
-                Array.prototype.includes = includes;
-                protocols = this as string[];
-
-                return false;
-            }
-
-            return includes.apply(this, args);
-        };
-
-        link.parse(["", "link", "betterdiscord://foo/bar"]);
-
-        return this.protocolList = protocols;
+        return this.protocolList = getBySource(["discord:", "mailto:"], {
+            searchDefault: false,
+            declarationFilter: x => Array.isArray(x) && x.includes("discord:")
+        }) || [];
     }
 
     async patchEmbeds() {
