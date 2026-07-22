@@ -6,16 +6,19 @@ const {useState, useEffect, useCallback, useRef} = React;
 
 
 export interface SearchProps {
-    onChange?(event: ChangeEvent | {target: {value: string;};}): void;
+    onChange?(event: ChangeEvent<HTMLInputElement>): void;
     className?: string;
     placeholder?: string;
+    value?: string;
     onKeyDown?(event: KeyboardEvent<HTMLInputElement>): void;
 }
 
 export default function Search(props: SearchProps) {
-    const {onChange, className, onKeyDown, placeholder} = props;
+    const {onChange, className, onKeyDown, placeholder, value: controlledValue} = props;
     const input = useRef<HTMLInputElement>(null);
-    const [value, setValue] = useState("");
+    const [internalValue, setInternalValue] = useState("");
+    const isControlled = controlledValue !== undefined;
+    const value = controlledValue ?? internalValue;
 
     // focus search bar on page select
     useEffect(() => {
@@ -25,14 +28,14 @@ export default function Search(props: SearchProps) {
 
     const change = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         onChange?.(e);
-        setValue(e.target.value);
-    }, [onChange]);
+        if (!isControlled) setInternalValue(e.target.value);
+    }, [isControlled, onChange]);
 
     const reset = useCallback(() => {
-        setValue("");
-        onChange?.({target: {value: ""}, currentTarget: {value: ""}} as any);
+        if (!isControlled) setInternalValue("");
+        onChange?.({target: {value: ""}, currentTarget: {value: ""}} as ChangeEvent<HTMLInputElement>);
         input.current?.focus();
-    }, [onChange]);
+    }, [isControlled, onChange]);
 
     return <div className={"bd-search-wrapper" + (className ? ` ${className}` : "")}>
         <input onChange={change} onKeyDown={onKeyDown} type="text" className="bd-search" placeholder={placeholder} maxLength={50} value={value} ref={input} />

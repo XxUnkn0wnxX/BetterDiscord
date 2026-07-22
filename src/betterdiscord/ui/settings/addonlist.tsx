@@ -111,6 +111,8 @@ function StoreCard() {
 }
 
 export default function AddonList({store}: {store: AddonManager;}) {
+    // Settings can remount its title during an addon reload. Keep the visible
+    // search value controlled here so the input and filtered list cannot diverge.
     const [query, setQuery] = useState("");
     const [sort, setSort] = useState<ReturnType<typeof buildSortOptions>[number]["value"]>(getState.bind(null, store.prefix, "sort", "name"));
     const [ascending, setAscending] = useState(getState.bind(null, store.prefix, "ascending", true));
@@ -150,7 +152,7 @@ export default function AddonList({store}: {store: AddonManager;}) {
         setSort(value);
     }, [store.prefix]);
 
-    const search = useCallback((e: ChangeEvent<HTMLInputElement>) => setQuery(e.currentTarget.value.toLocaleLowerCase()), []);
+    const search = useCallback((e: ChangeEvent<HTMLInputElement>) => setQuery(e.currentTarget.value), []);
     const triggerEdit = useCallback((id: string) => store.editAddon?.(id), [store]);
     const triggerDelete = useCallback(async (id: string) => {
         const addon = addonList.find(a => a.id == id)!;
@@ -174,11 +176,12 @@ export default function AddonList({store}: {store: AddonManager;}) {
 
         if (!ascending) sorted.reverse();
 
-        if (query) {
+        const normalizedQuery = query.toLocaleLowerCase();
+        if (normalizedQuery) {
             sorted = sorted.filter(addon => {
-                let matches = addon.name.toLocaleLowerCase().includes(query);
-                matches = matches || addon.author.toLocaleLowerCase().includes(query);
-                matches = matches || addon.description.toLocaleLowerCase().includes(query);
+                let matches = addon.name.toLocaleLowerCase().includes(normalizedQuery);
+                matches = matches || addon.author.toLocaleLowerCase().includes(normalizedQuery);
+                matches = matches || addon.description.toLocaleLowerCase().includes(normalizedQuery);
                 if (!matches) return false;
                 return true;
             });
@@ -201,7 +204,7 @@ export default function AddonList({store}: {store: AddonManager;}) {
 
     return [
         <AddonHeader count={renderedCards.length} searching={isSearching}>
-            <Search onChange={search} placeholder={`${t("Addons.search", {count: renderedCards.length, context: store.prefix})}...`} />
+            <Search onChange={search} value={query} placeholder={`${t("Addons.search", {count: addonList.length, context: store.prefix})}...`} />
         </AddonHeader>,
         <div className={"bd-controls bd-addon-controls"}>
             <div className="bd-controls-basic">
