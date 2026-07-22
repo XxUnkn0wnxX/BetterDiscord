@@ -35,7 +35,7 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 | --- | --- | --- | --- |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
-| Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Addon headers publish after their owner commits, so a remount replaces stale portal state and every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit header publication, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish addon headers by updating another component during render, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
+| Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
 | BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
@@ -119,6 +119,7 @@ ZeresPluginLibrary.
 
 Primary files:
 
+- `src/betterdiscord/builtins/customcss.ts`
 - `src/betterdiscord/modules/addonmanager.ts`
 - `src/betterdiscord/ui/modals.ts`
 - `src/betterdiscord/ui/settings/addonshared.tsx`
@@ -126,8 +127,10 @@ Primary files:
 - `src/betterdiscord/ui/settings/addoncard.tsx`
 - `src/betterdiscord/ui/settings/addonstore.tsx`
 - `src/betterdiscord/ui/settings/components/search.tsx`
+- `src/betterdiscord/ui/settings/panel.tsx`
 - `src/betterdiscord/ui/settings/title.tsx`
 - `src/betterdiscord/ui/settings.tsx`
+- `src/betterdiscord/ui/updater.tsx`
 - `src/betterdiscord/utils/addonsettingsmodal.ts`
 - `src/common/constants/ipcevents.ts`
 - `src/electron/main/modules/editor.ts`
@@ -161,12 +164,22 @@ them:
   path caused the transition. Its installed-list placeholder always reports
   the full installed count; only the title's results label reports the filtered
   count.
-- `AddonHeader` publishes the current title through a layout effect after its
+- BetterDiscord settings titles publish through a layout effect after their
   page commits. Upstream publishes during render by synchronously updating the
-  retained header root; after Discord remounts the addon page, that update can
+  retained header root; after Discord remounts an addon page, that update can
   be dropped and leave the old search text, result label, and callbacks visible.
-  Do not add an unmount cleanup that clears the title because an outgoing
-  installed/Store header could erase its replacement during the same commit.
+  Post-commit publication also prevents an interrupted render from exposing an
+  uncommitted reset or update-button callback. Do not add an unmount cleanup
+  that clears the title because an outgoing installed/Store header could erase
+  its replacement during the same commit.
+- Discord can keep two committed title roots for one Plugins or Themes panel.
+  Each settings-panel provider owns a title store that subscribes every live
+  root and publishes the same cached snapshot to all of them. Do not restore a
+  single mutable updater: a hidden root can become its owner when a settings
+  modal or editor closes, leaving the visible controlled search stuck on stale
+  text and callbacks. Keep the store provider-scoped rather than global so
+  different panels and discarded layout generations cannot overwrite one
+  another.
 
 Ordinary user closes retain the existing upstream behavior. Settings-panel
 persistence remains owned by the plugin or theme, and the detached/external

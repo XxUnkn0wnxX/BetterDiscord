@@ -21,6 +21,47 @@ export interface SettingsTitlePublisherProps {
     title: React.ReactElement<SettingsTitleProps>;
 }
 
+export interface SettingsTitleSnapshot {
+    text?: React.ReactNode;
+    children?: React.ReactNode;
+}
+
+export interface SettingsTitleStore {
+    publish(value: React.ReactNode): null;
+    subscribe(listener: () => void): () => void;
+    getSnapshot(): SettingsTitleSnapshot;
+}
+
+export function createSettingsTitleStore(): SettingsTitleStore {
+    let snapshot: SettingsTitleSnapshot = {};
+    const subscribers = new Set<() => void>();
+
+    const publish = (value: React.ReactNode) => {
+        snapshot = React.isValidElement<SettingsTitleProps>(value) ? {
+            text: value.props.text,
+            children: value.props.children
+        } : {};
+
+        // Discord can keep multiple committed title roots for one settings
+        // panel. Notify all of them so a hidden root cannot leave the visible
+        // controlled search and callbacks stale after a modal/editor closes.
+        for (const subscriber of [...subscribers]) subscriber();
+
+        return null;
+    };
+
+    const subscribe = (listener: () => void) => {
+        subscribers.add(listener);
+        return () => {
+            subscribers.delete(listener);
+        };
+    };
+
+    const getSnapshot = () => snapshot;
+
+    return {publish, subscribe, getSnapshot};
+}
+
 export function SettingsTitlePublisher({publish, title}: SettingsTitlePublisherProps) {
     // Settings titles render in a separate retained root. Publish only after
     // this owner commits so a remount cannot leave the previous callbacks alive.

@@ -7,7 +7,7 @@ import Button from "@ui/base/button";
 import Modals from "@ui/modals";
 
 import SettingsGroup, {type GroupOnChange} from "@ui/settings/group";
-import SettingsTitle from "@ui/settings/title";
+import SettingsTitle, {SettingsTitlePublisher} from "@ui/settings/title";
 
 import {ListRestartIcon} from "lucide-react";
 import {SettingsTitleContext} from "@ui/settings";
@@ -52,11 +52,12 @@ export default function SettingsPanel({id, title, groups, onChange, onDrawerTogg
     const set = React.useContext(SettingsTitleContext);
 
     return <>
-        {set(
-            <SettingsTitle text={title}>
+        <SettingsTitlePublisher
+            publish={set}
+            title={<SettingsTitle text={title}>
                 {makeResetButton(id)}
-            </SettingsTitle>
-        )}
+            </SettingsTitle>}
+        />
         {groups.map(section => {
             const props = Object.assign({}, section, {
                 collection: id,

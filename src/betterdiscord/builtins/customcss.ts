@@ -15,7 +15,7 @@ import {t} from "@common/i18n";
 
 import CSSEditor, {type CssEditorRef} from "@ui/customcss/csseditor";
 import FloatingWindows from "@ui/floatingwindows";
-import SettingsTitle from "@ui/settings/title";
+import SettingsTitle, {SettingsTitlePublisher} from "@ui/settings/title";
 import {debounce, findInTree} from "@common/utils";
 import RemoteAPI from "@polyfill/remote";
 import {PencilIcon} from "lucide-react";
@@ -52,8 +52,13 @@ export default new class CustomCSS extends Builtin {
     Page = () => {
         const set = React.useContext(SettingsTitleContext);
 
-        return [
-            set(React.createElement(SettingsTitle, {text: t("CustomCSS.editorTitle")})),
+        return React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(SettingsTitlePublisher, {
+                publish: set,
+                title: React.createElement(SettingsTitle, {text: t("CustomCSS.editorTitle")})
+            }),
             React.createElement(CSSEditor, {
                 css: this.savedCss,
                 save: this.saveCSS.bind(this),
@@ -65,7 +70,7 @@ export default new class CustomCSS extends Builtin {
                 onChange: this.onChange.bind(this),
                 isSettingsPage: true
             })
-        ];
+        );
     };
 
     async enabled() {

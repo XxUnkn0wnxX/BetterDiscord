@@ -9,7 +9,7 @@ import DiscordModules from "@modules/discordmodules";
 import Button from "@ui/base/button";
 import Drawer from "@ui/settings/drawer";
 import SettingItem from "@ui/settings/components/item";
-import SettingsTitle from "@ui/settings/title";
+import SettingsTitle, {SettingsTitlePublisher} from "@ui/settings/title";
 
 import {ArrowDownToLineIcon, CheckIcon, RefreshCwIcon, RotateCwIcon} from "lucide-react";
 import type {CoreUpdater, ThemeUpdater, PluginUpdater, AddonUpdater} from "@modules/updater";
@@ -148,14 +148,15 @@ export default function UpdaterPanel({coreUpdater, pluginUpdater, themeUpdater}:
 
     const set = React.useContext(SettingsTitleContext);
 
-    return [
-        set(
-            <SettingsTitle text={t("Panels.updates")}>
+    return <>
+        <SettingsTitlePublisher
+            publish={set}
+            title={<SettingsTitle text={t("Panels.updates")}>
                 {makeButton(t("Updater.checkForUpdates"), <RefreshCwIcon />, checkForUpdates, {className: "bd-update-check", stopAnimation: true})}
-            </SettingsTitle>
-        ),
-        <CoreUpdaterPanel remoteVersion={coreUpdater.remoteVersion} hasUpdate={hasCoreUpdate} update={updateCore} />,
-        <AddonUpdaterPanel type="plugins" pending={updates.plugins} update={updateAddon} updateAll={updateAllAddons} updater={pluginUpdater} />,
-        <AddonUpdaterPanel type="themes" pending={updates.themes} update={updateAddon} updateAll={updateAllAddons} updater={themeUpdater} />,
-    ];
+            </SettingsTitle>}
+        />
+        <CoreUpdaterPanel remoteVersion={coreUpdater.remoteVersion} hasUpdate={hasCoreUpdate} update={updateCore} />
+        <AddonUpdaterPanel type="plugins" pending={updates.plugins} update={updateAddon} updateAll={updateAllAddons} updater={pluginUpdater} />
+        <AddonUpdaterPanel type="themes" pending={updates.themes} update={updateAddon} updateAll={updateAllAddons} updater={themeUpdater} />
+    </>;
 }

@@ -10,8 +10,9 @@ import AddonPage from "@ui/settings/addonpage";
 import type {SettingsCategory} from "@data/settings";
 import VersionInfo from "./misc/versioninfo";
 import {findInTree} from "@common/utils";
-import {useForceUpdate, useStateFromStores} from "./hooks";
+import {useStateFromStores} from "./hooks";
 import SettingsPanel from "./settings/panel";
+import {createSettingsTitleStore} from "./settings/title";
 import {CustomCSS} from "@builtins/builtins";
 import {lucideToDiscordIcon, type DiscordIcon} from "@utils/icon";
 import {Logo} from "./logo";
@@ -195,19 +196,15 @@ const SettingsRenderer = new class SettingsRenderer {
                 };
 
                 const makeSettingsPanelProvider = (children: React.ReactNode) => {
-                    const ref: {
-                        current: {
-                            text?: React.ReactNode;
-                            children?: React.ReactNode;
-                        };
-                    } = {
-                        current: {}
-                    };
+                    const titleStore = createSettingsTitleStore();
 
-                    let forceUpdate: () => void;
                     function PanelHeader() {
                         const [node, setNode] = React.useState<HTMLElement | undefined>();
-                        forceUpdate = useForceUpdate()[1];
+                        const {text, children: titleChildren} = React.useSyncExternalStore(
+                            titleStore.subscribe,
+                            titleStore.getSnapshot,
+                            titleStore.getSnapshot
+                        );
 
                         return (
                             <>
@@ -231,12 +228,12 @@ const SettingsRenderer = new class SettingsRenderer {
                                         return () => setNode(undefined);
                                     }}
                                 >
-                                    {ref.current.text}
+                                    {text}
                                 </div>
 
                                 {node && (
                                     ReactDOM.createPortal(
-                                        <div className="bd-settings-page-title-children">{ref.current.children}</div>,
+                                        <div className="bd-settings-page-title-children">{titleChildren}</div>,
                                         node
                                     )
                                 )}
@@ -247,13 +244,7 @@ const SettingsRenderer = new class SettingsRenderer {
                     return {
                         header: () => <PanelHeader />,
                         render: () => (
-                            <SettingsTitleContext
-                                value={(value) => {
-                                    ref.current = (value as {props: typeof ref["current"];}).props;
-                                    forceUpdate();
-                                    return null;
-                                }}
-                            >
+                            <SettingsTitleContext value={titleStore.publish}>
                                 {children}
                             </SettingsTitleContext>
                         )
