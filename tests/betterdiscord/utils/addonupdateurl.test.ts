@@ -429,26 +429,28 @@ describe("addon update URL normalization", () => {
 
     describe("repository identity helpers", () => {
         test("matches source repository roots to raw update URLs", () => {
+            // Keep expected identities explicit for TypeScript 5.7's strict Bun matcher types.
             const source = getAddonRepositoryIdentity("https://github.com/Owner/Repo.git");
             const update = getAddonRepositoryIdentity("https://raw.githubusercontent.com/Owner/Repo/main/Test.plugin.js");
             expect(source?.repositoryIdentity).toBe("github.com/owner/repo");
-            expect(update?.repositoryIdentity).toBe(source?.repositoryIdentity);
+            expect(update?.repositoryIdentity).toBe("github.com/owner/repo");
 
             const forgeSource = getAddonRepositoryIdentity("https://git.slowb.ro/Owner/Repo");
             const forgeUpdate = getAddonRepositoryIdentity(
                 "https://git.slowb.ro/Owner/Repo/raw/branch/main/Test.plugin.js"
             );
-            expect(forgeUpdate?.repositoryIdentity).toBe(forgeSource?.repositoryIdentity);
+            expect(forgeSource?.repositoryIdentity).toBe("git.slowb.ro/owner/repo");
+            expect(forgeUpdate?.repositoryIdentity).toBe("git.slowb.ro/owner/repo");
             expect(getAddonRepositoryIdentity(
                 "https://git.slowb.ro/Owner/Repo/src/branch/main"
-            )?.repositoryIdentity).toBe(forgeSource?.repositoryIdentity);
+            )?.repositoryIdentity).toBe("git.slowb.ro/owner/repo");
 
             const gitlabSource = getAddonRepositoryIdentity("https://gitlab.com/Group/Repo/-/tree/main");
             const gitlabUpdate = getAddonRepositoryIdentity(
                 "https://gitlab.com/Group/Repo/-/raw/main/Test.plugin.js"
             );
             expect(gitlabSource?.repositoryIdentity).toBe("gitlab.com/group/repo");
-            expect(gitlabUpdate?.repositoryIdentity).toBe(gitlabSource?.repositoryIdentity);
+            expect(gitlabUpdate?.repositoryIdentity).toBe("gitlab.com/group/repo");
 
             expect(getAddonRepositoryIdentity("https://bitbucket.org/Owner/Repo")?.repositoryIdentity).toBe(
                 "bitbucket.org/owner/repo"

@@ -624,7 +624,11 @@ The Bun 1.1.20/Darwin 20 test compatibility path currently lives in
 also invokes the repo-local TypeScript binary explicitly because that Bun
 version does not add `node_modules/.bin` to `Bun.$`'s command path. Root package
 metadata declares Bun 1.1.20 as the supported minimum instead of incorrectly
-requiring 1.2. The test compatibility work is recorded in
+requiring 1.2. The root `packageManager` field pins the repository toolchain to
+Bun 1.1.20, and CI reads that field instead of floating on the latest release.
+Repository-identity tests keep canonical expected values explicit so the
+lockfile's TypeScript 5.7.3 and Bun matcher types do not infer an optional
+expected argument. The original test compatibility work is recorded in
 [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
 
 ## Required checks after an overlapping upstream change
