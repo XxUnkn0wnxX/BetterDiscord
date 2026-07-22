@@ -2,6 +2,22 @@
 
 This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
 
+## Fork ([2feefd75](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2feefd75da22339ef676bb5ebe16d912d74c72dc))
+
+This fork still reports BetterDiscord `1.13.14`; this entry does not increment
+the upstream version number.
+
+### Fork highlights
+
+- Integrated and reviewed upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), adapting overlapping changes around the fork instead of replacing its protected behavior.
+- Preserved the custom macOS injection, reinjection, recovery, and identity-matched OpenAsar bootstrap/handoff flow.
+- Added settings, Custom CSS/editor, Addon Store lifecycle, and Discord/Webpack compatibility fixes while retaining the fork's plugin-loading rules.
+- Added identity-aware plugin/theme updates that safely compare declared `@updateUrl` and Store candidates, with persistent scheduling, provider backoff, stale-state pruning, and optional failure notifications. BetterDiscord core update checks remain disabled.
+- Kept fork-owned wrappers, documentation, and rolling `develop` release workflow, with the repository and CI pinned to Bun 1.1.20.
+
+See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
+behavior inventory, upstream comparison, source map, and future merge rules.
+
 1.13.14
 ### Improvements
 - Improved start up times
