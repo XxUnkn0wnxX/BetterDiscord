@@ -25,7 +25,7 @@ export default ts.config(
 
     // Global ignore dirs
     {
-        ignores: ["dist/", "assets/"]
+        ignores: ["dist/", "assets/", "tmp/"]
     },
 
     // Setup general JS rules
