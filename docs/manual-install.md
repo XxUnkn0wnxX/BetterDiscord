@@ -87,6 +87,8 @@ Create `dist/betterdiscord.asar` from the built output:
 bun scripts/pack.ts
 ```
 
+`pack.ts` also writes `dist/checksums.txt` with SHA-256 entries for eight packed payload files. This records the payload-input hashes; it is not the hash of `betterdiscord.asar` itself.
+
 ### Full Release Build
 
 Build and pack in one flow:

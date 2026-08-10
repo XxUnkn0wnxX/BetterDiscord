@@ -10,9 +10,10 @@ The current merge audit targets upstream
 on 2026-08-11. Commit labels are abbreviated for readability; every commit link
 targets its full 40-character SHA.
 
-The Stage 7B section documents the final `upstream-merge-44e21745` staging
-tree. Its rewritten implementation and core-policy commits are linked below;
-deferred user runtime gates remain tracked separately in the merge checklist.
+This document tracks the historical integration of upstream
+`upstream-merge-44e21745` and the later upstream range through `8e3078b4`. It is
+a durable record for merge behavior and preserved deltas; current checkpoint
+status is not tracked here.
 
 ## Merge policy
 
@@ -30,6 +31,10 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 - Record reviewed upstream ancestry only after every upstream hunk is accepted,
   adapted, or intentionally retained from the fork and the resulting tree passes
   the final verification gate.
+- Once verified, include the full reviewed upstream range in ancestry, including
+  commits whose changes were wholly skipped or superseded. When needed, use a
+  tree-neutral ancestry merge and keep the fork adaptations above it so those
+  commits do not reappear as divergence.
 
 ## Upstream versus this fork
 
@@ -40,6 +45,9 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 | Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
 | BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | OS accent color | Upstream initializes the color in Electron main and listens for `accent-color-changed`, but its in-flight guard can use an uninitialized CSS key, remain stuck after a rejection, and drop a newer event. Electron does not expose that event on macOS. | Keeps startup initialization on every `dom-ready`, serializes and coalesces live changes, recovers after CSS insertion/removal failures, and on all supported macOS versions uses Electron's local-notification bridge for AppKit's public `NSSystemColorsDidChangeNotification` before re-reading the authoritative accent getter. Registration fallbacks remain for Electron/runtime compatibility. | Preserve the queued lifecycle and platform-specific listener until upstream provides equivalent behavior. Do not version-gate the AppKit notification or replace it with the early `AppleAquaColorVariantChanged` signal. When removing the old accent IPC, keep the fork's unrelated `EDITOR_CLOSE` IPC path. |
+| Activity iframe hardening | Upstream exempts `*.discordsays.com` Activity frames from the generic `contentWindow` proxy. | Keeps that Activity exception, but validates the URL safely and grants direct `contentWindow` access only to real `*.discordsays.com` hosts. Every other frame keeps the existing proxy and localStorage protection. | Preserve the upstream exception and the fork's URL guard without changing the plugin-visible Activity flow. |
+| `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
+| Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
@@ -194,7 +202,8 @@ change or deliberately writes from its own unmount cleanup.
 
 ### Settings integration
 
-Primary files: `src/betterdiscord/ui/settings.tsx` and
+Primary files: `src/betterdiscord/ui/settings.tsx`,
+`src/betterdiscord/utils/settingslayout.ts`, and
 `src/betterdiscord/styles/index.css`.
 
 - [`adc5a164`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/adc5a1641593cc06be7b82384e398e8ee9fe05f1) added the current DOM-backed BetterDiscord version/debug-copy row.
@@ -211,8 +220,10 @@ it works.
 The protected settings behavior is:
 
 - `getBetterDiscordSectionIndex()` first places BetterDiscord before Discord's
-  footer section, then tries the activity section/children, and only then
-  appends it. Do not restore upstream's unchecked `findIndex() + 1` placement.
+  footer section; otherwise it inserts immediately after
+  `games_and_apps_section`, then after the activity section or an activity-child
+  anchor, and only then appends it. Do not restore upstream's unchecked
+  `findIndex() + 1` placement.
 - Keep the DOM-backed BetterDiscord version row, debug-copy action, and copy
   tooltip until upstream has runtime-proven equivalent behavior on the current
   Discord layout.
