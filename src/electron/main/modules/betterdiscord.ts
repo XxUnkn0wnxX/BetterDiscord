@@ -4,6 +4,7 @@ import electron, {BrowserWindow} from "electron";
 import {spawn} from "child_process";
 
 import ReactDevTools from "./reactdevtools";
+import {createAccentColorChangeSubscription, createAccentColorController} from "../accentcolor";
 import * as IPCEvents from "@common/constants/ipcevents";
 
 // Build info file only exists for non-linux (for current injection)
@@ -136,6 +137,20 @@ export default class BetterDiscord {
         process.env.DISCORD_APP_PATH = appPath;
         process.env.DISCORD_USER_DATA = electron.app.getPath("userData");
         process.env.BETTERDISCORD_DATA_PATH = bdFolder;
+
+        const accentColorController = createAccentColorController({
+            webContents: browserWindow.webContents,
+            getEnvironmentAccentColor: () => process.env.BD_ACCENT_COLOR ?? "",
+            getSystemAccentColor: () => electron.systemPreferences.getAccentColor(),
+            subscribeAccentColorChanges: createAccentColorChangeSubscription(
+                electron.systemPreferences,
+                process.platform
+            ),
+        });
+
+        browserWindow.once("closed", () => {
+            accentColorController.dispose();
+        });
 
         // When DOM is available, pass the renderer over the wall
         browserWindow.webContents.on("dom-ready", () => {
