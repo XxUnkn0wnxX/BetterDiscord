@@ -137,11 +137,16 @@ type AccentNotificationListener = () => void;
 
 class FakeSystemPreferences {
     private eventListeners = new Set<AccentColorChangeListener>();
+    private localNotificationListeners = new Map<number, AccentNotificationListener>();
     private notificationListeners = new Map<number, AccentNotificationListener>();
     private notificationId = 1;
+    private localNotificationName: string | null = null;
     private notificationName: string | null = null;
-    private subscribedIds: number[] = [];
-    private unsubscribedIds: number[] = [];
+    private subscribedLocalNotificationIds: number[] = [];
+    private subscribedNotificationIds: number[] = [];
+    private unsubscribedLocalNotificationIdsStore: number[] = [];
+    private unsubscribedNotificationIdsStore: number[] = [];
+    public localNotificationSubscribeError = false;
     public notificationSubscribeError = false;
 
     on(event: "accent-color-changed", listener: AccentColorChangeListener) {
@@ -152,18 +157,33 @@ class FakeSystemPreferences {
         if (event === "accent-color-changed") this.eventListeners.delete(listener);
     }
 
+    subscribeLocalNotification(name: string, listener: AccentNotificationListener) {
+        if (this.localNotificationSubscribeError) throw new Error("local-notification-subscribe-failed");
+
+        const subscriptionId = this.notificationId++;
+        this.localNotificationName = name;
+        this.subscribedLocalNotificationIds.push(subscriptionId);
+        this.localNotificationListeners.set(subscriptionId, listener);
+        return subscriptionId;
+    }
+
+    unsubscribeLocalNotification(id: number) {
+        this.unsubscribedLocalNotificationIdsStore.push(id);
+        this.localNotificationListeners.delete(id);
+    }
+
     subscribeNotification(name: string, listener: AccentNotificationListener) {
         if (this.notificationSubscribeError) throw new Error("notification-subscribe-failed");
 
         const subscriptionId = this.notificationId++;
         this.notificationName = name;
-        this.subscribedIds.push(subscriptionId);
+        this.subscribedNotificationIds.push(subscriptionId);
         this.notificationListeners.set(subscriptionId, listener);
         return subscriptionId;
     }
 
     unsubscribeNotification(id: number) {
-        this.unsubscribedIds.push(id);
+        this.unsubscribedNotificationIdsStore.push(id);
         this.notificationListeners.delete(id);
     }
 
@@ -173,7 +193,13 @@ class FakeSystemPreferences {
         }
     }
 
-    emitNotification() {
+    emitLocalNotification() {
+        for (const listener of [...this.localNotificationListeners.values()]) {
+            listener();
+        }
+    }
+
+    emitDistributedNotification() {
         for (const listener of [...this.notificationListeners.values()]) {
             listener();
         }
@@ -187,12 +213,24 @@ class FakeSystemPreferences {
         return this.notificationName;
     }
 
+    get subscribedLocalNotificationName() {
+        return this.localNotificationName;
+    }
+
     get subscribedNotificationId() {
-        return this.subscribedIds.at(-1);
+        return this.subscribedNotificationIds.at(-1);
+    }
+
+    get subscribedLocalNotificationId() {
+        return this.subscribedLocalNotificationIds.at(-1);
     }
 
     get unsubscribedNotificationIds() {
-        return this.unsubscribedIds;
+        return this.unsubscribedNotificationIdsStore;
+    }
+
+    get unsubscribedLocalNotificationIds() {
+        return this.unsubscribedLocalNotificationIdsStore;
     }
 }
 
@@ -476,7 +514,7 @@ describe("platform accent-color subscription", () => {
         const systemPreferences = new FakeSystemPreferences();
 
         const subscribeAccentColorChanges = createAccentColorChangeSubscription(systemPreferences, "win32");
-        let accentColor = "";
+        let accentColor = "not-called";
 
         const unsubscribe = subscribeAccentColorChanges((_event, value) => {
             accentColor = value;
@@ -493,28 +531,80 @@ describe("platform accent-color subscription", () => {
         expect(systemPreferences.eventListenerCount).toBe(0);
     });
 
-    test("uses mac notification subscription and unsubscribes with returned id", () => {
+    test("prefers local mac notification and unsubscribes with matching id", () => {
         const systemPreferences = new FakeSystemPreferences();
 
         const subscribeAccentColorChanges = createAccentColorChangeSubscription(systemPreferences, "darwin");
-        let accentColor = "";
+        let accentColor = "not-called";
 
         const unsubscribe = subscribeAccentColorChanges((_event, value) => {
             accentColor = value;
         });
 
+        expect(systemPreferences.subscribedLocalNotificationName).toBe("NSSystemColorsDidChangeNotification");
+        expect(systemPreferences.subscribedLocalNotificationId).toBeDefined();
+        expect(systemPreferences.subscribedNotificationId).toBeUndefined();
+        expect(systemPreferences.subscribedNotificationName).toBeNull();
+
+        systemPreferences.emitLocalNotification();
+        expect(accentColor).toBe("");
+
+        unsubscribe();
+
+        expect(systemPreferences.unsubscribedLocalNotificationIds).toEqual([systemPreferences.subscribedLocalNotificationId!]);
+        expect(systemPreferences.unsubscribedNotificationIds).toEqual([]);
+    });
+
+    test("falls back to distributed mac notification when local registration fails", () => {
+        const systemPreferences = new FakeSystemPreferences();
+        systemPreferences.localNotificationSubscribeError = true;
+
+        const subscribeAccentColorChanges = createAccentColorChangeSubscription(systemPreferences, "darwin");
+        let accentColor = "not-called";
+
+        const unsubscribe = subscribeAccentColorChanges((_event, value) => {
+            accentColor = value;
+        });
+
+        expect(systemPreferences.subscribedLocalNotificationName).toBeNull();
         expect(systemPreferences.subscribedNotificationName).toBe("AppleColorPreferencesChangedNotification");
         expect(systemPreferences.subscribedNotificationId).toBeDefined();
+        expect(systemPreferences.subscribedLocalNotificationId).toBeUndefined();
 
-        systemPreferences.emitNotification();
+        systemPreferences.emitDistributedNotification();
         expect(accentColor).toBe("");
 
         unsubscribe();
         expect(systemPreferences.unsubscribedNotificationIds).toEqual([systemPreferences.subscribedNotificationId!]);
     });
 
-    test("falls back to the event subscription if the mac notification cannot be registered", () => {
+    test("falls back to distributed notification when the local API is missing", () => {
         const systemPreferences = new FakeSystemPreferences();
+        (systemPreferences as unknown as {subscribeLocalNotification?: undefined; unsubscribeLocalNotification?: undefined}).subscribeLocalNotification = undefined;
+        (systemPreferences as unknown as {subscribeLocalNotification?: undefined; unsubscribeLocalNotification?: undefined}).unsubscribeLocalNotification = undefined;
+
+        const subscribeAccentColorChanges = createAccentColorChangeSubscription(systemPreferences, "darwin");
+        let accentColor = "not-called";
+
+        const unsubscribe = subscribeAccentColorChanges((_event, value) => {
+            accentColor = value;
+        });
+
+        expect(systemPreferences.subscribedLocalNotificationName).toBeNull();
+        expect(systemPreferences.subscribedNotificationName).toBe("AppleColorPreferencesChangedNotification");
+        expect(systemPreferences.subscribedNotificationId).toBeDefined();
+
+        systemPreferences.emitDistributedNotification();
+        expect(accentColor).toBe("");
+
+        unsubscribe();
+        expect(systemPreferences.unsubscribedNotificationIds).toEqual([systemPreferences.subscribedNotificationId!]);
+        expect(systemPreferences.unsubscribedLocalNotificationIds).toEqual([]);
+    });
+
+    test("falls back to event subscription when local and distributed notification registration both fail", () => {
+        const systemPreferences = new FakeSystemPreferences();
+        systemPreferences.localNotificationSubscribeError = true;
         systemPreferences.notificationSubscribeError = true;
 
         const subscribeAccentColorChanges = createAccentColorChangeSubscription(systemPreferences, "darwin");
@@ -524,9 +614,12 @@ describe("platform accent-color subscription", () => {
             accentColor = value;
         });
 
+        expect(systemPreferences.subscribedLocalNotificationName).toBeNull();
+        expect(systemPreferences.subscribedNotificationName).toBeNull();
+        expect(systemPreferences.eventListenerCount).toBe(1);
+
         systemPreferences.emitEvent("aa44dd");
         expect(accentColor).toBe("aa44dd");
-        expect(systemPreferences.eventListenerCount).toBe(1);
 
         unsubscribe();
         expect(systemPreferences.eventListenerCount).toBe(0);

@@ -5,6 +5,8 @@ type AccentColorUnsubscribe = () => void;
 type AccentColorSubscriptionSystemPreferences = {
     on(event: "accent-color-changed", listener: AccentColorChangeListener): void;
     removeListener(event: "accent-color-changed", listener: AccentColorChangeListener): void;
+    subscribeLocalNotification?: (name: string, listener: () => void) => number;
+    unsubscribeLocalNotification?: (id: number) => void;
     subscribeNotification?: (name: string, listener: () => void) => number;
     unsubscribeNotification?: (id: number) => void;
 };
@@ -71,28 +73,56 @@ export const createAccentColorChangeSubscription = (systemPreferences: AccentCol
         return () => systemPreferences.removeListener("accent-color-changed", listener);
     };
 
-    if (platform === "darwin" && typeof systemPreferences.subscribeNotification === "function" && typeof systemPreferences.unsubscribeNotification === "function") {
-        const subscribeNotification = systemPreferences.subscribeNotification.bind(systemPreferences);
-        const unsubscribeNotification = systemPreferences.unsubscribeNotification.bind(systemPreferences);
+    const subscribeToNotification = (
+        listener: AccentColorChangeListener,
+        name: string,
+        subscribe: (name: string, listener: () => void) => number,
+        unsubscribe: (id: number) => void,
+    ) => {
+        try {
+            const subscriptionId = subscribe(name, () => {
+                listener({}, "");
+            });
 
+            return () => {
+                try {
+                    unsubscribe(subscriptionId);
+                }
+                catch {
+                    /* Nothing to clean up after Electron has already torn down. */
+                }
+            };
+        }
+        catch {
+            return null;
+        }
+    };
+
+    if (platform === "darwin") {
         return (listener: AccentColorChangeListener) => {
-            try {
-                const subscriptionId = subscribeNotification("AppleColorPreferencesChangedNotification", () => {
-                    listener({}, "");
-                });
+            if (typeof systemPreferences.subscribeLocalNotification === "function" && typeof systemPreferences.unsubscribeLocalNotification === "function") {
+                const cleanup = subscribeToNotification(
+                    listener,
+                    "NSSystemColorsDidChangeNotification",
+                    systemPreferences.subscribeLocalNotification.bind(systemPreferences),
+                    systemPreferences.unsubscribeLocalNotification.bind(systemPreferences),
+                );
 
-                return () => {
-                    try {
-                        unsubscribeNotification(subscriptionId);
-                    }
-                    catch {
-                        /* Nothing to clean up after Electron has already torn down. */
-                    }
-                };
+                if (cleanup) return cleanup;
             }
-            catch {
-                return subscribeToAccentColorEvent(listener);
+
+            if (typeof systemPreferences.subscribeNotification === "function" && typeof systemPreferences.unsubscribeNotification === "function") {
+                const cleanup = subscribeToNotification(
+                    listener,
+                    "AppleColorPreferencesChangedNotification",
+                    systemPreferences.subscribeNotification.bind(systemPreferences),
+                    systemPreferences.unsubscribeNotification.bind(systemPreferences),
+                );
+
+                if (cleanup) return cleanup;
             }
+
+            return subscribeToAccentColorEvent(listener);
         };
     }
 
