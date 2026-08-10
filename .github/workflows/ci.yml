@@ -68,6 +68,16 @@ jobs:
           archive: false
           path: dist/betterdiscord.asar
 
+      # Upload checksums artifact only on PR builds.
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v7
+        if: ${{github.event_name == 'pull_request'}}
+        with:
+          if-no-files-found: error
+          retention-days: 30
+          archive: false
+          path: dist/checksums.txt
+
       # Keep a single rolling release for the latest develop commit.
       - name: Reset rolling release
         if: ${{github.event_name == 'push' || github.event_name == 'workflow_dispatch'}}
@@ -81,7 +91,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: |
           notes="$(printf 'Rolling release for the latest develop commit.\n\nCommit: %s\n' "${GITHUB_SHA}")"
-          gh release create develop-latest dist/betterdiscord.asar \
+          gh release create develop-latest dist/betterdiscord.asar dist/checksums.txt \
             --target "${GITHUB_SHA}" \
             --title "BD Dev Fork" \
             --notes "${notes}"
