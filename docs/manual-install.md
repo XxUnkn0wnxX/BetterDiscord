@@ -3,6 +3,14 @@
 This is the maintained build and injection workflow for this macOS-focused
 BetterDiscord fork.
 
+Older macOS and pinned older Discord releases are intentional compatibility
+targets. Upstream BetterDiscord features are kept plugin-compatible and, when
+needed, their internal runtime assumptions are backported through small
+capability checks. macOS Big Sur is actively maintained; the current
+compatibility audit covers Discord Stable `0.0.350` through `0.0.402` (Electron 35 and
+37). This is a compatibility target, not a guarantee that Discord will continue
+to connect or serve every historical client release.
+
 The local Zsh wrappers are the recommended user-facing workflow. The underlying
 Bun commands remain documented for development, troubleshooting, and precise
 control over individual build or injection steps.

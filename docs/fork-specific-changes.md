@@ -5,12 +5,10 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-Last audited against fork `develop` at
-[`969320b9`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/969320b94ee5b6cc1479fb0a8480e218568e9ecd)
-and upstream
-[`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
-on 2026-07-22. Commit labels are abbreviated for readability; every commit
-link targets its full 40-character SHA.
+The current merge audit targets upstream
+[`8e3078b4`](https://github.com/BetterDiscord/BetterDiscord/commit/8e3078b4e4f3e2fcf5b0b4644bd86c5e15e71333)
+on 2026-08-11. Commit labels are abbreviated for readability; every commit link
+targets its full 40-character SHA.
 
 The Stage 7B section documents the final `upstream-merge-44e21745` staging
 tree. Its rewritten implementation and core-policy commits are linked below;
@@ -23,6 +21,10 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 - If upstream does not touch a protected area, take the upstream change normally.
 - If upstream overlaps a protected area, review that hunk before changing it.
 - Port small compatible upstream fixes around the fork behavior where possible.
+- Treat upstream plugin-facing behavior as authoritative. When upstream assumes
+  a newer Web, Electron, or Discord runtime, audit the older macOS/pinned Discord
+  targets and backport only the internal plumbing needed to preserve that
+  behavior.
 - If compatibility is unclear, keep the current fork behavior and ask before changing it.
 - Any injector, recovery, bootstrap, or OpenAsar handoff adjustment requires an explicit user checkpoint.
 - Record reviewed upstream ancestry only after every upstream hunk is accepted,
@@ -47,6 +49,7 @@ deferred user runtime gates remain tracked separately in the merge checklist.
 | Identity-aware plugin/theme updater | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) matches installed addons to Store rows by type/filename, downloads the Store source, and writes it synchronously. That can replace a same-filename fork with an unrelated Store addon. | Stage 7B shares one coordinator across plugins and themes, compares a declared `@updateUrl` with an identity-approved Store candidate, chooses the highest comparable newer version, reuses checked bytes through a bounded memory cache, and replaces the installed file atomically. Per-addon freshness, restart restoration, conditional requests, bounded concurrency, provider backoff, and optional update notifications are fork additions. | Preserve identity-before-version selection, safe source validation, atomic replacement, and per-addon scheduling. Future upstream updater work should be adapted around these guarantees instead of restoring filename-only Store replacement. |
 | BetterDiscord core updater | Upstream performs BetterDiscord core update checks alongside plugin/theme update checks. | BetterDiscord core checks stay disabled at startup, on the scheduler, and from the Updates-panel refresh. Plugin/theme startup, scheduled, file-event, and manual checks remain enabled. | Keep every core-check call commented while preserving the dormant implementation for future review. Never couple the fork's core updater back into addon refreshes. |
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
+| Older macOS and pinned Discord runtimes | Upstream targets its current supported runtime and may use newly shipped Web/Electron APIs directly. Upstream `8e3078b4` adds `BdApi.Utils.loadEntry` and uses `Map.prototype.getOrInsertComputed` for its private content cache. | Keeps the exact upstream `loadEntry` plugin contract and algorithm, but selects the native Map helper by capability and otherwise uses equivalent private insert-if-absent cache plumbing. The currently audited legacy band is Discord Stable `0.0.350`-`0.0.402` on Electron 35/37, with macOS Big Sur as an active target. | Preserve upstream inputs, parsing, calls, ordering, returns, logging, rejection boundaries, and cache lifetime. Keep compatibility internal and capability-based; do not globally patch `Map.prototype`, version-gate Electron, or expose a fork-only alternate API. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
 | Local Bun test compatibility | Newer Bun can execute all native Intl assertions. | Bun 1.1.20 on macOS 11 uses a test-only PluralRules shim and skips only the native NumberFormat/currency assertions that abort that binary. | Keep the condition exact to Bun 1.1.20/Darwin 20 so newer Bun always runs the native tests. |
 
@@ -657,12 +660,31 @@ work:
 - `src/betterdiscord/webpack/shared.ts`
 - `src/betterdiscord/builtins/general/themeattributes.tsx`
 - `src/betterdiscord/modules/discordmodules.ts`
+- `src/betterdiscord/webpack/lazy.ts`
 
 - [`39f8d65b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/39f8d65b7708732fe05209aa10a4a967d373ace0) and [`ecce03cd`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/ecce03cd6492b9cddaf97617b1e26ff97e7785a1): preload/early-webpack startup parsing and guarded module access.
 - [`71bb99b3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/71bb99b368ba62ea1c0f352cb163662e20f031f7): DOM, theme-attribute, object-access, and updater-noise hardening.
 - [`8760e8d7`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8760e8d73b89d0dd64f03419cab7ad31ce77f98b) and [`939b755f`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/939b755fb6b281dd651e9f792329e8c1988e30ba): wrapped message exports and restricted React-tree walking.
 - [`9dae9f4b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9dae9f4bd7f4879f88f698377395dfd299185026): removal of the stale `DiscordMarkdown` lookup.
 - [`d81d4114`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/d81d41146d83d5b31231d1b0aaee81e58c161c36): fork build metadata in copied debug information.
+
+Stage 5 adopts upstream
+[`8e3078b4`](https://github.com/BetterDiscord/BetterDiscord/commit/8e3078b4e4f3e2fcf5b0b4644bd86c5e15e71333)
+`BdApi.Utils.loadEntry` behavior. Its private content cache uses the native
+`Map.prototype.getOrInsertComputed` when that method exists and an equivalent
+local insert-if-absent path otherwise. The fallback must retain an existing
+`undefined`, cache the exact fulfilled or rejected Promise, and leave the key
+absent when the computation throws synchronously. It must never modify the
+global Map prototype. This keeps the public API identical for plugins while
+supporting the Electron 35/37 renderers used by the fork's currently audited
+Discord Stable `0.0.350`-`0.0.402` band.
+
+Plugin-author reminder: this API is opt-in. BetterDiscord does not discover or
+load lazy entries for plugins in the background. A plugin supplies a Discord
+lazy-loader function or source string when it needs that entry; the helper
+checks the referenced chunk, skips worker chunks, loads normal chunks, and
+returns the entry exports. Callers should handle `null`, an empty array, and
+rejection paths because the source shape and Discord runtime are external.
 
 If upstream now provides equivalent behavior, use upstream. If it touches the
 same failure path without equivalent protection, adapt it around the guard.
@@ -711,6 +733,10 @@ expected argument. The original test compatibility work is recorded in
 - Injection/OpenAsar: run injection, resource-discovery, recovery, and handoff tests; then ask before live injection changes.
 - Plugin loading: verify disabled plugins stay inert, enablement runs `load()` once, and no library filename bypass exists.
 - Settings: verify placement, search/navigation, the version row, debug-copy, and tooltip behavior.
+- `BdApi.Utils.loadEntry`: compare the public result/call/error behavior with
+  upstream and run the cache suite through both the native helper and legacy
+  fallback paths. Spot-check an injected pinned client when runtime exports are
+  relevant.
 - `BdApi.UI` dependencies: verify top-level and nested-category `enableWith` and
   `disableWith` states update immediately and each plugin callback runs once.
 - Custom CSS: verify enabled/disabled startup, disable/re-enable, all open actions, file watching, saving, and detached close behavior.

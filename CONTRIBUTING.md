@@ -21,6 +21,11 @@ Keep changes focused, preserve existing authorship, and explain any intentional
 departure from upstream behavior. Do not rewrite workflows, injection plumbing,
 or OpenAsar coordination as part of an unrelated change.
 
+When upstream introduces a newer Web, Electron, or Discord-runtime assumption,
+keep its public/plugin-facing contract authoritative. Check that assumption on
+the fork's older macOS and pinned Discord targets, and use a narrow
+capability-based backport when needed instead of creating a fork-only API.
+
 ## Local setup
 
 Clone the fork and install dependencies with Bun:
@@ -92,12 +97,16 @@ Changes in these areas need an explicit compatibility review:
 - plugin loading, which must not special-case `0BDFDB.plugin.js` or another
   plugin library;
 - plugin/theme updates, source identity validation, and atomic replacement;
+- upstream plugin APIs and Webpack helpers on older macOS and pinned older
+  Discord/Electron builds;
 - BetterDiscord core updates, whose startup, scheduled, and manual entry points
   remain disabled;
 - fork workflows, wrappers, documentation, badges, and `develop` assumptions.
 
 If an upstream change overlaps one of these areas, preserve the fork behavior
-until the conflict has been reviewed and runtime-tested.
+until the conflict has been reviewed and runtime-tested. Compatibility adapters
+must preserve upstream inputs, outputs, ordering, errors, and plugin-visible
+calls unless a separately reviewed upstream bug fix intentionally changes them.
 
 ## Reporting bugs
 

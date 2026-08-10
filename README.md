@@ -18,7 +18,9 @@
 This is an independent, macOS-focused fork of
 [BetterDiscord](https://github.com/BetterDiscord/BetterDiscord). It is built
 for local use from the `develop` branch and does not provide or promote the
-upstream installer downloads.
+upstream installer downloads. Keeping upstream BetterDiscord features and
+plugin-facing APIs usable on older macOS versions and pinned older
+Discord/Electron builds is a primary focus of this fork.
 
 The maintained workflow for this fork is to build it locally, inject it into a
 standard macOS Discord installation, and open Discord normally.
@@ -39,8 +41,17 @@ downloads.
   cannot silently replace an unrelated forked addon.
 - **:electric_plug: Library-neutral loading:** Gives no special startup treatment to `0BDFDB.plugin.js` or another plugin
   library; disabled plugins stay disabled.
+- **:hourglass_flowing_sand: Legacy runtime compatibility:** Keeps upstream plugin-facing behavior while adapting internal runtime
+  assumptions for older macOS and pinned Discord/Electron builds when a small, capability-based backport is practical.
 - **:paintbrush: Runtime hardening:** Retains fork-specific Settings, Custom CSS, editor, Addon Store, and Discord
   runtime compatibility fixes around reviewed upstream changes.
+
+> **Plugin API reminder:** `BdApi.Utils.loadEntry` is opt-in. BetterDiscord does
+> not scan for or load lazy entries automatically. A plugin calls it with a
+> Discord lazy-loader function (or its source string) when needed; BetterDiscord
+> identifies the referenced non-worker chunks, loads them, and returns the entry
+> exports. Plugins should handle `null`, an empty array, or a rejection when the
+> source no longer matches or Discord's runtime changes.
 
 See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
 upstream-versus-fork inventory and the rules used for future merges.
@@ -51,6 +62,12 @@ This repository is maintained and documented for standard local Discord
 installations on macOS. Upstream code may continue to support other operating
 systems, but Windows and Linux installation are outside this fork's supported
 workflow.
+
+macOS Big Sur is an active compatibility target. Current runtime review also
+covers pinned Discord Stable builds in the `0.0.350`-`0.0.402` range where
+practical. This means upstream features are checked for older Electron support;
+it does not guarantee that Discord will continue to serve or connect every
+historical client build.
 
 Prerequisites:
 
