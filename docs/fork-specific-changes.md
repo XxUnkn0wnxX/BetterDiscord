@@ -5,15 +5,23 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-The current merge audit targets upstream
+The latest reviewed upstream boundary is
+[`474dc6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/474dc6e122915a329ccb145eef93600167ec98e3)
+on 2026-08-15, using
 [`8e3078b4`](https://github.com/BetterDiscord/BetterDiscord/commit/8e3078b4e4f3e2fcf5b0b4644bd86c5e15e71333)
-on 2026-08-11. Commit labels are abbreviated for readability; every commit link
-targets its full 40-character SHA.
+as the range merge base. Source treatment and fork adaptations for that range
+have passed review, automated checks, the release build, and the applicable
+Stable runtime gate. This source-treatment record does not by itself assert
+that the exact upstream DAG is already in `develop` ancestry; that is verified
+separately through the approved tree-neutral reconciliation procedure. Commit
+labels are abbreviated for readability; every commit link targets its full
+40-character SHA.
 
 This document tracks the historical integration of upstream
-`upstream-merge-44e21745` and the later upstream range through `8e3078b4`. It is
-a durable record for merge behavior and preserved deltas; current checkpoint
-status is not tracked here.
+`upstream-merge-44e21745`, the later upstream range through `8e3078b4`, and the
+accepted source treatment for `8e3078b4..474dc6e1`. It is a durable record for
+merge behavior and preserved deltas; detailed checkpoint status remains in the
+local ignored merge checklist rather than here.
 
 ## Merge policy
 
@@ -49,7 +57,7 @@ status is not tracked here.
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
 | Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
-| Custom CSS lifecycle and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. It also scopes layout/focus patches, keeps disabled CSS inactive, and closes source editors only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
+| Custom CSS lifecycle, editor focus, and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. The later range through [`474dc6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/474dc6e122915a329ccb145eef93600167ec98e3) repairs its own lifecycle while replacing bounded Monaco focus guards with a renderer-global skip flag and deleting the synchronous selection shield. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. Focus ownership stays inside the shared editor: ready focus is one-shot, Settings-owned detached focus waits for the captured Settings element to disconnect, click suppression remains task-scoped, and the selection shield is retained. Disabled CSS stays inactive, and source editors close only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Do not adopt a renderer-global focus state machine or delete the selection shield without equivalent target scoping, cleanup, and live proof. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
 | System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
 | Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, resolves relative redirects correctly, and adds updater-only HTTPS/credential, redirect-query, and response-size guards through opt-in request fields. Normal `BdApi.Net.fetch` calls keep their upstream behavior. | Preserve the relative-redirect correction and opt-in updater safety fields until upstream provides equivalent handling. Do not make the updater's restrictions global without a separate review. |
@@ -211,7 +219,8 @@ Primary files: `src/betterdiscord/ui/settings.tsx`,
 - [`2c4f777b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2c4f777b964fa339b44bebee86a5a22f6cd91395) added resilient BetterDiscord section placement through
   `getBetterDiscordSectionIndex()`.
 
-The Stage 4 review deliberately replaces the fork's `openUserSettings`-only
+The `44e21745` integration review deliberately replaces the fork's
+`openUserSettings`-only
 lookup from `f0eb9941` with upstream's stricter lookup requiring both
 `openUserSettings` and `USER_SETTINGS_MODAL_KEY`. That adoption is not a
 protected divergence; verify it at runtime and prefer the upstream form while
@@ -274,12 +283,47 @@ Primary files:
 - `src/editor/script.ts`
 - `src/betterdiscord/styles/builtins/customcss.css`
 
+#### Editor focus ownership and lifecycle
+
+The shared in-client `CodeEditor` owns readiness, one-shot focus, deferred
+focus, and teardown. `CSSEditor` and `AddonEditor` only opt in and pass the
+appropriate owner element; floating-window and Settings code must not install
+their own global focus policy.
+
+- An omitted deferred owner means focus once in a microtask when Monaco or the
+  fallback textarea is ready. This is used by embedded Settings editors and by
+  programmatic detached addon opens that have no Settings-close callback.
+- An element owner means wait until that exact element is disconnected, then
+  focus once on the next animation frame. Detached Custom CSS captures
+  `document.activeElement` before opening its floating window and closing
+  Settings. The plugin/theme route captures only when the Settings UI supplies
+  its close callback, opens the floating window first, and invokes that callback
+  afterward.
+- A `null`, document body/root, unobservable, or forever-connected owner means
+  no automatic focus. Normal user click focus remains available. Blur, value
+  refresh, rerender, and pointer hover never re-arm autofocus.
+- Teardown disconnects the owner observer, cancels a pending animation frame,
+  releases the click-scoped focus patch, removes listeners, and disposes the
+  active editor. The asynchronous Monaco-loader continuation must check the
+  disposed state before creating either Monaco or the fallback editor so an
+  unmounted instance cannot leave an observer, frame, or textarea behind.
+- The separate external Electron editor owns its own one-time ready focus. The
+  synchronous `TextAreaWrapper.setSelectionRange` shield and the per-click
+  ancestor suppression solve different phases of Monaco's focus sequence; keep
+  both bounded safeguards unless a reviewed replacement covers both paths.
+
+The 2026-08-15 review of `8e3078b4..474dc6e1` therefore source-skips
+upstream's persistent global `shouldSkipNextFocus` state machine and deletion
+of the selection shield. Its user-visible focus/search intent is covered by the
+scoped architecture above and was accepted through the shared Custom CSS,
+plugin, and theme editor runtime path.
+
 - [`eb384c7f`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eb384c7f8e1f9376c630add2708dc01fdc8feade) removed the stale `updateAccount` module dependency.
-- Stage 4 adopts upstream's full-page settings editor, React ref handling,
+- The `44e21745` integration adopts upstream's full-page settings editor, React ref handling,
   enabled/clickable predicates, detached-state updates, system/external editor
   actions, and already-detached toast.
 
-Intentional Stage 4 divergence from upstream `44e21745`:
+Intentional divergence retained from upstream `44e21745`:
 
 - Do not add upstream's `CustomCSS.initialize()` override as written. It skips
   `Builtin.initialize()`, so initially enabled Custom CSS would not load,
@@ -777,7 +821,13 @@ expected argument. The original test compatibility work is recorded in
   relevant.
 - `BdApi.UI` dependencies: verify top-level and nested-category `enableWith` and
   `disableWith` states update immediately and each plugin callback runs once.
-- Custom CSS: verify enabled/disabled startup, disable/re-enable, all open actions, file watching, saving, and detached close behavior.
+- Custom CSS/editor focus: verify enabled/disabled startup, disable/re-enable,
+  all open actions, file watching, saving, and detached close behavior. Exercise
+  first open and close/reopen for Settings, external, detached Custom CSS,
+  plugin, and theme editors; confirm normal click focus, selection, and Monaco
+  find (`Cmd+F`) still work; confirm blur/rerender/hover does not refocus; and
+  confirm closing during asynchronous editor initialization leaves no delayed
+  focus, observer, frame, or fallback textarea.
 - Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
 - System editor: verify a successful `openPath()` closes the BetterDiscord
   editor and a failed launch leaves it open.
