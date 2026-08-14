@@ -419,6 +419,15 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         if (this.windows.has(fullPath)) return;
         this.windows.add(fullPath);
 
+        // The Settings-owned callback marks the path whose focus trap is about
+        // to close. Programmatic detached opens retain ordinary ready autofocus.
+        const focusedElement = onDetachedOpen ? document.activeElement : undefined;
+        const autoFocusAfterElementRemoved = onDetachedOpen
+            ? focusedElement?.nodeType === Node.ELEMENT_NODE
+                ? focusedElement
+                : null
+            : undefined;
+
         const editorRef = React.createRef<{resize(): void; value: string, hasUnsavedChanges: boolean;}>();
         const editor = React.createElement(AddonEditor, {
             id: "bd-floating-editor-" + addon.id,
@@ -430,6 +439,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
                 this.editAddon(addon, "system");
             },
             language: this.language,
+            autoFocusAfterElementRemoved,
             openDetached: () => {
                 FloatingWindows.close("bd-floating-window-" + addon.id);
                 RemoteAPI.editor.open(this.prefix, addon.filename);

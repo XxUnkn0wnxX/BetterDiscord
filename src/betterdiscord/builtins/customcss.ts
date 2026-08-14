@@ -203,6 +203,10 @@ export default new class CustomCSS extends Builtin {
     }
 
     openDetached(currentCSS: string) {
+        // Fork review: Discord restores focus to the active Settings owner while
+        // closing. Let the detached editor wait for that exact owner to leave.
+        const focusedElement = document.activeElement;
+        const autoFocusAfterElementRemoved = focusedElement?.nodeType === Node.ELEMENT_NODE ? focusedElement : null;
         const editorRef = React.createRef<CssEditorRef>();
         const editor = React.createElement(CSSEditor, {
             id: "bd-floating-editor",
@@ -214,6 +218,7 @@ export default new class CustomCSS extends Builtin {
                 if (await this.openNative()) FloatingWindows.close("floating-editor-window");
             },
             onChange: debounce(this.onChange.bind(this), 500),
+            autoFocusAfterElementRemoved,
             openDetached: () => {
                 this.openExternal();
                 FloatingWindows.close("floating-editor-window");

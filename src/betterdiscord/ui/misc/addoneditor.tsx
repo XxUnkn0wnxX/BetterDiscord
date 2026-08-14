@@ -5,7 +5,7 @@ import Editor, {type Control, type EditorRef} from "@ui/customcss/editor";
 
 import {ExternalLinkIcon, PencilIcon, SaveIcon} from "lucide-react";
 
-const {useState, useCallback, useImperativeHandle, useRef} = React;
+const {useCallback, useImperativeHandle, useRef, useState} = React;
 
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
     openNative: () => void;
     id?: string;
     openDetached?(): void;
+    autoFocusAfterElementRemoved?: Element | null;
     ref: React.Ref<{
         resize(): void;
         value: string | undefined;
@@ -22,7 +23,16 @@ interface Props {
     }>;
 }
 
-export default function AddonEditor({content, language, save, openNative, id = "bd-addon-editor", openDetached, ref}: Props) {
+export default function AddonEditor({
+    content,
+    language,
+    save,
+    openNative,
+    id = "bd-addon-editor",
+    openDetached,
+    autoFocusAfterElementRemoved,
+    ref
+}: Props) {
     const editorRef = useRef<EditorRef>(null);
     const [hasUnsavedChanges, setUnsaved] = useState(false);
 
@@ -54,5 +64,6 @@ export default function AddonEditor({content, language, save, openNative, id = "
         value={content}
         onChange={onChange}
         autoFocus
+        autoFocusAfterElementRemoved={autoFocusAfterElementRemoved}
     />;
 };

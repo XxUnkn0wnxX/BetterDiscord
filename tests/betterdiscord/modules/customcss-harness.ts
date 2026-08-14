@@ -2,6 +2,13 @@ import {mock} from "bun:test";
 import nodeFs from "node:fs";
 import path from "node:path";
 
+const elementNodeType = 1;
+const focusedForDetached = {nodeType: elementNodeType} as Element;
+Object.assign(globalThis, {
+    Node: {ELEMENT_NODE: elementNodeType},
+    document: {activeElement: focusedForDetached}
+});
+
 const webpackPath = import.meta.resolve("../../../src/betterdiscord/webpack/index.ts");
 const modulesPath = import.meta.resolve("../../../src/betterdiscord/modules/discordmodules.ts");
 
@@ -14,6 +21,7 @@ type FloatingWindowConfig = {
     children?: {
         props?: {
             openNative?: () => Promise<void>;
+            autoFocusAfterElementRemoved?: Element | null;
         };
     };
 };
@@ -360,6 +368,7 @@ CustomCSS.openDetached(".detached");
 assert(floatingWindowsOpen.length === 1, "Detached open should open one floating window.");
 const detachedOpenNative = floatingWindowsOpen[0]?.children?.props?.openNative;
 assert(typeof detachedOpenNative === "function", "Detached open should provide openNative handler.");
+assert(floatingWindowsOpen[0]?.children?.props?.autoFocusAfterElementRemoved === focusedForDetached, "Detached open should capture the active element before open.");
 openPathBehavior = "ok";
 await detachedOpenNative!();
 assert(floatingWindowsClose.includes("floating-editor-window"), "Detached openNative success should close the floating editor.");

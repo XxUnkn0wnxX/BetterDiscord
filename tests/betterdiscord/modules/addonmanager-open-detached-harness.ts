@@ -4,7 +4,24 @@ import path from "node:path";
 
 import type {Addon} from "@typed/addon";
 
-type FloatingWindowConfig = {id?: string};
+const elementNodeType = 1;
+const detachedTarget = {nodeType: elementNodeType} as Element;
+let activeElement: Element | null = detachedTarget;
+Object.assign(globalThis, {
+    Node: {ELEMENT_NODE: elementNodeType},
+    document: {
+        get activeElement() {return activeElement;}
+    }
+});
+
+type FloatingWindowConfig = {
+    id?: string;
+    children?: {
+        props?: {
+            autoFocusAfterElementRemoved?: Element | null;
+        };
+    };
+};
 type SettingsValues = {
     editAction: "system" | "detached" | "external";
 };
@@ -41,7 +58,7 @@ const modulePath = (filename: string) => import.meta.resolve(`../../../src/bette
 mock.module(modulePath("react.ts"), () => ({
     "default": {
         createRef: () => ({current: undefined}),
-        createElement: (_: unknown, __: unknown, ...___: unknown[]) => ({})
+        createElement: (_: unknown, props?: unknown) => ({props})
     }
 }));
 mock.module(modulePath("emitter.ts"), () => ({
@@ -177,14 +194,25 @@ const onSettingsClose = () => {
 };
 
 try {
+    activeElement = detachedTarget;
+
     detachedManager.openDetached(primaryAddon, onSettingsClose);
     assert(events[0] === "floating-open", "Detached editor open should call FloatingWindows.open first.");
     assert(events[1] === "settings-close", "Detached editor open should close settings immediately after opening.");
     assert(floatingOpenConfigs[0]?.id === "bd-floating-window-test-addon.test.js", "Detached editor open should use a stable floating-window id.");
+    assert(floatingOpenConfigs[0]?.children?.props?.autoFocusAfterElementRemoved === detachedTarget, "Detached open with settings callback should pass active element.");
 
     detachedManager.openDetached(primaryAddon, onSettingsClose);
     assert(floatingOpenCount === 1, "Duplicate detached open should not reopen a floating window.");
     assert(events.length === 2, "Duplicate detached open should perform neither floating open nor settings close.");
+
+    const callbackDetachedManager = createManager();
+    callbackDetachedManager.openDetached(systemAddon, onSettingsClose);
+    assert(floatingOpenConfigs[0]?.children?.props?.autoFocusAfterElementRemoved === detachedTarget, "Callback-based detached open should capture focused element from onDetachedOpen context.");
+
+    const detachedManagerNoCallback = createManager();
+    detachedManagerNoCallback.openDetached(systemAddon);
+    assert(floatingOpenConfigs[0]?.children?.props?.autoFocusAfterElementRemoved === undefined, "openDetached without onDetachedOpen should use immediate autofocus mode.");
 
     const systemManager = createManager();
     systemManager.editAddon(systemAddon, "system", onSettingsClose);
@@ -212,5 +240,7 @@ try {
     })}\n`);
 }
 finally {
-    fs.rmSync(testDir, {recursive: true, force: true});
+    if (fs.existsSync(testDir)) {
+        fs.rmSync(testDir, {recursive: true, force: true});
+    }
 }

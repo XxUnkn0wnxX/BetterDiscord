@@ -20,6 +20,7 @@ interface CssEditorProps {
     id?: string;
     ref?: Ref<CssEditorRef>;
     isSettingsPage?: boolean;
+    autoFocusAfterElementRemoved?: Element | null;
 }
 
 export interface CssEditorRef {
@@ -37,7 +38,8 @@ export default function CssEditor({
     onChange: notifyParent,
     id = "bd-customcss-editor",
     ref,
-    isSettingsPage
+    isSettingsPage,
+    autoFocusAfterElementRemoved
 }: CssEditorProps) {
     const editorRef = useRef<EditorRef>(null);
     const [hasUnsavedChanges, setUnsaved] = useState(false);
@@ -115,5 +117,6 @@ export default function CssEditor({
         ].filter(c => c) as Control[]}
         value={css}
         autoFocus
+        autoFocusAfterElementRemoved={autoFocusAfterElementRemoved}
     />;
 };

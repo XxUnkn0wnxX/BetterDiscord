@@ -5,8 +5,10 @@ import {createRoot, type Root} from "react-dom/client";
 Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true});
 
 const capturedProps: Array<{autoFocus: boolean}> = [];
-const MockEditor = (props: {autoFocus?: boolean}) => {
+const capturedAutoFocusAfterElementRemoved: Array<Element | null | undefined> = [];
+const MockEditor = (props: {autoFocus?: boolean; autoFocusAfterElementRemoved?: Element | null}) => {
     capturedProps.push({autoFocus: !!props.autoFocus});
+    capturedAutoFocusAfterElementRemoved.push(props.autoFocusAfterElementRemoved);
     return <div data-auto-focus={props.autoFocus ? "1" : "0"} />;
 };
 
@@ -28,6 +30,7 @@ let root: Root;
 
 beforeEach(() => {
     capturedProps.length = 0;
+    capturedAutoFocusAfterElementRemoved.length = 0;
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -39,7 +42,8 @@ afterEach(async () => {
 });
 
 describe("Custom CSS and addon editor props", () => {
-    test("CssEditor enables autoFocus for settings and detached variants", async () => {
+    test("CssEditor forwards autoFocus and deferred autofocus target", async () => {
+        const detachedTarget = document.createElement("div");
         await act(async () => {
             root.render(
                 <CssEditor
@@ -53,8 +57,10 @@ describe("Custom CSS and addon editor props", () => {
             );
         });
         expect(capturedProps.at(-1)?.autoFocus).toBe(true);
+        expect(capturedAutoFocusAfterElementRemoved.at(-1)).toBeUndefined();
 
         capturedProps.length = 0;
+        capturedAutoFocusAfterElementRemoved.length = 0;
         await act(async () => {
             root.render(
                 <CssEditor
@@ -64,13 +70,16 @@ describe("Custom CSS and addon editor props", () => {
                     save={() => {}}
                     onChange={() => {}}
                     openDetached={() => {}}
+                    autoFocusAfterElementRemoved={detachedTarget}
                 />
             );
         });
         expect(capturedProps.at(-1)?.autoFocus).toBe(true);
+        expect(capturedAutoFocusAfterElementRemoved.at(-1)).toBe(detachedTarget);
     });
 
-    test("AddonEditor enables autoFocus", async () => {
+    test("AddonEditor forwards autoFocus and deferred autofocus target", async () => {
+        const detachedTarget = document.createElement("div");
         await act(async () => {
             root.render(
                 <AddonEditor
@@ -79,9 +88,11 @@ describe("Custom CSS and addon editor props", () => {
                     save={() => {}}
                     openNative={() => {}}
                     ref={null}
+                    autoFocusAfterElementRemoved={detachedTarget}
                 />
             );
         });
         expect(capturedProps.at(-1)?.autoFocus).toBe(true);
+        expect(capturedAutoFocusAfterElementRemoved.at(-1)).toBe(detachedTarget);
     });
 });

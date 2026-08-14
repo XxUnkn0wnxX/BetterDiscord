@@ -71,6 +71,7 @@ interface Props {
     className?: string;
     ref?: React.Ref<EditorRef>;
     autoFocus?: boolean;
+    autoFocusAfterElementRemoved?: Element | null;
 }
 
 export interface EditorRef {
@@ -87,7 +88,8 @@ export default function CodeEditor({
     onChange: notifyParent,
     className,
     ref: editorRef,
-    autoFocus = false
+    autoFocus = false,
+    autoFocusAfterElementRemoved
 }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const windowRef = useRef<HTMLDivElement>(null);
@@ -143,17 +145,81 @@ export default function CodeEditor({
         let disposed = false;
         let disposer: (() => void) | undefined;
         let releaseFocusPatch: (() => void) | null = null;
+        let focusObserver: MutationObserver | null = null;
+        let focusAnimationFrame: number | null = null;
 
         // Fork review: opted-in editors claim focus only on initial readiness.
         // Blur, value refreshes, rerenders, and pointer hover must not reclaim it.
         const focusOnceReady = (focus: () => void) => {
             if (!autoFocus || hasAutoFocusedRef.current) return;
 
-            queueMicrotask(() => {
+            const focusNow = () => {
                 if (disposed || hasAutoFocusedRef.current) return;
                 hasAutoFocusedRef.current = true;
                 focus();
+            };
+
+            const focusAfterFrame = () => {
+                if (hasAutoFocusedRef.current) return;
+                if (focusAnimationFrame !== null) return;
+                if (!window.requestAnimationFrame) return;
+
+                focusAnimationFrame = window.requestAnimationFrame(() => {
+                    focusAnimationFrame = null;
+                    focusNow();
+                });
+            };
+
+            if (autoFocusAfterElementRemoved === null) return;
+            if (autoFocusAfterElementRemoved === undefined) {
+                queueMicrotask(focusNow);
+                return;
+            }
+
+            const ownerDocument = node.ownerDocument;
+            if (autoFocusAfterElementRemoved === ownerDocument.body || autoFocusAfterElementRemoved === ownerDocument.documentElement) return;
+            if (!autoFocusAfterElementRemoved.isConnected) {
+                focusAfterFrame();
+                return;
+            }
+
+            if (typeof MutationObserver === "undefined") return;
+            const documentRoot = ownerDocument.documentElement;
+            if (!documentRoot) return;
+
+            focusObserver = new MutationObserver(() => {
+                if (disposed || hasAutoFocusedRef.current) {
+                    focusObserver?.disconnect();
+                    focusObserver = null;
+                    return;
+                }
+                if (autoFocusAfterElementRemoved.isConnected) return;
+
+                focusObserver?.disconnect();
+                focusObserver = null;
+                focusAfterFrame();
             });
+            focusObserver.observe(documentRoot, {childList: true, subtree: true});
+
+            // Close race by rechecking right after observe.
+            if (!autoFocusAfterElementRemoved.isConnected) {
+                focusObserver.disconnect();
+                focusObserver = null;
+                focusAfterFrame();
+            }
+        };
+
+        const clearAutofocus = () => {
+            if (focusObserver) {
+                focusObserver.disconnect();
+                focusObserver = null;
+            }
+
+            if (focusAnimationFrame === null) return;
+            if (window.cancelAnimationFrame) {
+                window.cancelAnimationFrame(focusAnimationFrame);
+            }
+            focusAnimationFrame = null;
         };
 
         const createFallback = () => {
@@ -187,6 +253,7 @@ export default function CodeEditor({
             createFallback();
             return () => {
                 disposed = true;
+                clearAutofocus();
                 disposer?.();
             };
         }
@@ -291,6 +358,7 @@ export default function CodeEditor({
         }
         else {
             Editor.initialize().then(() => {
+                if (disposed) return;
                 if (window.monaco?.editor) createMonaco();
                 else createFallback();
             });
@@ -298,9 +366,10 @@ export default function CodeEditor({
 
         return () => {
             disposed = true;
+            clearAutofocus();
             disposer?.();
         };
-    }, [id, language, value, autoFocus]);
+    }, [id, language, value, autoFocus, autoFocusAfterElementRemoved]);
 
     useEffect(() => {
         window.addEventListener("resize", resize);

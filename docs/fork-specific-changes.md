@@ -303,11 +303,15 @@ Intentional Stage 4 divergence from upstream `44e21745`:
   actual textarea while the selection update runs, and its temporary
   `HTMLElement.prototype.focus` patch must be released in `finally`, including
   when the selection update throws.
-- Focus each newly opened BetterDiscord Monaco editor exactly once when it first
-  becomes ready. This applies to Custom CSS, plugin, and theme editors in both
-  in-client and external-window forms. Value refreshes, rerenders, blur, and
-  pointer hover must not refocus it; after the initial focus, only normal user
-  interaction may focus the editor again.
+- Focus embedded Settings editors and external-window editors exactly once when
+  they first become ready. For a detached in-client Custom CSS, plugin, or theme
+  editor opened from Settings, capture the exact active Settings element before
+  closing the modal, wait for that element to disconnect, then focus once on the
+  next animation frame. This follows Discord's real focus-restoration lifecycle
+  instead of racing it with a timeout. If there is no usable target, observation
+  is unavailable, or the target remains connected, perform no detached
+  autofocus; normal click focus remains available. Value refreshes, rerenders,
+  blur, and pointer hover must never refocus an editor.
 - After opening a detached plugin or theme editor, close Discord's Settings
   modal through a UI-owned callback to the reviewed compatibility helper,
   matching detached Custom CSS. Keep the low-level addon manager free of a
