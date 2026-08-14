@@ -400,7 +400,7 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
         return fs.writeFileSync(path.resolve(this.addonFolder, addon.filename), content);
     }
 
-    editAddon(idOrFileOrAddon: string | T, system?: "system" | "detached" | "external") {
+    editAddon(idOrFileOrAddon: string | T, system?: "system" | "detached" | "external", onDetachedOpen?: () => void) {
         const addon = this.resolveAddon(idOrFileOrAddon);
         if (!addon) return;
 
@@ -409,10 +409,10 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
 
         if (system === "system") return ipc.openPath(`${fullPath}`);
         else if (system === "external") return RemoteAPI.editor.open(this.prefix as "theme", addon.filename);
-        return this.openDetached(addon);
+        return this.openDetached(addon, onDetachedOpen);
     }
 
-    openDetached(addon: T) {
+    openDetached(addon: T, onDetachedOpen?: () => void) {
         const fullPath = path.resolve(this.addonFolder, addon.filename);
         const content = fs.readFileSync(fullPath).toString();
 
@@ -458,6 +458,10 @@ export default abstract class AddonManager<T extends Addon = Addon> extends Stor
             },
             confirmationText: t("Addons.confirmationText", {name: addon.name})
         });
+
+        // Discord's Settings modal traps keyboard focus within its own layer.
+        // Match detached Custom CSS by closing Settings only after this editor opens.
+        onDetachedOpen?.();
     }
 
     resolveAddon(idOrFileOrAddon: string | T) {

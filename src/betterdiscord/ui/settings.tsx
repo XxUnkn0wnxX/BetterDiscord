@@ -94,7 +94,7 @@ const SettingsRenderer = new class SettingsRenderer {
         });
     }
 
-    getAddonPanel(title: string, options: {store: AddonManager;}) {
+    getAddonPanel(title: string, options: {store: AddonManager; onDetachedOpen?: () => void;}) {
         return (props: any) => {
             return React.createElement(AddonPage, Object.assign({}, {
                 title: title,
@@ -275,7 +275,12 @@ const SettingsRenderer = new class SettingsRenderer {
                 }
 
                 for (const panel of Settings.panels.sort((a, b) => a.order > b.order ? 1 : -1)) {
-                    if (panel.type === "addon" && !panel.element) panel.element = this.getAddonPanel(panel.label, {store: panel.manager!});
+                    if (panel.type === "addon" && !panel.element) {
+                        panel.element = this.getAddonPanel(panel.label, {
+                            store: panel.manager!,
+                            onDetachedOpen: () => this.closeUserSettingsModal()
+                        });
+                    }
 
                     const icon = panel.icon ? lucideToDiscordIcon(panel.icon) : () => panel.id;
 

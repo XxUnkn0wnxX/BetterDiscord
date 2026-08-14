@@ -70,6 +70,7 @@ interface Props {
     onChange: (c: string) => void;
     className?: string;
     ref?: React.Ref<EditorRef>;
+    autoFocus?: boolean;
 }
 
 export interface EditorRef {
@@ -85,10 +86,12 @@ export default function CodeEditor({
     controls = [],
     onChange: notifyParent,
     className,
-    ref: editorRef
+    ref: editorRef,
+    autoFocus = false
 }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const windowRef = useRef<HTMLDivElement>(null);
+    const hasAutoFocusedRef = useRef(false);
 
     const language = useMemo(() => {
         const requested = requestedLang.toLowerCase().replace(/ /g, "_");
@@ -137,6 +140,21 @@ export default function CodeEditor({
     useLayoutEffect(() => {
         const node = ref.current || document.getElementById(id);
         if (!node) return;
+        let disposed = false;
+        let disposer: (() => void) | undefined;
+        let releaseFocusPatch: (() => void) | null = null;
+
+        // Fork review: opted-in editors claim focus only on initial readiness.
+        // Blur, value refreshes, rerenders, and pointer hover must not reclaim it.
+        const focusOnceReady = (focus: () => void) => {
+            if (!autoFocus || hasAutoFocusedRef.current) return;
+
+            queueMicrotask(() => {
+                if (disposed || hasAutoFocusedRef.current) return;
+                hasAutoFocusedRef.current = true;
+                focus();
+            });
+        };
 
         const createFallback = () => {
             const textarea = document.createElement("textarea");
@@ -161,16 +179,17 @@ export default function CodeEditor({
             });
 
             node.appendChild(textarea);
+            disposer = () => textarea.remove();
+            focusOnceReady(() => textarea.focus());
         };
 
         if (Editor.failedToLoad) {
             createFallback();
-            return;
+            return () => {
+                disposed = true;
+                disposer?.();
+            };
         }
-
-        let disposed = false;
-        let disposer: (() => void) | undefined;
-        let releaseFocusPatch: (() => void) | null = null;
 
         const createMonaco = () => {
             const getOptions = () => ({
@@ -218,6 +237,7 @@ export default function CodeEditor({
             node.addEventListener("click", suppressAncestorFocus, {passive: true});
 
             setEditor(monacoEditor);
+            focusOnceReady(() => monacoEditor.focus());
 
             monacoEditor.onDidChangeCursorSelection(() => {
                 const position = monacoEditor.getPosition()!;
@@ -280,7 +300,7 @@ export default function CodeEditor({
             disposed = true;
             disposer?.();
         };
-    }, [id, language, value]);
+    }, [id, language, value, autoFocus]);
 
     useEffect(() => {
         window.addEventListener("resize", resize);

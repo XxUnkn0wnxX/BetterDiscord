@@ -53,5 +53,6 @@ export default function AddonEditor({content, language, save, openNative, id = "
         ].filter(x => x) as Control[]}
         value={content}
         onChange={onChange}
+        autoFocus
     />;
 };

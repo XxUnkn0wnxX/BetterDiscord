@@ -65,6 +65,21 @@ interface TextAreaInputControllerType {
     };
 }
 
+function withMonacoTextareaSelectionFocusGuard<T>(domNode: HTMLElement, callback: () => T) {
+    const undo = Patcher.instead("monaco-editor", HTMLElement.prototype, "focus", (node, _args, focus) => {
+        if (node === domNode) {
+            return focus.apply(node);
+        }
+    });
+
+    try {
+        return callback();
+    }
+    finally {
+        undo?.();
+    }
+}
+
 export default new class Editor {
     initPromise: Promise<void> | null = null;
     failedToLoad = false;
@@ -194,18 +209,7 @@ export default new class Editor {
             amdLoader(["vs/editor/browser/controller/textAreaInput"], ({TextAreaWrapper}: {TextAreaWrapper: TextAreaInputControllerType;}) => {
                 Patcher.instead("monaco-editor", TextAreaWrapper.prototype, "setSelectionRange", (that: any, args, original) => {
                     const domNode = (that as TextAreaInputControllerType["prototype"])._actual;
-
-                    const undo = Patcher.instead("monaco-editor", HTMLElement.prototype, "focus", (node, _args, focus) => {
-                        if (node === domNode) {
-                            return focus.apply(node);
-                        }
-                    });
-
-                    const ret = original.apply(that, args);
-
-                    undo!();
-
-                    return ret;
+                    return withMonacoTextareaSelectionFocusGuard(domNode, () => original.apply(that, args));
                 });
             });
 

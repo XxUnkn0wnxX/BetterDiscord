@@ -265,9 +265,13 @@ The Stage 2 integration and dependency correction are recorded in
 Primary files:
 
 - `src/betterdiscord/builtins/customcss.ts`
+- `src/betterdiscord/modules/addonmanager.ts`
+- `src/betterdiscord/modules/editor.ts`
 - `src/betterdiscord/ui/settings.tsx`
 - `src/betterdiscord/ui/customcss/csseditor.tsx`
 - `src/betterdiscord/ui/customcss/editor.tsx`
+- `src/betterdiscord/ui/misc/addoneditor.tsx`
+- `src/editor/script.ts`
 - `src/betterdiscord/styles/builtins/customcss.css`
 
 - [`eb384c7f`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/eb384c7f8e1f9376c630add2708dc01fdc8feade) removed the stale `updateAccount` module dependency.
@@ -294,6 +298,25 @@ Intentional Stage 4 divergence from upstream `44e21745`:
   event propagation, then immediately unpatch. Never leave
   `HTMLElement.prototype.focus` globally replaced between clicks or after an
   editor unmounts.
+- Keep the shared in-client Monaco editor's synchronous
+  `TextAreaWrapper.setSelectionRange` focus shield. It may focus only Monaco's
+  actual textarea while the selection update runs, and its temporary
+  `HTMLElement.prototype.focus` patch must be released in `finally`, including
+  when the selection update throws.
+- Focus each newly opened BetterDiscord Monaco editor exactly once when it first
+  becomes ready. This applies to Custom CSS, plugin, and theme editors in both
+  in-client and external-window forms. Value refreshes, rerenders, blur, and
+  pointer hover must not refocus it; after the initial focus, only normal user
+  interaction may focus the editor again.
+- After opening a detached plugin or theme editor, close Discord's Settings
+  modal through a UI-owned callback to the reviewed compatibility helper,
+  matching detached Custom CSS. Keep the low-level addon manager free of a
+  runtime import back into the Settings UI. Discord's modal focus scope
+  otherwise keeps keyboard focus in Settings and makes the floating Monaco
+  editor non-interactive. External-window and system-editor actions must not
+  close Settings through this path. Do not close an addon's own settings modal
+  or simulate its Done action: the normal modal blocks the pencil route, and
+  persistence belongs to the plugin/theme panel rather than BetterDiscord.
 - An editor may continue saving while the main Custom CSS toggle is off, but
   `DOMManager` must receive an empty stylesheet until that toggle is enabled
   again. This prevents an open editor from silently reactivating disabled CSS.

@@ -148,6 +148,10 @@ amdLoader(["vs/editor/editor.main"], (monaco) => {
         editor.layout();
     }
 
+    // Fork review: match the in-client editor's one-time initial focus without
+    // adding hover or post-blur refocus behavior.
+    let didFocus = false;
+
     function save() {
         window.Editor.write(lastSavedValue = editor.getValue());
         window.Editor.shouldShowWarning(false);
@@ -190,6 +194,10 @@ amdLoader(["vs/editor/editor.main"], (monaco) => {
 
     window.addEventListener("resize", layout);
     layout();
+    if (!didFocus) {
+        didFocus = true;
+        queueMicrotask(() => editor.focus());
+    }
 
     document.getElementById("save")!.addEventListener("click", save);
 

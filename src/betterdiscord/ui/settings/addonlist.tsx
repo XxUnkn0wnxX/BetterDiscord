@@ -110,7 +110,7 @@ function StoreCard() {
     );
 }
 
-export default function AddonList({store}: {store: AddonManager;}) {
+export default function AddonList({store, onDetachedOpen}: {store: AddonManager; onDetachedOpen?: () => void;}) {
     // Settings can remount or retain its title across addon reloads and Store
     // transitions. Control the value and use a mode key so state cannot leak.
     const [query, setQuery] = useState("");
@@ -153,7 +153,9 @@ export default function AddonList({store}: {store: AddonManager;}) {
     }, [store.prefix]);
 
     const search = useCallback((e: ChangeEvent<HTMLInputElement>) => setQuery(e.currentTarget.value), []);
-    const triggerEdit = useCallback((id: string) => store.editAddon?.(id), [store]);
+    const triggerEdit = useCallback((id: string) => {
+        store.editAddon?.(id, undefined, onDetachedOpen);
+    }, [store, onDetachedOpen]);
     const triggerDelete = useCallback(async (id: string) => {
         const addon = addonList.find(a => a.id == id)!;
         const shouldDelete = await confirmDelete(addon);

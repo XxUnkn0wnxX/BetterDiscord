@@ -114,5 +114,6 @@ export default function CssEditor({
             openDetached && {label: <ExternalLinkIcon size="18px" />, tooltip: t("CustomCSS.openDetached"), onClick: popout, side: "right"}
         ].filter(c => c) as Control[]}
         value={css}
+        autoFocus
     />;
 };
