@@ -2,6 +2,65 @@ dist/
 node_modules
 .env
 .idea/
+
+# macOS Finder and archive metadata
+.DS_Store
+.localized
+__MACOSX/
+.AppleDouble
+.LSOverride
+Icon[]
+._*
+
+# macOS volume, indexing, and installer metadata
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.com.apple.timemachine.supported
+.PKInstallSandboxManager
+.PKInstallSandboxManager-SystemSoftware
+.hotfiles.btree
+.vol
+.file
+.disk_label*
+lost+found
+.HFS+ Private Directory Data[]
+.metadata_never_index
+.metadata_never_index_unless_rootfs
+
+# macOS metadata created on network volumes
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Classic Mac OS metadata
+Desktop DB
+Desktop DF
+TheFindByContentFolder
+TheVolumeSettingsFolder
+.FBCIndex
+.FBCSemaphoreFile
+.FBCLockFolder
+
+# macOS quota metadata
+.quota.group
+.quota.user
+.quota.ops.group
+.quota.ops.user
+
+# Time Machine metadata
+Backups.backupdb
+.MobileBackups
+.MobileBackups.trash
+MobileBackups.trash
+tmbootpicker.efi
+
 tmp/
 mergedocs/
 AGENTS.md
