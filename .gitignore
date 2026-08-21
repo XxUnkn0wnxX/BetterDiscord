@@ -1,3 +1,9 @@
+# BetterDiscord fork-local work
+tmp/
+mergedocs/
+AGENTS.md
+.venv/
+
 dist/
 node_modules
 .env
@@ -60,8 +66,3 @@ Backups.backupdb
 .MobileBackups.trash
 MobileBackups.trash
 tmbootpicker.efi
-
-tmp/
-mergedocs/
-AGENTS.md
-.venv/
