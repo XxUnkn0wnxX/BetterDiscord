@@ -87,6 +87,13 @@ interface InstallModalProps {
 
 export default function InstallModal({addon, transitionState, install, onClose}: InstallModalProps) {
     const [shouldEnable, setShouldEnable] = useState(() => Settings.get<boolean>("settings", "store", "alwaysEnable"));
+    const hasClosed = useRef(false);
+
+    const closeOnce = useCallback(() => {
+        if (hasClosed.current) return;
+        hasClosed.current = true;
+        onClose();
+    }, [onClose]);
 
     const openAuthorPage = useCallback(() => addon.openAuthorPage(), [addon]);
     const attemptJoinGuild = useCallback(() => addon.guild?.join(), [addon]);
@@ -96,21 +103,21 @@ export default function InstallModal({addon, transitionState, install, onClose}:
 
     const doInstall = useCallback(() => {
         setInstalling(true);
-        // Fork hotfix: disabled installs emit "read", not "loaded", so close when the install promise settles.
-        // Keep this until upstream no longer makes modal completion depend on addon startup.
-        install(shouldEnable).then(() => onClose(), () => onClose());
-    }, [install, shouldEnable, onClose]);
+        // Fork adaptation: disabled installs emit "read", not "loaded", so this modal owns settlement closure.
+        // Auto-enabled installs can also emit "loaded" first; both paths share the same close-once guard.
+        install(shouldEnable).then(closeOnce, closeOnce);
+    }, [install, shouldEnable, closeOnce]);
 
     useLayoutEffect(() => {
-        if (addon.isInstalled()) return onClose();
+        if (addon.isInstalled()) return closeOnce();
 
         const listener = () => {
-            if (addon.isInstalled()) onClose();
+            if (addon.isInstalled()) closeOnce();
         };
 
         Events.on(`${addon.type}-loaded`, listener);
         return () => void Events.off(`${addon.type}-loaded`, listener);
-    }, [addon, onClose]);
+    }, [addon, closeOnce]);
 
     return (
         <ModalRoot transitionState={transitionState} size={ModalRoot.Sizes.SMALL} className="bd-addon-store-modal">
