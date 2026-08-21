@@ -14,13 +14,18 @@ ancestry through the tree-neutral marker
 [`be292def`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/be292defd8219e48779e2adcc9e1930b294089cd),
 with fork adaptations above it. Stage-specific checks passed for Stages 2–7,
 with Stage 6 verified as source-neutral, and the Stage 8 aggregate fork-only
-source, test, and release-build gate has now passed. Stage 9 user-controlled
-injected runtime acceptance and later promotion to `develop` remain pending.
-This source-treatment record does not assert injected runtime acceptance or
-develop promotion, nor does it by itself assert that the exact upstream DAG is
-already promoted to `develop`; those are verified separately through the
-approved reconciliation procedure. Commit labels are abbreviated for
-readability; every commit link targets its full 40-character SHA.
+source, test, and release-build gate has passed. On 2026-08-21 the user
+explicitly accepted Stage 9 runtime behavior against release build
+[`1ab30540`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/1ab30540f9cce3dab586773c65f188695c30aa3b)
+after incremental Stable testing. A Color reset swatch and the linked-setting
+disable transition during keybind recording could not be exercised because no
+installed plugin exposed those surfaces; they remain accepted live-coverage
+limits rather than observed failures. Promotion to `develop` remains pending.
+This source-treatment record does not assert develop promotion, nor does it by
+itself assert that the exact upstream DAG is already promoted to `develop`;
+those are verified separately through the approved reconciliation procedure.
+Commit labels are abbreviated for readability; every commit link targets its
+full 40-character SHA.
 
 This document tracks the historical integration of upstream
 `upstream-merge-44e21745`, the later upstream range through `8e3078b4`, and the
