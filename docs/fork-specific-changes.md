@@ -5,23 +5,29 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-The latest reviewed upstream boundary is
-[`474dc6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/474dc6e122915a329ccb145eef93600167ec98e3)
-on 2026-08-15, using
-[`8e3078b4`](https://github.com/BetterDiscord/BetterDiscord/commit/8e3078b4e4f3e2fcf5b0b4644bd86c5e15e71333)
-as the range merge base. Source treatment and fork adaptations for that range
-have passed review, automated checks, the release build, and the applicable
-Stable runtime gate. This source-treatment record does not by itself assert
-that the exact upstream DAG is already in `develop` ancestry; that is verified
+The latest reviewed upstream source-treatment boundary is
+[`b2830689`](https://github.com/BetterDiscord/BetterDiscord/commit/b28306898136ee5157f7ecb352d2ae307a646dec)
+on 2026-08-21, using the preceding upstream boundary
+[`49e7f142`](https://github.com/BetterDiscord/BetterDiscord/commit/49e7f14222b8bcc00c144e8d760b6751e3f0ba8d)
+as the range merge base. The current reviewed range is in integration
+ancestry through the tree-neutral marker
+[`be292def`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/be292defd8219e48779e2adcc9e1930b294089cd),
+with fork adaptations above it. Stage-specific checks and runtime gates have
+passed where applicable for Stages 2–5, while Stage 6 was verified as
+source-neutral. The final aggregate Stage 8/9 gates and promotion to `develop`
+remain pending. This source-treatment record does not by itself assert that the
+exact upstream DAG is already promoted to `develop`; that is verified
 separately through the approved tree-neutral reconciliation procedure. Commit
 labels are abbreviated for readability; every commit link targets its full
 40-character SHA.
 
 This document tracks the historical integration of upstream
 `upstream-merge-44e21745`, the later upstream range through `8e3078b4`, and the
-accepted source treatment for `8e3078b4..474dc6e1`. It is a durable record for
-merge behavior and preserved deltas; detailed checkpoint status remains in the
-local ignored merge checklist rather than here.
+accepted source treatment for `8e3078b4..474dc6e1`. The current accepted source
+treatment is the subsequent `49e7f142..b2830689` range; the prior ranges remain
+history rather than being rewritten. It is a durable record for merge behavior
+and preserved deltas; detailed checkpoint status remains in the local ignored
+merge checklist rather than here.
 
 ## Merge policy
 
@@ -57,8 +63,9 @@ local ignored merge checklist rather than here.
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
 | Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
+| Standard plugin setting controls | Upstream [`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054) converts the standard controls to controlled/uncontrolled value semantics. | Fork [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac) preserves provider/context compatibility, disabled semantics, and the Color, Number, Radio, Keybind, and Search contracts while adapting builder snapshots to uncontrolled controls. | Retain plugin-visible controlled/uncontrolled behavior and the internal compatibility adaptations when merging later upstream control changes. |
 | Custom CSS lifecycle, editor focus, and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. The later range through [`474dc6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/474dc6e122915a329ccb145eef93600167ec98e3) repairs its own lifecycle while replacing bounded Monaco focus guards with a renderer-global skip flag and deleting the synchronous selection shield. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. Focus ownership stays inside the shared editor: ready focus is one-shot, Settings-owned detached focus waits for the captured Settings element to disconnect, click suppression remains task-scoped, and the selection shield is retained. Disabled CSS stays inactive, and source editors close only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Do not adopt a renderer-global focus state machine or delete the selection shield without equivalent target scoping, cleanup, and live proof. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
-| Addon Store install completion | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) leaves the install modal waiting only for an addon `loaded` event while blocking close requests after installation begins. A successfully downloaded but disabled addon emits `read`, not `loaded`. | Closes the install modal when its install promise settles, including when **Automatically Enable** is unchecked. | Preserve this completion behavior until upstream provides an equivalent success path; do not make disabled installation depend on addon startup. |
+| Addon Store install completion | Upstream [`81e099a0`](https://github.com/BetterDiscord/BetterDiscord/commit/81e099a03ff39f431b6f09b9874ff5eec5f1542e) makes handled installs settle, while [`75eeeb6a`](https://github.com/BetterDiscord/BetterDiscord/commit/75eeeb6a8d3f828ca8a902fe426576aca79a7ffe) gives `Addon.download()` modal-close ownership. | Fork [`59b17cb4`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/59b17cb4fef2d4cd2d26766f91362814b814c213) keeps `InstallModal` as the sole post-install close owner with an idempotent per-instance guard across loaded-event and settlement races. Ordinary pre-install cancel requests remain owned by `Addon.download()`. | Preserve the fork's settlement and close-once ownership; do not claim direct adoption of [`75eeeb6a`](https://github.com/BetterDiscord/BetterDiscord/commit/75eeeb6a8d3f828ca8a902fe426576aca79a7ffe). |
 | System-editor launch failure | In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the separate editor closes for every resolved `openPath()` result, while Custom CSS closes its source editor immediately after asynchronous `openExternal()`. | Uses `openPath()` in both paths and closes the BetterDiscord source editor only for its empty success string. A failed launch leaves the source editor open. | Preserve the result checks and source comments until upstream provides equivalent failure handling. |
 | Native fetch transport | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) moves `BdApi.Net.fetch` into a shared internal module, raises the default timeout to eight seconds, and supports `timeout: null`. | Takes that transport atomically, resolves relative redirects correctly, and adds updater-only HTTPS/credential, redirect-query, and response-size guards through opt-in request fields. Normal `BdApi.Net.fetch` calls keep their upstream behavior. | Preserve the relative-redirect correction and opt-in updater safety fields until upstream provides equivalent handling. Do not make the updater's restrictions global without a separate review. |
 | Shared Addon Store catalogue | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) lets the Store and addon updater share a native-fetch catalogue, but its initiating caller does not await the request and offline, timeout, cache, retry, and disable/re-enable paths can hang or race. | Keeps one returned in-flight promise, a 30-second inactivity timeout, cancellation and stale-result guards, replacement cache fallback, fixed retry delays, response validation, and lifecycle logging. | Preserve the narrow request-state corrections until upstream provides equivalent settlement, cancellation, cache, and recovery handling. Keep Stage 1 install completion intact. |
@@ -269,6 +276,40 @@ and remove it when it is no longer needed.
 The Stage 2 integration and dependency correction are recorded in
 [`48a9fb48`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/48a9fb48864cf1a371548960638431417eaf6507).
 
+### Standard settings controls
+
+Upstream
+[`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054)
+converts the standard setting controls to React-correct controlled and
+uncontrolled behavior. The fork adaptation is recorded in
+[`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac).
+
+- A controlled `value` follows the caller on rerender. An uncontrolled
+  `defaultValue` supplies the initial value and then owns local input state.
+  The BdApi builder maps a setting snapshot's `value` to `defaultValue` without
+  mutating the caller's setting object or array.
+- A real Settings provider/store takes precedence over component props. The
+  effective disabled state is the provider-disabled state OR the local
+  disabled prop, and either state blocks callbacks and input changes. Keep the
+  explicit `<SettingsContext.Provider>`; do not replace it with the React 19
+  provider shorthand.
+- Number controls reject empty, invalid, and non-finite input without emitting
+  `NaN`, and their decrement/increment buttons honor `min` and `max`.
+- Color controls use an explicit `defaultColor` as the reset target, including
+  numeric `0`. The legacy controlled `{value, defaultValue}` form still maps
+  `defaultValue` to that reset target, while an uncontrolled `defaultValue` is
+  initial state only.
+- Radio controls retain the deprecated `desc` fallback. Disabling Keybind
+  during a recording cancels its partial capture; re-enabling it never resumes
+  the cancelled sequence.
+- Search emits scalar callbacks and keeps controlled query state in the owning
+  page. Disabled Search blocks input, clearing, callbacks, and focus. Installed
+  and Store pages retain their separate search modes and keys.
+
+Preserve these plugin-visible controlled/uncontrolled contracts and the
+provider/context, disabled-state, and legacy compatibility adaptations when
+merging future standard-control changes.
+
 ### Custom CSS
 
 Primary files:
@@ -383,16 +424,25 @@ upstream implementation rather than preserving divergence for its own sake.
 
 ### Addon Store install completion
 
-Primary file: `src/betterdiscord/ui/modals/installmodal.tsx`.
+Primary files:
+
+- `src/betterdiscord/ui/modals/installmodal.tsx`
+- `src/betterdiscord/modules/addonstore.ts`
 
 - A successful download must close the installation modal whether the addon is
   enabled immediately or installed disabled.
-- Failure must also release the modal instead of leaving its spinner and close
-  guard active indefinitely.
-- This hotfix was found during the
+- `Addon.download()` resolves after a handled success or failure settlement,
+  including disabled installs, instead of waiting for an addon startup event.
+  `InstallModal` remains the sole post-install close owner and uses an
+  idempotent per-instance `closeOnce` guard so loaded-event and
+  promise-settlement races cannot close it twice. `Addon.download()` still owns
+  an ordinary user-request close before installation starts.
+- This settlement correction was found during the
   [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829)
-  Stage 1 runtime pass and is recorded in
-  [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
+  Stage 1 runtime pass. Upstream's handled-settlement change is
+  [`81e099a0`](https://github.com/BetterDiscord/BetterDiscord/commit/81e099a03ff39f431b6f09b9874ff5eec5f1542e),
+  and the fork's close-once adaptation is recorded in
+  [`59b17cb4`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/59b17cb4fef2d4cd2d26766f91362814b814c213).
 
 ### System-editor launch failure
 
@@ -515,8 +565,8 @@ use the full regex match length when excluding links inside codeblocks, and
 cache the resolved link-opener module/key pair rather than its exhausted
 generator. The direct protocol-array lookup still comes from `44e21745`.
 
-Stage 1's install-modal promise completion and the unchanged `Addon.download()`
-path remain responsible for closing successful downloads when **Automatically
+The install-modal settlement contract and the settled `Addon.download()` path
+remain responsible for closing successful downloads when **Automatically
 Enable** is either on or off.
 
 The Store subview also keeps a narrow navigation convenience in
@@ -749,6 +799,12 @@ work:
 - [`8760e8d7`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/8760e8d73b89d0dd64f03419cab7ad31ce77f98b) and [`939b755f`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/939b755fb6b281dd651e9f792329e8c1988e30ba): wrapped message exports and restricted React-tree walking.
 - [`9dae9f4b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9dae9f4bd7f4879f88f698377395dfd299185026): removal of the stale `DiscordMarkdown` lookup.
 - [`d81d4114`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/d81d41146d83d5b31231d1b0aaee81e58c161c36): fork build metadata in copied debug information.
+- [`a010a476`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/a010a4760267383cbea3fa7bc31a16fb92a75664): use the direct callable
+  `Filters.byStrings` declaration lookup for the ThemeAttributes message hook
+  and null-safe message-tree traversal. If the expected shape is absent, the
+  hook safely becomes a no-op.
+- [`d265a8fa`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/d265a8fa1bf6fcb4b620e785390eee61418157a4): copied addon debug rows include
+  each addon's version and append `(Enabled)` only when that addon is enabled.
 
 Stage 5 adopts upstream
 [`8e3078b4`](https://github.com/BetterDiscord/BetterDiscord/commit/8e3078b4e4f3e2fcf5b0b4644bd86c5e15e71333)
@@ -814,13 +870,22 @@ expected argument. The original test compatibility work is recorded in
 
 - Injection/OpenAsar: run injection, resource-discovery, recovery, and handoff tests; then ask before live injection changes.
 - Plugin loading: verify disabled plugins stay inert, enablement runs `load()` once, and no library filename bypass exists.
-- Settings: verify placement, search/navigation, the version row, debug-copy, and tooltip behavior.
+- Settings: verify placement, search/navigation, the version row, debug-copy,
+  and tooltip behavior. Exercise controlled rerenders versus uncontrolled
+  `defaultValue` state, then disable and re-enable Number, Color, and Keybind
+  controls to confirm invalid input, reset, partial-capture, and callback
+  behavior remain correct.
 - `BdApi.Utils.loadEntry`: compare the public result/call/error behavior with
   upstream and run the cache suite through both the native helper and legacy
   fallback paths. Spot-check an injected pinned client when runtime exports are
   relevant.
-- `BdApi.UI` dependencies: verify top-level and nested-category `enableWith` and
-  `disableWith` states update immediately and each plugin callback runs once.
+- `BdApi.UI` dependencies and controls: verify top-level and nested-category
+  `enableWith` and `disableWith` states update immediately, provider/local
+  disabled precedence blocks callbacks, controlled/uncontrolled state remains
+  correct, and each plugin callback runs once.
+- ThemeAttributes: verify the direct `Filters.byStrings` declaration lookup
+  and the null-safe message-tree path, including a safe no-op when the expected
+  declaration or tree shape is absent.
 - Custom CSS/editor focus: verify enabled/disabled startup, disable/re-enable,
   all open actions, file watching, saving, and detached close behavior. Exercise
   first open and close/reopen for Settings, external, detached Custom CSS,
@@ -828,7 +893,10 @@ expected argument. The original test compatibility work is recorded in
   find (`Cmd+F`) still work; confirm blur/rerender/hover does not refocus; and
   confirm closing during asynchronous editor initialization leaves no delayed
   focus, observer, frame, or fallback textarea.
-- Addon Store install completion: verify successful downloads close the modal with automatic enable both off and on, and leave the requested enabled state intact.
+- Addon Store install completion: verify successful downloads with automatic
+  enable both off and on settle and close exactly once while leaving the
+  requested enabled state intact; verify handled failures also settle and close
+  exactly once without an unhandled rejection.
 - System editor: verify a successful `openPath()` closes the BetterDiscord
   editor and a failed launch leaves it open.
 - Updater: verify no BetterDiscord core request occurs at startup, on the scheduler, or from the explicit Updates-panel refresh; plugin/theme automatic/manual checks must still work with the Addon Store UI both enabled and disabled.
