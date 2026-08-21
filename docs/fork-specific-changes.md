@@ -12,14 +12,15 @@ on 2026-08-21, using the preceding upstream boundary
 as the range merge base. The current reviewed range is in integration
 ancestry through the tree-neutral marker
 [`be292def`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/be292defd8219e48779e2adcc9e1930b294089cd),
-with fork adaptations above it. Stage-specific checks and runtime gates have
-passed where applicable for Stages 2–5, while Stage 6 was verified as
-source-neutral. The final aggregate Stage 8/9 gates and promotion to `develop`
-remain pending. This source-treatment record does not by itself assert that the
-exact upstream DAG is already promoted to `develop`; that is verified
-separately through the approved tree-neutral reconciliation procedure. Commit
-labels are abbreviated for readability; every commit link targets its full
-40-character SHA.
+with fork adaptations above it. Stage-specific checks passed for Stages 2–7,
+with Stage 6 verified as source-neutral, and the Stage 8 aggregate fork-only
+source, test, and release-build gate has now passed. Stage 9 user-controlled
+injected runtime acceptance and later promotion to `develop` remain pending.
+This source-treatment record does not assert injected runtime acceptance or
+develop promotion, nor does it by itself assert that the exact upstream DAG is
+already promoted to `develop`; those are verified separately through the
+approved reconciliation procedure. Commit labels are abbreviated for
+readability; every commit link targets its full 40-character SHA.
 
 This document tracks the historical integration of upstream
 `upstream-merge-44e21745`, the later upstream range through `8e3078b4`, and the
@@ -74,7 +75,7 @@ merge checklist rather than here.
 | Discord/Webpack compatibility | Upstream follows its current module discovery paths. | Keeps guards for throwing exports/getters, early bundle parsing, wrapped message exports, safer React-tree walking, and removal of stale module lookups. | Preserve a guard only while the current upstream implementation does not provide equivalent protection. Review same-file overlaps instead of replacing blindly. |
 | Older macOS and pinned Discord runtimes | Upstream targets its current supported runtime and may use newly shipped Web/Electron APIs directly. Upstream `8e3078b4` adds `BdApi.Utils.loadEntry` and uses `Map.prototype.getOrInsertComputed` for its private content cache. | Keeps the exact upstream `loadEntry` plugin contract and algorithm, but selects the native Map helper by capability and otherwise uses equivalent private insert-if-absent cache plumbing. The currently audited legacy band is Discord Stable `0.0.350`-`0.0.402` on Electron 35/37, with macOS Big Sur as an active target. | Preserve upstream inputs, parsing, calls, ordering, returns, logging, rejection boundaries, and cache lifetime. Keep compatibility internal and capability-based; do not globally patch `Map.prototype`, version-gate Electron, or expose a fork-only alternate API. |
 | Workflows, docs, and local wrappers | Upstream uses its own branches, release flow, badges, and documentation. | Uses fork `develop`, fork CI/release behavior, fork badges/docs, and `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`. | Keep these fork-owned unless the user explicitly requests a workflow, documentation, or wrapper update. |
-| Local Bun test compatibility | Newer Bun can execute all native Intl assertions. | Bun 1.1.20 on macOS 11 uses a test-only PluralRules shim and skips only the native NumberFormat/currency assertions that abort that binary. | Keep the condition exact to Bun 1.1.20/Darwin 20 so newer Bun always runs the native tests. |
+| Local Bun test compatibility | Newer Bun can execute all native Intl assertions. | Bun 1.1.20 on macOS 11 uses a test-only PluralRules shim and skips only the native NumberFormat/currency assertions that abort that binary. Its module mocks are process-global across files, so shared alias mocks must expose compatible export shapes or use subprocess isolation. | Keep the condition exact to Bun 1.1.20/Darwin 20 so newer Bun always runs the native tests. Keep shared mock-alias export sets compatible or isolate the stateful module test in a subprocess. |
 
 ## Source and commit map
 
@@ -865,6 +866,12 @@ Repository-identity tests keep canonical expected values explicit so the
 lockfile's TypeScript 5.7.3 and Bun matcher types do not infer an optional
 expected argument. The original test compatibility work is recorded in
 [`26d9406e`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/26d9406e5dbd3955dacf7b779467a5e5e947fcd1).
+Because Bun 1.1.20 module mocks are process-global across files,
+`tests/betterdiscord/utils/debug.test.ts` and
+`tests/betterdiscord/modules/patcher.test.ts` both expose `webpackRequire` and
+`getByKeys` from their `@webpack` mock so full-suite ordering cannot remove a
+required named export. This concrete adaptation is recorded in
+[`6154a7eb`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/6154a7eb1385b3313f5c339ff78b91875d69c1f6).
 
 ## Required checks after an overlapping upstream change
 
