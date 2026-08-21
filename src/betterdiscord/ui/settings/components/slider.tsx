@@ -1,45 +1,34 @@
-import React, {type ChangeEvent, type MouseEvent} from "react";
-import {none, SettingsContext} from "@ui/contexts";
-
-const {useState, useCallback, useMemo, useRef, useContext} = React;
-
+import React, {useCallback, useMemo, useRef, type MouseEvent} from "react";
+import {useItemProps, type BaseSettingProps} from "./utils";
 
 export interface SliderMarker {
     value: number;
     label: string;
 }
 
-export interface SliderProps {
-    value: number | string;
+interface BaseSliderProps {
     min: number;
     max: number;
     step?: number;
-    onChange?(newValue: number | string): void;
-    disabled?: boolean;
     units?: string;
     markers?: Array<number | SliderMarker>;
 }
 
-export default function Slider(props: SliderProps) {
-    const {value: initialValue, min, max, step, onChange, disabled, units = "", markers = []} = props;
-    const [internalValue, setValue] = useState(initialValue);
-    const {value: contextValue, disabled: contextDisabled} = useContext(SettingsContext);
+export type SliderProps = BaseSliderProps & BaseSettingProps<number>;
 
-    const value = (contextValue !== none ? contextValue : internalValue) as number;
-    const isDisabled = contextValue !== none ? contextDisabled : disabled;
+export default function Slider(props: SliderProps) {
+    const {min, max, step, units = "", markers = []} = props;
+    const {state, setState, disabled} = useItemProps<number>(props);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const change = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        if (isDisabled) return;
-        onChange?.(e.target.value);
-        setValue(e.target.value);
-    }, [onChange, isDisabled]);
+    const setFiniteValue = useCallback((newValue: number) => {
+        if (disabled || !Number.isFinite(newValue)) return;
+        setState(newValue);
+    }, [disabled, setState]);
 
-    const jumpToValue = useCallback((val: number | string) => {
-        if (isDisabled) return;
-        onChange?.(val);
-        setValue(val);
-    }, [onChange, isDisabled]);
+    const change = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        setFiniteValue(event.currentTarget.valueAsNumber);
+    }, [setFiniteValue]);
 
     const percent = useCallback((val: number) => {
         return (val - min) * 100 / (max - min);
@@ -47,31 +36,35 @@ export default function Slider(props: SliderProps) {
 
     const labelOffset = useMemo(() => {
         const slope = (-62.5 - -25) / (max - min);
-        const offset = (value * slope) + -25;
+        const offset = (state * slope) + -25;
         if (offset < -62.5) return -62.5;
         return offset;
-    }, [value, min, max]);
+    }, [state, min, max]);
 
     const trackClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+        if (disabled) return;
+
         const bounds = e.currentTarget.getBoundingClientRect();
         const offsetX = e.clientX - bounds.left;
         const offsetPercent = (offsetX / bounds.width);
         const newValue = (offsetPercent * (max - min)) + min;
-        inputRef.current!.value = newValue.toString();
-        jumpToValue(inputRef.current!.value);
+        if (!Number.isFinite(newValue) || !inputRef.current) return;
 
-    }, [max, min, jumpToValue, inputRef]);
+        inputRef.current.value = newValue.toString();
+        setFiniteValue(inputRef.current.valueAsNumber);
 
-    return <div className={`bd-slider-wrap ${isDisabled ? "bd-slider-disabled" : ""} ${markers.length > 0 ? "bd-slider-markers" : ""}`}>
-        <input onChange={change} type="range" className="bd-slider-input" min={min} max={max} step={step} value={value} disabled={disabled} ref={inputRef} />
-        <div className="bd-slider-label" style={{left: `${percent(value)}%`, transform: `translateX(${labelOffset}%)`}}>{value}{units}</div>
-        <div className="bd-slider-track" style={{backgroundSize: percent(value) + "% 100%"}} onClick={trackClick}></div>
+    }, [disabled, max, min, setFiniteValue]);
+
+    return <div className={`bd-slider-wrap ${disabled ? "bd-slider-disabled" : ""} ${markers.length > 0 ? "bd-slider-markers" : ""}`}>
+        <input onChange={change} type="range" className="bd-slider-input" min={min} max={max} step={step} value={state} disabled={disabled} ref={inputRef} />
+        <div className="bd-slider-label" style={{left: `${percent(state)}%`, transform: `translateX(${labelOffset}%)`}}>{state}{units}</div>
+        <div className="bd-slider-track" style={{backgroundSize: percent(state) + "% 100%"}} onClick={trackClick}></div>
         {markers?.length > 0 && <div className="bd-slider-marker-container">
             {markers.map(m => {
                 const markerValue = typeof m === "number" ? m : m.value;
                 const markerLabel = typeof m === "number" ? m : m?.label;
                 const showUnits = units && typeof m === "number";
-                return <div className="bd-slider-marker" style={{left: percent(markerValue) + "%"}} onClick={() => jumpToValue(markerValue)}>
+                return <div key={`${markerValue}-${markerLabel}`} className="bd-slider-marker" style={{left: percent(markerValue) + "%"}} onClick={() => setFiniteValue(markerValue)}>
                     {markerLabel}{showUnits && units}
                 </div>;
             })}

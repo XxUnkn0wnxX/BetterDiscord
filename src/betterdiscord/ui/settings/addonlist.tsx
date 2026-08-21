@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo, type ChangeEvent, type MouseEvent, type ReactNode} from "react";
+import React, {useState, useCallback, useMemo, type MouseEvent, type ReactNode} from "react";
 import {t} from "@common/i18n";
 import DiscordModules from "@modules/discordmodules";
 import ipc from "@modules/ipc";
@@ -152,7 +152,7 @@ export default function AddonList({store, onDetachedOpen}: {store: AddonManager;
         setSort(value);
     }, [store.prefix]);
 
-    const search = useCallback((e: ChangeEvent<HTMLInputElement>) => setQuery(e.currentTarget.value), []);
+    const search = useCallback((value: string) => setQuery(value), []);
     const triggerEdit = useCallback((id: string) => {
         store.editAddon?.(id, undefined, onDetachedOpen);
     }, [store, onDetachedOpen]);

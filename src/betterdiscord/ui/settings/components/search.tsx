@@ -1,46 +1,56 @@
-import React, {type ChangeEvent, type KeyboardEvent} from "react";
+import React, {useCallback, useEffect, useRef, type KeyboardEvent} from "react";
 import Button from "@ui/base/button";
 import {SearchIcon, XIcon} from "lucide-react";
+import clsx from "clsx";
+import {useItemProps, type BaseSettingProps} from "./utils";
 
-const {useState, useEffect, useCallback, useRef} = React;
-
-
-export interface SearchProps {
-    onChange?(event: ChangeEvent<HTMLInputElement>): void;
+interface BaseSearchProps {
     className?: string;
     placeholder?: string;
-    value?: string;
+    max?: number;
     onKeyDown?(event: KeyboardEvent<HTMLInputElement>): void;
 }
 
+type SearchStateProps = BaseSettingProps<string> | {
+    value?: never;
+    defaultValue?: never;
+    onChange?(value: string): void;
+    disabled?: boolean;
+};
+
+export type SearchProps = BaseSearchProps & SearchStateProps;
+
 export default function Search(props: SearchProps) {
-    const {onChange, className, onKeyDown, placeholder, value: controlledValue} = props;
+    const {className, onKeyDown, placeholder, max = 50} = props;
+    const itemProps: BaseSearchProps & BaseSettingProps<string> = "value" in props || "defaultValue" in props
+            ? props as BaseSearchProps & BaseSettingProps<string>
+            : {...props, defaultValue: ""};
+    const {state, setState, disabled} = useItemProps<string, string | React.ChangeEvent<HTMLInputElement>>(itemProps, (value) => {
+        if (typeof value === "object") return value.currentTarget.value;
+        return value;
+    });
+
     const input = useRef<HTMLInputElement>(null);
-    const [internalValue, setInternalValue] = useState("");
-    const isControlled = controlledValue !== undefined;
-    const value = controlledValue ?? internalValue;
-
-    // focus search bar on page select
-    useEffect(() => {
-        if (!input.current) return;
-        input.current.focus();
-    }, []);
-
-    const change = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        onChange?.(e);
-        if (!isControlled) setInternalValue(e.target.value);
-    }, [isControlled, onChange]);
 
     const reset = useCallback(() => {
-        if (!isControlled) setInternalValue("");
-        onChange?.({target: {value: ""}, currentTarget: {value: ""}} as ChangeEvent<HTMLInputElement>);
-        input.current?.focus();
-    }, [isControlled, onChange]);
+        if (disabled) return;
 
-    return <div className={"bd-search-wrapper" + (className ? ` ${className}` : "")}>
-        <input onChange={change} onKeyDown={onKeyDown} type="text" className="bd-search" placeholder={placeholder} maxLength={50} value={value} ref={input} />
-        {!value && <SearchIcon size="18px" />}
-        {value && <Button look={Button.Looks.BLANK} color={Button.Colors.TRANSPARENT} size={Button.Sizes.NONE} onClick={reset}><XIcon size="16px" /></Button>}
+        setState("");
+        input.current?.focus();
+    }, [disabled, setState]);
+
+    useEffect(() => {
+        if (!disabled) input.current?.focus();
+    }, [disabled]);
+
+    return <div className={clsx("bd-search-wrapper", disabled && "bd-search-disabled", className)}>
+        <input autoFocus={!disabled} disabled={disabled} onChange={setState} onKeyDown={onKeyDown} type="text" className="bd-search" placeholder={placeholder} maxLength={max} value={state} ref={input} />
+        {!state && <SearchIcon size="18px" />}
+        {state && (
+            <Button look={Button.Looks.BLANK} color={Button.Colors.TRANSPARENT} size={Button.Sizes.NONE} onClick={reset}>
+                <XIcon size="16px" />
+            </Button>
+        )}
     </div>;
 
 }

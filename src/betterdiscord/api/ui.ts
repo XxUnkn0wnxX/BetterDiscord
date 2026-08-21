@@ -71,10 +71,11 @@ function SettingsBuilderUI({settings, onChange, onDrawerToggle, getDrawerState}:
                     if (x.enableWith) disabled = !subgroup[x.enableWith];
                     if (x.disableWith) disabled = !!subgroup[x.disableWith];
 
-                    if (x.type !== "switch") return {...x, disabled};
+                    const normalized = normalizeBuilderSetting({...x, disabled});
+                    if (x.type !== "switch") return normalized;
 
                     return {
-                        ...x,
+                        ...normalized,
                         onChange(value: any) {
                             setSwitchStates(v => ({
                                 ...v,
@@ -100,10 +101,11 @@ function SettingsBuilderUI({settings, onChange, onDrawerToggle, getDrawerState}:
         if (setting.enableWith) disabled = !switchStates[setting.enableWith];
         if (setting.disableWith) disabled = !!switchStates[setting.disableWith];
 
-        if (setting.type !== "switch") return buildSetting({...setting, disabled});
+        const normalized = normalizeBuilderSetting({...setting, disabled});
+        if (setting.type !== "switch") return buildSetting(normalized);
 
         return buildSetting({
-            ...setting,
+            ...normalized,
             disabled,
             onChange: (value: any) => {
                 setSwitchStates(v => ({...v, [setting.id]: value}));
@@ -113,6 +115,31 @@ function SettingsBuilderUI({settings, onChange, onDrawerToggle, getDrawerState}:
             }
         });
     }));
+}
+
+/**
+ * Builder settings are snapshots rather than controlled component props. Keep
+ * the caller's object untouched while adapting the snapshot to the setting
+ * components' uncontrolled contract.
+ */
+function normalizeBuilderSetting(setting: Setting | CustomSetting | ButtonSetting): any {
+    if (!Object.hasOwn(setting, "value")) return {...setting};
+
+    const {value, ...rest} = setting as typeof setting & {value?: unknown};
+    if (setting.type !== "color") return {...rest, defaultValue: value};
+
+    const {defaultValue: legacyDefault, defaultColor, ...colorProps} = rest as typeof rest & {
+        defaultValue?: unknown;
+        defaultColor?: unknown;
+    };
+
+    return {
+        ...colorProps,
+        defaultValue: value,
+        ...(defaultColor !== undefined
+            ? {defaultColor}
+            : legacyDefault !== undefined ? {defaultColor: legacyDefault} : {})
+    };
 }
 
 /**
@@ -247,7 +274,7 @@ class UI {
      * @returns A SettingItem with a an input as the child
      */
     buildSettingItem(setting: Setting | CustomSetting | ButtonSetting) {
-        return buildSetting(setting);
+        return buildSetting(normalizeBuilderSetting(setting));
     }
 
     /**

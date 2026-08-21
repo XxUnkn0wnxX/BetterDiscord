@@ -32,9 +32,7 @@ export const FlexWrap = Object.freeze({
 
 
 export function FlexChild(props: {className?: string;[x: string]: any;}) {
-    if (!props.className) props.className = "";
-    props.className = clsx(props.className, "bd-flex-child");
-    return <Flex {...props} />;
+    return <Flex {...props} className={clsx(props.className, "bd-flex-child")} />;
 }
 
 interface FlexProps {

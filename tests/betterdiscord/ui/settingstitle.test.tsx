@@ -49,9 +49,9 @@ function RetainedHeaderOwner({initialQuery, store, onQuery}: {initialQuery: stri
     const [query, setQuery] = useState(initialQuery);
     const title = (
         <SettingsTitle text={<span>{query ? "Plugins - 2 Results" : "Plugins"}</span>}>
-            <Search value={query} onChange={(event) => {
-                onQuery?.(event.target.value);
-                setQuery(event.target.value);
+            <Search value={query} onChange={(value) => {
+                onQuery?.(value);
+                setQuery(value);
             }} />
         </SettingsTitle>
     );

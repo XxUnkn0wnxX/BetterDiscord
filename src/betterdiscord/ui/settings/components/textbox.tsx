@@ -1,31 +1,29 @@
 import React, {type ChangeEvent, type KeyboardEvent} from "react";
-import {none, SettingsContext} from "@ui/contexts";
-
-const {useState, useCallback, useContext} = React;
+import {useItemProps, type BaseSettingProps} from "./utils";
 
 
-export interface TextboxProps {
-    value: string;
+interface BaseTextboxProps {
     maxLength?: number;
     placeholder?: string;
     onKeyDown?(event: KeyboardEvent<HTMLInputElement>): void;
-    onChange?(newValue: string): void;
-    disabled?: boolean;
 }
 
+export type TextboxProps = BaseTextboxProps & BaseSettingProps<string>;
+
 export default function Textbox(props: TextboxProps) {
-    const {value: initialValue, maxLength, placeholder, onKeyDown, onChange, disabled} = props;
-    const [internalValue, setValue] = useState(initialValue);
-    const {value: contextValue, disabled: contextDisabled} = useContext(SettingsContext);
+    const {maxLength, placeholder, onKeyDown} = props;
+    const {state, setState, disabled} = useItemProps<string, ChangeEvent<HTMLInputElement>>(props, e => e.currentTarget.value);
 
-    const value = (contextValue !== none ? contextValue : internalValue) as string;
-    const isDisabled = contextValue !== none ? contextDisabled : disabled;
-
-    const change = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        if (isDisabled) return;
-        onChange?.(e.currentTarget.value);
-        setValue(e.currentTarget.value);
-    }, [onChange, isDisabled]);
-
-    return <input onChange={change} onKeyDown={onKeyDown} type="text" className="bd-text-input" placeholder={placeholder} maxLength={maxLength} value={value} disabled={isDisabled} />;
+    return (
+        <input
+            onChange={setState}
+            onKeyDown={onKeyDown}
+            type="text"
+            className="bd-text-input"
+            placeholder={placeholder}
+            maxLength={maxLength}
+            value={state}
+            disabled={disabled}
+        />
+    );
 }

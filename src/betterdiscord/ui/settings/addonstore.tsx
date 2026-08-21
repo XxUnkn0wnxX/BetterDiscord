@@ -162,8 +162,8 @@ export default function AddonStorePage({type}: AddonStorePageProps) {
     // controlled; the Store-only key below guarantees a fresh search per entry.
     const [query, setQuery] = useState("");
 
-    const search = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-        setQuery(event.target.value);
+    const search = useCallback((value: string) => {
+        setQuery(value);
         setPage(0);
     }, []);
 

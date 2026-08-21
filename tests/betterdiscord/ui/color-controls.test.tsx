@@ -1,0 +1,21 @@
+import {describe, expect, test} from "bun:test";
+import path from "node:path";
+
+
+const cwd = path.join(import.meta.dir, "../../..");
+
+describe("Color setting control", () => {
+    test("passes the isolated Color control harness", () => {
+        const harness = path.join(import.meta.dir, "color-controls-harness.tsx");
+        const result = Bun.spawnSync({
+            cmd: [process.execPath, "test", harness],
+            cwd,
+            stdout: "pipe",
+            stderr: "pipe"
+        });
+
+        const stdout = new TextDecoder().decode(result.stdout).trim();
+        const stderr = new TextDecoder().decode(result.stderr).trim();
+        expect(result.exitCode, [stdout, stderr].filter(Boolean).join("\n")).toBe(0);
+    });
+});
