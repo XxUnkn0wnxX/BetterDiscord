@@ -9,7 +9,7 @@ mock.module("@stores/config", () => ({
 mock.module("@modules/discordmodules", () => ({"default": {}}));
 mock.module("@modules/pluginmanager", () => ({"default": {}}));
 mock.module("@modules/thememanager", () => ({"default": {}}));
-mock.module("@webpack", () => ({webpackRequire: {m: {}}}));
+mock.module("@webpack", () => ({webpackRequire: {m: {}}, getByKeys: () => null}));
 
 const {getAddonList, getCoreInfo} = await import("@utils/debug");
 type AddonManagerLike = Parameters<typeof getAddonList>[0];

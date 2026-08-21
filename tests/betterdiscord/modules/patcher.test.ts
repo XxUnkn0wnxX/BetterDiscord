@@ -9,9 +9,7 @@ let patcher: PatcherModule | null = null;
 
 const modulePath = (filename: string) => import.meta.resolve(`../../../src/betterdiscord/modules/${filename}`);
 
-mock.module("@webpack", () => ({
-    getByKeys: () => null
-}));
+mock.module("@webpack", () => ({webpackRequire: {m: {}}, getByKeys: () => null}));
 mock.module(modulePath("discordmodules.ts"), () => ({"default": {}}));
 mock.module(modulePath("discordmodules"), () => ({"default": {}}));
 mock.module("../../../src/betterdiscord/modules/discordmodules", () => ({"default": {}}));
