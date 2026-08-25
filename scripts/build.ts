@@ -100,7 +100,8 @@ function buildOptions() {
         loader: {
             ".js": "jsx",
             ".css": "css",
-            ".html": "copy"
+            ".html": "copy",
+            ".svg": "text"
         },
         plugins: [styleLoader() as unknown as esbuild.Plugin],
         logLevel: "info",
