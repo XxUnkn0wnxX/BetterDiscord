@@ -16,6 +16,10 @@
     white-space: nowrap;
 }
 
+.bd-addon-store-modal {
+    overflow: hidden;
+}
+
 .bd-install-modal-guild img {
     width: var(--guild-size);
     height: var(--guild-size);
@@ -107,6 +111,11 @@
     height: 100%;
     object-fit: cover;
     border-radius: 3px 3px 0 0;
+}
+
+.bd-install-modal-preview-img[src^="blob:"] {
+    transform: scale(1.01);
+    transform-origin: center;
 }
 
 .bd-install-modal-author {

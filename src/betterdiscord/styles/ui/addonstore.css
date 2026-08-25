@@ -126,6 +126,11 @@
   object-fit: cover;
 }
 
+.bd-addon-store-card-preview-img[src^="blob:"] {
+    transform: scale(1.01);
+    transform-origin: center;
+}
+
 .bd-addon-store-card-body {
   flex: 1 1 auto;
   position: relative;
