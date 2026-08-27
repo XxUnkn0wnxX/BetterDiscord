@@ -4,8 +4,8 @@ This changelog starts with the restructured 1.0.0 release that happened after co
 
 ## Fork ([2feefd75](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2feefd75da22339ef676bb5ebe16d912d74c72dc))
 
-This fork still reports BetterDiscord `1.13.14`; this entry does not increment
-the upstream version number.
+This fork now reports BetterDiscord `1.14.0` after integrating the upstream
+release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
 
@@ -18,7 +18,34 @@ the upstream version number.
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
 
-1.13.14
+### 1.14.0
+
+### Added
+- BetterDiscord now has official types [@betterdiscord/types](https://www.npmjs.com/package/@betterdiscord/types)
+- `BdApi.UI.openFloatingWindow` to open a floating window like the addon editor
+- `BdApi.Utils.loadEntry` to load lazy Discord chunks and modules
+- `BdApi.Webpack.getProxy` / `BdApi.Webpack.getMangledProxy` for a delayed getModule / getMangled
+- `BdApi.Utils.cache` / `BdApi.Utils.cache.proxy` for caching
+- sha256 checksums file on release
+
+### Removed
+
+### Changed
+- Switched to app.asar injection style
+- The Custom CSS editor now fills the settings page
+- The floating and popout editors have received additional features
+- The addon store and addon updater now share the same backend
+- Changed accent color to change color without needing to reload and add Linux support
+- Addons do not run when disabled
+
+### Fixed
+- Discord Activities are fixed
+- BetterDiscord's location in settings is now fixed
+- Made the Patcher not rerun the original function for each `instead` patch
+- Fixed theme attributes
+
+### 1.13.14
+
 ### Improvements
 - Improved start up times
 
@@ -32,16 +59,19 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 ### Added
 - Added declarationFilter to waitForModule / getLazy
 
-1.13.13
+### 1.13.13
+
 ### Added
 - New system for exposing top-level module declarations
 - New `@runAt` meta tag to work around issues caused by lazy loading
 
-1.13.12
+### 1.13.12
+
 ### Fixed
 - BetterDiscord now loads
 
-1.13.11
+### 1.13.11
+
 ### Improvements
 - Dropdowns now close after selecting an option
 - Dropdowns do not display the scrollbar when its not needed
@@ -50,11 +80,13 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 ### Fixed
 - Fix for lazy listeners firing before class modules get interpolated
 
-1.13.10
+### 1.13.10
+
 ### Fixed
 - Fixed crashing when trying to view BetterDiscord's custom setting tabs
 
-1.13.9
+### 1.13.9
+
 ### Fixed
 - Fixes BD's items in the settings cog context-menu
 - The changelog button was at the bottom of the bd section
@@ -62,7 +94,8 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 - Fixes Net.fetch from removing forbidden headers like User-Agent because of `new Request
 - Possible fix for addon store indefinitely loading - please report if you still have this issue
 
-1.13.8
+### 1.13.8
+
 ### Fixed
 - BetterDiscord now loads on macOS and Linux.
 
@@ -71,7 +104,8 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 - Added a bunch of new theme attributes to messages.
 - Added an utility for developers to easily patch react elements.
 
-1.13.7
+### 1.13.7
+
 ### Added
 - New Webpack cache system for faster loading times; you will see much faster loading times after the first launch with this update.
 
@@ -84,7 +118,7 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 ### Improvements
 - Dropdowns now automatically scroll to the selected option when opened
 
-1.13.6
+### 1.13.6
 
 ### Fixed
 - Fixed BetterDiscord not appearing in the `Settings Cog` context menu (right click menu)
@@ -96,7 +130,7 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 - ContextMenu API Rework
 - Rewrite Native Fetch
 
-1.13.5
+### 1.13.5
 
 ### Added
 - Added `data-speaking` attribute to VoiceUser in ThemeAttributes
@@ -112,20 +146,20 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 
 ### Removed
 
-1.13.4
+### 1.13.4
 
 ### Fixed:
 - Fixed styles breaking in certain areas.
 - Fixed theme attributes from causing a bunch of lag.
 
-1.13.3
+### 1.13.3
 
 ### Fixed:
 - BetterDiscord Settings section now appears correctly in the settings menu
 - Fixed css to match Discord's latest changes
 - Context Menu patches fixed
 
-1.13.2
+### 1.13.2
 
 ### Fixed:
 - BetterDiscord Settings section now appears correctly in the settings menu
@@ -133,7 +167,7 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 - Context Menu patches fixed
 
 
-1.13.1
+### 1.13.1
 
 ### Fixed:
 - Navigating to Plugins, Themes, or Settings from the context menu now correctly opens the intended page
