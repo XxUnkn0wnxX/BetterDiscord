@@ -155,6 +155,35 @@ function testTopLevelDependenciesAndCallbacks() {
     assert(latestBuilt("disabled").disabled === true, "top-level disableWith did not update");
 }
 
+function testTopLevelNonSwitchCallbacks() {
+    ReactMock.reset();
+    buildCalls.length = 0;
+    const callbackOrder: string[] = [];
+    const panel: unknown[][] = [];
+    const settings = [{
+        type: "text",
+        id: "root-text",
+        value: "enabled",
+        onChange(value: string) {
+            callbackOrder.push(`setting:${value}`);
+        }
+    }];
+
+    renderPanel(settings, (...args) => {
+        callbackOrder.push(`panel:${String(args[0])}:${String(args[1])}:${String(args[2])}`);
+        panel.push(args);
+    });
+
+    const text = latestBuilt("root-text");
+    text.onChange("next");
+
+    assert(callbackOrder.length === 2, "root non-switch callback was not dispatched once each");
+    assert(callbackOrder[0] === "setting:next", "root individual callback was not first");
+    assert(callbackOrder[1] === "panel:null:root-text:next", "root panel callback payload changed");
+    assert(panel.length === 1, "root panel callback fired unexpected number of times");
+    assert(panel[0][0] === null && panel[0][1] === "root-text" && panel[0][2] === "next", "root panel callback payload changed");
+}
+
 function testNestedDependenciesAndCallbacks() {
     ReactMock.reset();
     groups.length = 0;
@@ -200,7 +229,111 @@ function testNestedDependenciesAndCallbacks() {
     assert(callbackPanel.length === 1 && callbackPanel[0].join(":") === "callbacks:switch:true", "panel callback IDs changed");
 }
 
+function testCategoryNonSwitchCallbacks() {
+    ReactMock.reset();
+    groups.length = 0;
+    const individual: string[] = [];
+    const panel: unknown[][] = [];
+    const callbackOrder: string[] = [];
+    const settings = [{
+        type: "category",
+        id: "callbacks",
+        settings: [{
+            type: "text",
+            id: "setting",
+            value: "enabled",
+            onChange(value: string) {
+                individual.push(`setting:${value}`);
+                callbackOrder.push(`setting:${value}`);
+            }
+        }]
+    }];
+
+    renderPanel(settings, (...args) => {
+        callbackOrder.push(`panel:${String(args[0])}:${String(args[1])}:${String(args[2])}`);
+        panel.push(args);
+    });
+    const group = groups.at(-1)!;
+    group.invoke("setting", "next");
+    const lastPanelArgs = panel[0] as [unknown, unknown, unknown];
+    assert(individual.length === 1, "category non-switch individual callback was duplicated");
+    assert(panel.length === 1, "category non-switch panel callback was duplicated");
+    assert(individual[0] === "setting:next", "category non-switch individual callback payload changed");
+    assert(lastPanelArgs[0] === "callbacks" && lastPanelArgs[1] === "setting" && lastPanelArgs[2] === "next", "category panel callback payload changed");
+    assert(callbackOrder.length === 2, "category non-switch callback dispatch order changed");
+    assert(callbackOrder[0] === "setting:next", "category non-switch individual callback was not first");
+    assert(callbackOrder[1] === "panel:callbacks:setting:next", "category non-switch panel callback was not second");
+}
+
+function testColorSettingNormalizationAndCallbacks() {
+    ReactMock.reset();
+    buildCalls.length = 0;
+    groups.length = 0;
+
+    const rootColorCallbacks: string[] = [];
+    const rootLegacyColor = {
+        type: "color",
+        id: "legacy-root-color",
+        value: "#112233",
+        defaultValue: "#445566",
+        onChange(value: string) {
+            rootColorCallbacks.push(`setting:${value}`);
+        }
+    };
+    const rootExplicitColor = {
+        type: "color",
+        id: "explicit-root-color",
+        value: "#001100",
+        defaultValue: "#002200",
+        defaultColor: 0 as any,
+        onChange(value: string) {
+            rootColorCallbacks.push(`setting-explicit:${value}`);
+        }
+    };
+
+    renderPanel([rootLegacyColor, rootExplicitColor], (...args) => {
+        rootColorCallbacks.push(`panel:${String(args[0])}:${String(args[1])}:${String(args[2])}`);
+    });
+
+    const legacyColor = latestBuilt("legacy-root-color");
+    const explicitColor = latestBuilt("explicit-root-color");
+    assert(legacyColor.value === undefined, "root legacy color value was not removed");
+    assert(legacyColor.defaultValue === "#112233", "root legacy color current value was not promoted");
+    assert(legacyColor.defaultColor === "#445566", "root legacy defaultValue did not become defaultColor");
+    assert(explicitColor.value === undefined, "root explicit color value was not removed");
+    assert(explicitColor.defaultValue === "#001100", "root explicit color current value was not promoted");
+    assert(explicitColor.defaultColor === 0, "explicit root defaultColor should win even when falsy");
+
+    rootColorCallbacks.length = 0;
+    const legacyColorSetting = latestBuilt("legacy-root-color");
+    legacyColorSetting.onChange("#556677");
+    assert(rootColorCallbacks.length === 2, "root color callbacks were not fired exactly once each");
+    assert(rootColorCallbacks[0] === "setting:#556677", "root color individual callback changed");
+    assert(rootColorCallbacks[1] === "panel:null:legacy-root-color:#556677", "root color panel callback should be last");
+
+    buildCalls.length = 0;
+    renderPanel([{
+        type: "category",
+        id: "color-category",
+        settings: [{
+            type: "color",
+            id: "category-color",
+            value: "#332211",
+            defaultValue: "#445500"
+        }]
+    }]);
+    const categoryGroup = groups.at(-1)!;
+    const categoryColor = categoryGroup.props.settings.find((item: any) => item.id === "category-color");
+    assert(categoryColor, "category color setting missing");
+    assert(categoryColor.value === undefined, "category color value was not removed");
+    assert(categoryColor.defaultValue === "#332211", "category color current value was not promoted");
+    assert(categoryColor.defaultColor === "#445500", "category legacy defaultValue was not migrated to defaultColor");
+}
+
 testBuildSettingItemMapping();
 testTopLevelDependenciesAndCallbacks();
 testNestedDependenciesAndCallbacks();
+testTopLevelNonSwitchCallbacks();
+testCategoryNonSwitchCallbacks();
+testColorSettingNormalizationAndCallbacks();
 process.stdout.write("ui-settings-builder: ok\n");

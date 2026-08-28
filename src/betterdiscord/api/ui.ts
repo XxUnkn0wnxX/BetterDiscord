@@ -102,13 +102,13 @@ function SettingsBuilderUI({settings, onChange, onDrawerToggle, getDrawerState}:
         if (setting.disableWith) disabled = !!switchStates[setting.disableWith];
 
         const normalized = normalizeBuilderSetting({...setting, disabled});
-        if (setting.type !== "switch") return buildSetting(normalized);
-
         return buildSetting({
             ...normalized,
             disabled,
             onChange: (value: any) => {
-                setSwitchStates(v => ({...v, [setting.id]: value}));
+                if (setting.type === "switch") {
+                    setSwitchStates(v => ({...v, [setting.id]: value}));
+                }
 
                 setting?.onChange?.(value as never);
                 onChange?.(null, setting.id, value);
