@@ -4,7 +4,7 @@ This changelog starts with the restructured 1.0.0 release that happened after co
 
 ## Fork ([2feefd75](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2feefd75da22339ef676bb5ebe16d912d74c72dc))
 
-This fork now reports BetterDiscord `1.14.0` after integrating the upstream
+This fork now reports BetterDiscord `1.14.1` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
@@ -17,6 +17,17 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
+
+### 1.14.1
+
+### Added
+
+### Removed
+
+### Changed
+
+### Fixed
+- Fixed global setting onChange listener from not running
 
 ### 1.14.0
 
