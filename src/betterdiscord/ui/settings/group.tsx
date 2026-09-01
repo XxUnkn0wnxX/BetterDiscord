@@ -20,6 +20,21 @@ import type {Setting, BaseSettingItem} from "@data/settings";
 
 const {useCallback} = React;
 
+const CONTEXT_CONSUMING_SETTING_TYPES = ["switch", "dropdown", "slider", "color", "text", "position", "radio", "keybind", "number"] as const;
+type ContextConsumingSettingType = (typeof CONTEXT_CONSUMING_SETTING_TYPES)[number];
+const CONTEXT_CONSUMING_SETTING_TYPE_SET = new Set<ContextConsumingSettingType>(CONTEXT_CONSUMING_SETTING_TYPES);
+
+function shouldStripCollectionDisabled(type: string): type is ContextConsumingSettingType {
+    return CONTEXT_CONSUMING_SETTING_TYPE_SET.has(type as ContextConsumingSettingType);
+}
+
+function withoutCollectionDisabled<T extends Setting | CustomSetting | ButtonSetting>(setting: T): T {
+    if (!shouldStripCollectionDisabled(setting.type)) return setting;
+
+    const {disabled: _disabled, ...settingWithoutDisabled} = setting;
+    return settingWithoutDisabled as T;
+}
+
 
 function SettingsProvider({collection, category, id, children}: PropsWithChildren<{collection: string; category: string; id: string;}>) {
     const getSettingState = React.useCallback(() => {
@@ -69,7 +84,9 @@ export default function Group(props: GroupProps) {
                 setting?.onChange?.(value);
                 change(setting.id, value);
             };
-            const settingItem = buildSetting({...setting, onChange: callback});
+            const settingWithCallback = {...setting, onChange: callback};
+            const settingToRender = collection ? withoutCollectionDisabled(settingWithCallback) : settingWithCallback;
+            const settingItem = buildSetting(settingToRender);
             if (!collection) return settingItem;
             return <SettingsProvider collection={collection} category={id} id={setting.id}>{settingItem}</SettingsProvider>;
         })}

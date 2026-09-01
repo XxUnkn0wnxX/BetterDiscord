@@ -5,35 +5,21 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-The latest reviewed upstream source-treatment boundary is
-[`b2830689`](https://github.com/BetterDiscord/BetterDiscord/commit/b28306898136ee5157f7ecb352d2ae307a646dec)
-on 2026-08-21, using the preceding upstream boundary
-[`49e7f142`](https://github.com/BetterDiscord/BetterDiscord/commit/49e7f14222b8bcc00c144e8d760b6751e3f0ba8d)
-as the range merge base. The current reviewed range is in integration
-ancestry through the tree-neutral marker
-[`be292def`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/be292defd8219e48779e2adcc9e1930b294089cd),
-with fork adaptations above it. Stage-specific checks passed for Stages 2–7,
-with Stage 6 verified as source-neutral, and the Stage 8 aggregate fork-only
-source, test, and release-build gate has passed. On 2026-08-21 the user
-explicitly accepted Stage 9 runtime behavior against release build
-[`1ab30540`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/1ab30540f9cce3dab586773c65f188695c30aa3b)
-after incremental Stable testing. A Color reset swatch and the linked-setting
-disable transition during keybind recording could not be exercised because no
-installed plugin exposed those surfaces; they remain accepted live-coverage
-limits rather than observed failures. Promotion to `develop` remains pending.
-This source-treatment record does not assert develop promotion, nor does it by
-itself assert that the exact upstream DAG is already promoted to `develop`;
-those are verified separately through the approved reconciliation procedure.
-Commit labels are abbreviated for readability; every commit link targets its
-full 40-character SHA.
-
-This document tracks the historical integration of upstream
-`upstream-merge-44e21745`, the later upstream range through `8e3078b4`, and the
-accepted source treatment for `8e3078b4..474dc6e1`. The current accepted source
-treatment is the subsequent `49e7f142..b2830689` range; the prior ranges remain
-history rather than being rewritten. It is a durable record for merge behavior
-and preserved deltas; detailed checkpoint status remains in the local ignored
-merge checklist rather than here.
+The latest reviewed upstream boundary is
+[`46b95b20`](https://github.com/BetterDiscord/BetterDiscord/commit/46b95b20c16f04ef23b1b2f9c8c3a39803dc04d2)
+on 2026-09-02, using
+[`cd4b81c8`](https://github.com/BetterDiscord/BetterDiscord/commit/cd4b81c86e561edc7842883eba5fb377179e844b)
+as its range base. The range is in `develop` ancestry through tree-neutral
+marker
+[`37ce8db1`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/37ce8db15cc1f1a64427d6ff7f2eb0fbcbfccec0),
+with the scoped settings adaptation above it. Earlier integration records
+through `44e21745`, `8e3078b4`, `474dc6e1`, `49e7f142`, and `b2830689` remain
+historical authority for their affected contracts rather than being rewritten.
+The prior `49e7f142..b2830689` treatment passed its source/release gates and
+incremental Stable testing against fork build `1ab30540`; no installed plugin
+exposed the Color reset swatch or linked-setting transition during keybind
+recording, so those remain coverage limits rather than observed failures.
+Commit labels are abbreviated for readability; links target full SHAs.
 
 ## Merge policy
 
@@ -69,7 +55,7 @@ merge checklist rather than here.
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
 | Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
-| Standard plugin setting controls | Upstream [`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054) converts the standard controls to controlled/uncontrolled value semantics. Later [`d2a0b6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/d2a0b6e1ac1219416e05f1bd9158fbd537dda0c4) routes root and category panel changes through per-setting wrappers even though `Group` already dispatches category changes. | Fork [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac) preserves provider/context compatibility, disabled semantics, and the Color, Number, Radio, Keybind, and Search contracts while adapting builder snapshots to uncontrolled controls. Root controls notify the panel after their individual callback; categories retain `Group` as the sole panel dispatcher so every callback runs once. | Retain plugin-visible controlled/uncontrolled behavior, the internal compatibility adaptations, callback ordering, and single-dispatch ownership when merging later upstream control changes. |
+| Standard plugin setting controls | Upstream [`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054) converts the standard controls to controlled/uncontrolled value semantics. Later [`d2a0b6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/d2a0b6e1ac1219416e05f1bd9158fbd537dda0c4) changes panel callback routing, while [`2a432824`](https://github.com/BetterDiscord/BetterDiscord/commit/2a432824030d5d5ee6039e092b2337eaee17b17e) lets live core provider state override a stale copied `disabled` prop. | Fork [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac) preserves controlled/uncontrolled, provider-plus-local disabled, Color, Number, Radio, Keybind, Search, callback-order, and single-dispatch contracts. Collection-backed context-consuming controls omit only the redundant disabled snapshot so live `SettingsStore` dependency state updates immediately; direct props remain for plugin controls and non-context `file`, `button`, and `custom` types. | Retain plugin-visible contracts and callback ownership. For core dependency fixes, keep live Store state authoritative without weakening explicit local disabled props outside that collection path. |
 | Custom CSS lifecycle, editor focus, and navigation | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) adds reactive predicates, new open actions, and a full-page editor, but its `initialize()` override skips the base lifecycle and its disabled panel is not re-registered. The later range through [`474dc6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/474dc6e122915a329ccb145eef93600167ec98e3) repairs its own lifecycle while replacing bounded Monaco focus guards with a renderer-global skip flag and deleting the synchronous selection shield. | Takes the feature set while retaining base initialization, enable-time panel registration, disable-time removal, and the settings refresh needed for re-enable. Focus ownership stays inside the shared editor: ready focus is one-shot, Settings-owned detached focus waits for the captured Settings element to disconnect, click suppression remains task-scoped, and the selection shield is retained. Disabled CSS stays inactive, and source editors close only after a successful system-editor launch. | Preserve these narrow corrections while upstream still has the failure paths. Do not adopt a renderer-global focus state machine or delete the selection shield without equivalent target scoping, cleanup, and live proof. Remove a divergence when upstream provides equivalent lifecycle, cleanup, focus, disabled-state, or launch-result handling. |
 | Addon Store install completion | Upstream [`81e099a0`](https://github.com/BetterDiscord/BetterDiscord/commit/81e099a03ff39f431b6f09b9874ff5eec5f1542e) makes handled installs settle, while [`75eeeb6a`](https://github.com/BetterDiscord/BetterDiscord/commit/75eeeb6a8d3f828ca8a902fe426576aca79a7ffe) gives `Addon.download()` modal-close ownership. | Fork [`59b17cb4`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/59b17cb4fef2d4cd2d26766f91362814b814c213) keeps `InstallModal` as the sole post-install close owner with an idempotent per-instance guard across loaded-event and settlement races. Ordinary pre-install cancel requests remain owned by `Addon.download()`. | Preserve the fork's settlement and close-once ownership; do not claim direct adoption of [`75eeeb6a`](https://github.com/BetterDiscord/BetterDiscord/commit/75eeeb6a8d3f828ca8a902fe426576aca79a7ffe). |
 | Addon Store thumbnails | Upstream [`1905c06b`](https://github.com/BetterDiscord/BetterDiscord/commit/1905c06b6fa792bb4289003adf6562bb1b918463) bundles opaque theme-aware light/dark fallback SVG blobs and exposes rounded-edge sampling/underfill in fallback rendering. | Fork retains rounded clipping for the Store card and install modal, applies centered `transform: scale(1.01)` only to `[src^="blob:"]` preview images on both the store card and install modal surfaces, preserves aspect ratio by not changing width/height there, and leaves HTTP/custom thumbnails and SVG assets unchanged while keeping both splash containers `overflow: visible` for author badges. | Preserve blob-only proportional overscan and both container-clipping rules until upstream supplies equivalent edge coverage. |
@@ -291,6 +277,16 @@ converts the standard setting controls to React-correct controlled and
 uncontrolled behavior. The fork adaptation is recorded in
 [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac).
 
+Upstream
+[`2a432824`](https://github.com/BetterDiscord/BetterDiscord/commit/2a432824030d5d5ee6039e092b2337eaee17b17e)
+fixes core `enableWith` controls that retain a render-time disabled snapshot
+after their live Store provider enables them. The fork preserves the generic
+provider-disabled OR local-disabled contract in `useItemProps()`. Instead,
+collection-backed `Group` rendering removes the redundant snapshot only for
+the standard controls that consume `SettingsContext`; `file`, `button`, and
+`custom` retain direct props. This keeps plugin/custom behavior intact while
+letting core dependency state update without remounting the group.
+
 - A controlled `value` follows the caller on rerender. An uncontrolled
   `defaultValue` supplies the initial value and then owns local input state.
   The BdApi builder maps a setting snapshot's `value` to `defaultValue` without
@@ -316,6 +312,14 @@ uncontrolled behavior. The fork adaptation is recorded in
 - Search emits scalar callbacks and keeps controlled query state in the owning
   page. Disabled Search blocks input, clearing, callbacks, and focus. Installed
   and Store pages retain their separate search modes and keys.
+- The isolated Group subscription regression exercises disabled-to-enabled Store
+  updates without a parent remount and retains the generic provider/local and
+  non-context direct-prop tests. The 2026-09-02 gate passed targeted lint,
+  typecheck, 9 focused settings tests, and the full pinned-Bun suite with 457
+  passes and 24 expected legacy-runtime skips, plus a local
+  `./local-build.zsh dist -mrts 45` release build matching fork CI, with all
+  eight manifest entries
+  verified.
 
 Preserve these plugin-visible controlled/uncontrolled contracts and the
 provider/context, disabled-state, and legacy compatibility adaptations when
