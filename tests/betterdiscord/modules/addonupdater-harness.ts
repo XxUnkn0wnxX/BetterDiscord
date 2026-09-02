@@ -56,7 +56,7 @@ mock.module("@stores/json", () => ({"default": {
 mock.module("@stores/toasts", () => ({"default": {
     success: (message: string) => successToasts.push(message)
 }}));
-mock.module("@ui/notifications", () => ({"default": {
+mock.module("@stores/notifications", () => ({"default": {
     show: (notification: any) => notifications.push(notification),
     hide: (id: string) => {
         const index = notifications.findIndex(notification => notification.id === id);

@@ -155,7 +155,7 @@ mock.module("@stores/json", () => ({"default": {
     set: (_file: string, value: Record<string, any>) => {savedState = structuredClone(value);}
 }}));
 mock.module("@stores/toasts", () => ({"default": {success: () => {}}}));
-mock.module("@ui/notifications", () => ({"default": {
+mock.module("@stores/notifications", () => ({"default": {
     show: (notification: any) => notifications.push(notification),
     hide: () => {}
 }}));

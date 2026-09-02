@@ -8,7 +8,8 @@ import Group, {buildSetting, type ButtonSetting, type CustomSetting, type GroupO
 import React, {useState, type ReactElement} from "react";
 import ErrorBoundary from "@ui/errorboundary";
 import Settings from "@stores/settings";
-import NotificationUI, {type Notification} from "@ui/notifications";
+import Notifications from "@stores/notifications";
+import type {Notification} from "@ui/notifications";
 import type {ChangelogProps} from "@ui/modals/changelog";
 import type {DialogOptions} from "@common/types/ipc";
 import type {Setting, SettingsCategory} from "@data/settings";
@@ -178,7 +179,7 @@ class UI {
 
         const finalNotification = {...defaultObj, ...options};
 
-        return NotificationUI.show(finalNotification);
+        return Notifications.show(finalNotification);
     }
 
     /**

@@ -7,7 +7,7 @@ import SettingsStore from "@stores/settings";
 import JsonStore from "@stores/json";
 import Toasts from "@stores/toasts";
 
-import Notifications from "@ui/notifications";
+import Notifications from "@stores/notifications";
 import Modals from "@ui/modals";
 import Settings from "@ui/settings";
 import {Logo} from "@ui/logo";

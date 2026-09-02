@@ -12,7 +12,7 @@ import {t} from "@common/i18n";
 import JsonStore from "@stores/json";
 import React from "./react";
 import SettingsStore from "@stores/settings";
-import Notifications from "@ui/notifications";
+import Notifications from "@stores/notifications";
 import Modals from "@ui/modals";
 import UpdaterPanel from "@ui/updater";
 import type {Release} from "@typed/github";

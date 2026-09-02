@@ -6,15 +6,16 @@ Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
 The latest reviewed upstream boundary is
-[`46b95b20`](https://github.com/BetterDiscord/BetterDiscord/commit/46b95b20c16f04ef23b1b2f9c8c3a39803dc04d2)
+[`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b)
 on 2026-09-02, using
-[`cd4b81c8`](https://github.com/BetterDiscord/BetterDiscord/commit/cd4b81c86e561edc7842883eba5fb377179e844b)
+[`46b95b20`](https://github.com/BetterDiscord/BetterDiscord/commit/46b95b20c16f04ef23b1b2f9c8c3a39803dc04d2)
 as its range base. The range is in `develop` ancestry through tree-neutral
 marker
-[`37ce8db1`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/37ce8db15cc1f1a64427d6ff7f2eb0fbcbfccec0),
-with the scoped settings adaptation above it. Earlier integration records
-through `44e21745`, `8e3078b4`, `474dc6e1`, `49e7f142`, and `b2830689` remain
-historical authority for their affected contracts rather than being rewritten.
+[`a48000f3`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/a48000f327ac82aad896edfa382910b84731672e),
+with the scoped notification adaptation above it. Earlier integration records
+through `44e21745`, `8e3078b4`, `474dc6e1`, `49e7f142`, `b2830689`, and
+`46b95b20` remain historical authority for their affected contracts rather
+than being rewritten.
 The prior `49e7f142..b2830689` treatment passed its source/release gates and
 incremental Stable testing against fork build `1ab30540`; no installed plugin
 exposed the Color reset swatch or linked-setting transition during keybind
@@ -53,6 +54,7 @@ Commit labels are abbreviated for readability; links target full SHAs.
 | OS accent color | Upstream initializes the color in Electron main and listens for `accent-color-changed`, but its in-flight guard can use an uninitialized CSS key, remain stuck after a rejection, and drop a newer event. Electron does not expose that event on macOS. | Keeps startup initialization on every `dom-ready`, serializes and coalesces live changes, recovers after CSS insertion/removal failures, and on all supported macOS versions uses Electron's local-notification bridge for AppKit's public `NSSystemColorsDidChangeNotification` before re-reading the authoritative accent getter. Registration fallbacks remain for Electron/runtime compatibility. | Preserve the queued lifecycle and platform-specific listener until upstream provides equivalent behavior. Do not version-gate the AppKit notification or replace it with the early `AppleAquaColorVariantChanged` signal. When removing the old accent IPC, keep the fork's unrelated `EDITOR_CLOSE` IPC path. |
 | Activity iframe hardening | Upstream exempts `*.discordsays.com` Activity frames from the generic `contentWindow` proxy. | Keeps that Activity exception, but validates the URL safely and grants direct `contentWindow` access only to real `*.discordsays.com` hosts. Every other frame keeps the existing proxy and localStorage protection. | Preserve the upstream exception and the fork's URL guard without changing the plugin-visible Activity flow. |
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
+| `BdApi.UI` notifications | Upstream [`db3b46f5`](https://github.com/BetterDiscord/BetterDiscord/commit/db3b46f52e180cd26b1babb1c07aa505e5ee0183) through [`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b) moves notification ownership into a store, makes IDs optional, initializes the renderer explicitly, and lets `render` replace the standard card while pausing default expiry. Its current private implementation assumes `WeakMap#getOrInsertComputed`, omits the store emission from returned-handle close, and keys anonymous cards by the optional public ID. | Matches the upstream plugin-facing options, defaults, same-ID reuse, anonymous behavior, handle shape, actions, close callbacks, and custom-render contract. Private per-show entries provide stable React keys and exact close identity without mutating caller objects or global prototypes; successful handle closes emit immediately. Initialization is idempotent and occurs after Settings/DOM/Toast prerequisites but before builtins, plugins, and updater callers. | Keep upstream's public contract authoritative. Preserve only the capability-, identity-, emission-, and initialization-safe private plumbing until upstream supplies equivalent behavior. Migrate internal callers with the store; do not add a fork-only option, close prop, alternate API, runtime version gate, or phantom global declaration. |
 | Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Standard plugin setting controls | Upstream [`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054) converts the standard controls to controlled/uncontrolled value semantics. Later [`d2a0b6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/d2a0b6e1ac1219416e05f1bd9158fbd537dda0c4) changes panel callback routing, while [`2a432824`](https://github.com/BetterDiscord/BetterDiscord/commit/2a432824030d5d5ee6039e092b2337eaee17b17e) lets live core provider state override a stale copied `disabled` prop. | Fork [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac) preserves controlled/uncontrolled, provider-plus-local disabled, Color, Number, Radio, Keybind, Search, callback-order, and single-dispatch contracts. Collection-backed context-consuming controls omit only the redundant disabled snapshot so live `SettingsStore` dependency state updates immediately; direct props remain for plugin controls and non-context `file`, `button`, and `custom` types. | Retain plugin-visible contracts and callback ownership. For core dependency fixes, keep live Store state authoritative without weakening explicit local disabled props outside that collection path. |
@@ -772,6 +774,65 @@ code. Stage 7B does not enable BetterDiscord core requests at startup, on the
 scheduler, or from the Updates-panel refresh; that literal button checks only
 plugins and themes.
 
+### Notification API and renderer lifecycle
+
+Primary files:
+
+- `src/betterdiscord/api/ui.ts`
+- `src/betterdiscord/stores/notifications.ts`
+- `src/betterdiscord/ui/notifications.tsx`
+- `src/betterdiscord/modules/core.ts`
+- notification callers in recovery, Custom CSS, and the core/addon updaters
+
+The reviewed range
+[`db3b46f5`](https://github.com/BetterDiscord/BetterDiscord/commit/db3b46f52e180cd26b1babb1c07aa505e5ee0183)
+through
+[`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b)
+defines the current upstream plugin contract. `BdApi.UI.showNotification`
+accepts an optional string ID plus `title`, `content`, `type`, `duration`,
+`actions`, `icon`, `render`, and `onClose`. A repeated visible string ID keeps
+the first notification payload and returns a handle for that entry; calls
+without an ID are independent. The returned object exposes `id`, `isVisible`,
+and `close`.
+
+Default notifications retain upstream timer, progress, hover pause, close,
+action, `dontClose`, Shift-retention, and callback behavior. UI close, timeout,
+and an action that closes the card invoke `onClose`; direct store removal and
+the returned handle's programmatic `close` remain silent. A custom `render`
+receives exactly `{notification}`, stays inside the outer
+`.bd-notification`, replaces all standard content/action/close/progress chrome,
+and keeps the default spring expiry paused. Do not add a fork-only close prop
+or reinterpret that custom-render lifecycle.
+
+The fork keeps that public behavior with private compatibility plumbing:
+
+- Each accepted show owns a private entry and stable string React key. Matching
+  IDs share the existing entry; every anonymous show receives a fresh entry,
+  even when a caller reuses the exact same options object.
+- Handles and rendered cards remove their exact entry. A successful returned-
+  handle close emits one store change immediately, so an ID-bearing plugin such
+  as MessageLogger cannot leave a stale card. Repeated close/hide operations
+  are no-ops.
+- Store removal uses slice/spread rather than requiring `Array#toSpliced`.
+  Identity does not require `WeakMap#getOrInsertComputed`, caller-object
+  mutation, a global prototype patch, or a phantom `WeakMap` declaration.
+- The renderer root is created explicitly and idempotently after Settings, DOM,
+  connection, FloatingWindows, and Toast prerequisites, before builtins,
+  plugins, themes, and updater callers. Notifications queued before that point
+  remain in the store and render at initialization.
+- Runtime value callers import `@stores/notifications`; only the public type
+  and core initializer come from `@ui/notifications`. The store-to-UI import is
+  type-only, avoiding a runtime cycle.
+
+The upstream overlap in `src/betterdiscord/modules/updater.ts` was limited to
+the notification import; the fork's dormant core-update calls remain commented
+while plugin/theme updating stays active. The conflicting global Map/WeakMap
+declarations were skipped, and the superseded `settings.tsx` child rename was
+not applied because the fork already uses a collision-free retained-title
+shape. The same upstream range only removes two stale lint comment pairs from
+`Patcher.makeOverride`; that cosmetic cleanup must not change the protected
+chained `instead` or idempotent-unpatch behavior.
+
 ### Core updater policy
 
 Primary files: `src/betterdiscord/modules/updater.ts` and
@@ -900,6 +961,14 @@ required named export. This concrete adaptation is recorded in
   upstream and run the cache suite through both the native helper and legacy
   fallback paths. Spot-check an injected pinned client when runtime exports are
   relevant.
+- `BdApi.UI` notifications: verify disabled-setting behavior, optional-ID
+  calls, same-ID reuse, independent anonymous entries and handles, exact-entry
+  rendered close, immediate close emission, default timeout/hover/action/
+  `onClose` behavior, pre-init queue retention, and idempotent root creation.
+  For custom rendering, verify the exact `{notification}` prop, standard-chrome
+  suppression, and paused default expiry. Scan source and built output for a
+  `WeakMap#getOrInsertComputed` dependency or stale default notification facade,
+  and smoke-test an ID-bearing plugin notification on an injected pinned client.
 - `BdApi.UI` dependencies and controls: verify top-level and nested-category
   `enableWith` and `disableWith` states update immediately, provider/local
   disabled precedence blocks callbacks, controlled/uncontrolled state remains

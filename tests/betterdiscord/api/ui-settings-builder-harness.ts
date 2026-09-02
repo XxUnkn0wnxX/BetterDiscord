@@ -63,6 +63,13 @@ function buildSetting(setting: Record<string, any>) {
     return {type: buildSetting, props: setting};
 }
 
+let notificationEnabled = false;
+const notificationShowCalls: Array<Record<string, any>> = [];
+const notificationHandle = {
+    isVisible: () => true,
+    close: () => {}
+};
+
 mock.module("react", () => ({"default": ReactMock, "useState": ReactMock.useState}));
 mock.module("@modules/ipc", () => ({"default": {}}));
 mock.module("@ui/modals", () => ({"default": {}}));
@@ -71,8 +78,15 @@ mock.module("@ui/notices", () => ({"default": {}}));
 mock.module("@ui/tooltip", () => ({"default": {}}));
 mock.module("@ui/settings/group", () => ({"default": Group, buildSetting}));
 mock.module("@ui/errorboundary", () => ({"default": (props: Record<string, any>) => props}));
-mock.module("@stores/settings", () => ({"default": {}}));
-mock.module("@ui/notifications", () => ({"default": {}}));
+mock.module("@stores/settings", () => ({"default": {
+    get: () => notificationEnabled
+}}));
+mock.module("@stores/notifications", () => ({"default": {
+    show(notification: Record<string, any>) {
+        notificationShowCalls.push(notification);
+        return notificationHandle;
+    }
+}}));
 mock.module("@ui/floatingwindows", () => ({"default": {}}));
 
 const {default: UI} = await import("../../../src/betterdiscord/api/ui");
@@ -330,10 +344,37 @@ function testColorSettingNormalizationAndCallbacks() {
     assert(categoryColor.defaultColor === "#445500", "category legacy defaultValue was not migrated to defaultColor");
 }
 
+function testShowNotification() {
+    notificationShowCalls.length = 0;
+    notificationEnabled = false;
+    const disabledResult = ui.showNotification({content: "disabled"});
+    assert(disabledResult === undefined, "disabled notifications should return undefined");
+    assert(notificationShowCalls.length === 0, "disabled notifications should not call store.show");
+
+    notificationEnabled = true;
+    const render = () => null;
+    const options = {content: "enabled", render};
+    const result = ui.showNotification(options);
+    assert(options.content === "enabled" && options.render === render && Object.keys(options).length === 2, "notification options were mutated");
+    const showCalls = notificationShowCalls.slice();
+    assert(showCalls.length === 1, "enabled notifications should call store.show once");
+
+    const finalNotification = showCalls[0];
+    assert(finalNotification.content === "enabled", "notification content changed");
+    assert(finalNotification.title === "", "notification title default changed");
+    assert(finalNotification.type === "info", "notification type default changed");
+    assert(finalNotification.duration === 5000, "notification duration default changed");
+    assert(Array.isArray(finalNotification.actions) && finalNotification.actions.length === 0, "notification actions default changed");
+    assert(!Object.hasOwn(finalNotification, "id"), "anonymous notification received a synthetic id");
+    assert(finalNotification.render === render, "notification render reference changed");
+    assert(result === notificationHandle, "UI did not return the store notification handle");
+}
+
 testBuildSettingItemMapping();
 testTopLevelDependenciesAndCallbacks();
 testNestedDependenciesAndCallbacks();
 testTopLevelNonSwitchCallbacks();
 testCategoryNonSwitchCallbacks();
 testColorSettingNormalizationAndCallbacks();
+testShowNotification();
 process.stdout.write("ui-settings-builder: ok\n");

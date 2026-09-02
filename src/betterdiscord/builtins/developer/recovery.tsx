@@ -10,7 +10,7 @@ import pluginmanager from "@modules/pluginmanager";
 import IPC from "@modules/ipc";
 import Modals from "@ui/modals";
 import {getByPrototypes, getByStrings} from "@webpack";
-import NotificationUIInstance from "@ui/notifications";
+import Notifications from "@stores/notifications";
 import config from "@stores/config";
 import {Logo} from "@ui/logo";
 import clsx from "clsx";
@@ -238,7 +238,7 @@ export default new class Recovery extends Builtin {
                 const pluginName = `${foundIssue[2]}.plugin.js`;
                 pluginInfo = this.getPluginInfo(pluginName);
                 pluginmanager.disableAddon(foundIssue[2]);
-                NotificationUIInstance.show({
+                Notifications.show({
                     id: "plugin-crash",
                     title: t("Addons.disabled", {name: pluginName}),
                     content: t("Modals.addonCrashed"),
