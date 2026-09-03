@@ -165,6 +165,7 @@ const NotificationItem = ({entry}: {entry: NotificationEntry;}) => {
                                 return <Button
                                     {...action}
                                     key={index}
+                                    grow={false}
                                     color={color as typeof ButtonColors[keyof typeof ButtonColors]}
                                     look={look as typeof ButtonLooks[keyof typeof ButtonLooks]}
                                     onClick={(e) => {

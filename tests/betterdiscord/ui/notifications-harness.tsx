@@ -93,11 +93,12 @@ mock.module("@ui/hooks", () => ({
 type MockButtonProps = {
     className?: string;
     children?: ReactNode;
+    grow?: boolean;
     onClick?: React.MouseEventHandler<HTMLButtonElement>;
 };
 
-const MockButton = ({className, children, onClick}: MockButtonProps) => (
-    <button type="button" className={className} onClick={onClick}>{children}</button>
+const MockButton = ({className, children, grow, onClick}: MockButtonProps) => (
+    <button type="button" className={className} data-grow={String(grow)} onClick={onClick}>{children}</button>
 );
 
 const buttonColors = {PRIMARY: "bd-button-color-primary"};
@@ -277,7 +278,7 @@ describe("notification store and UI", () => {
             id: "pre-init",
             title: "pre-init",
             content: "pre-init content",
-            actions: [{label: "pre-init action", dontClose: true}],
+            actions: [{label: "pre-init action", dontClose: true, grow: true}],
             onClose: () => preInitCloseCount++
         });
         expect(document.getElementById("bd-notifications-container")).toBeNull();
@@ -295,6 +296,7 @@ describe("notification store and UI", () => {
         expect(preInitCard.querySelector(".bd-notification-content")).not.toBeNull();
         expect(preInitCard.querySelector(".bd-notification-footer")).not.toBeNull();
         expect(preInitCard.querySelector(".bd-notification-action")).not.toBeNull();
+        expect(preInitCard.querySelector<HTMLButtonElement>(".bd-notification-action")?.dataset.grow).toBe("false");
         expect(preInitCard.querySelector(".bd-notification-close")).not.toBeNull();
         expect(preInitCard.querySelector(".bd-notification-progress")).not.toBeNull();
         expect(springCalls.at(-1)?.options.pause).toBe(false);

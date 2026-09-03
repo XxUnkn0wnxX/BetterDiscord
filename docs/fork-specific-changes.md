@@ -6,17 +6,17 @@ Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
 The latest reviewed upstream boundary is
-[`dfb4148f`](https://github.com/BetterDiscord/BetterDiscord/commit/dfb4148fbb69437dbfb85d6d59fac6ad9afe728f)
+[`5224e6eb`](https://github.com/BetterDiscord/BetterDiscord/commit/5224e6eb687f6e4d6ea7d4cedc4e645b6053877f)
 on 2026-09-03, using
-[`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b)
+[`dfb4148f`](https://github.com/BetterDiscord/BetterDiscord/commit/dfb4148fbb69437dbfb85d6d59fac6ad9afe728f)
 as its range base. The range is in `develop` ancestry through tree-neutral
 marker
-[`ff18a011`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/ff18a01159d036cc5009092c04cab3ec67ea2aca),
-whose tree is unchanged from its first parent. The Number decrement min-guard
-fix was already present in the fork, so no source adaptation was needed.
+[`712aa085`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/712aa0856e8351cbfea5f644473b6ee3c3cdfc6e),
+whose first parent is `45bed24d` and second parent is `5224e6eb`. The scoped
+notification action-layout adaptation is applied directly above that marker.
 Earlier integration records through `44e21745`, `8e3078b4`, `474dc6e1`,
-`49e7f142`, `b2830689`, `46b95b20`, and `37a229a5` remain historical authority
-for their affected contracts rather than being rewritten.
+`49e7f142`, `b2830689`, `46b95b20`, `37a229a5`, and `dfb4148f` remain
+historical authority for their affected contracts rather than being rewritten.
 The prior `49e7f142..b2830689` treatment passed its source/release gates and
 incremental Stable testing against fork build `1ab30540`; no installed plugin
 exposed the Color reset swatch or linked-setting transition during keybind
@@ -55,7 +55,7 @@ Commit labels are abbreviated for readability; links target full SHAs.
 | OS accent color | Upstream initializes the color in Electron main and listens for `accent-color-changed`, but its in-flight guard can use an uninitialized CSS key, remain stuck after a rejection, and drop a newer event. Electron does not expose that event on macOS. | Keeps startup initialization on every `dom-ready`, serializes and coalesces live changes, recovers after CSS insertion/removal failures, and on all supported macOS versions uses Electron's local-notification bridge for AppKit's public `NSSystemColorsDidChangeNotification` before re-reading the authoritative accent getter. Registration fallbacks remain for Electron/runtime compatibility. | Preserve the queued lifecycle and platform-specific listener until upstream provides equivalent behavior. Do not version-gate the AppKit notification or replace it with the early `AppleAquaColorVariantChanged` signal. When removing the old accent IPC, keep the fork's unrelated `EDITOR_CLOSE` IPC path. |
 | Activity iframe hardening | Upstream exempts `*.discordsays.com` Activity frames from the generic `contentWindow` proxy. | Keeps that Activity exception, but validates the URL safely and grants direct `contentWindow` access only to real `*.discordsays.com` hosts. Every other frame keeps the existing proxy and localStorage protection. | Preserve the upstream exception and the fork's URL guard without changing the plugin-visible Activity flow. |
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
-| `BdApi.UI` notifications | Upstream [`db3b46f5`](https://github.com/BetterDiscord/BetterDiscord/commit/db3b46f52e180cd26b1babb1c07aa505e5ee0183) through [`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b) moves notification ownership into a store, makes IDs optional, initializes the renderer explicitly, and lets `render` replace the standard card while pausing default expiry. Its current private implementation assumes `WeakMap#getOrInsertComputed`, omits the store emission from returned-handle close, and keys anonymous cards by the optional public ID. | Matches the upstream plugin-facing options, defaults, same-ID reuse, anonymous behavior, handle shape, actions, close callbacks, and custom-render contract. Private per-show entries provide stable React keys and exact close identity without mutating caller objects or global prototypes; successful handle closes emit immediately. Initialization is idempotent and occurs after Settings/DOM/Toast prerequisites but before builtins, plugins, and updater callers. | Keep upstream's public contract authoritative. Preserve only the capability-, identity-, emission-, and initialization-safe private plumbing until upstream supplies equivalent behavior. Migrate internal callers with the store; do not add a fork-only option, close prop, alternate API, runtime version gate, or phantom global declaration. |
+| `BdApi.UI` notifications | Upstream [`db3b46f5`](https://github.com/BetterDiscord/BetterDiscord/commit/db3b46f52e180cd26b1babb1c07aa505e5ee0183) through [`37a229a5`](https://github.com/BetterDiscord/BetterDiscord/commit/37a229a5de3e16f28abdd66f03da63db8b018a6b) moves notification ownership into a store, makes IDs optional, initializes the renderer explicitly, and lets `render` replace the standard card while pausing default expiry. [`5224e6eb`](https://github.com/BetterDiscord/BetterDiscord/commit/5224e6eb687f6e4d6ea7d4cedc4e645b6053877f) replaces fixed three-column action sizing with content-aware flex sizing and ellipsis for overlong labels. Its current private implementation assumes `WeakMap#getOrInsertComputed`, omits the store emission from returned-handle close, and keys anonymous cards by the optional public ID. | Matches the upstream plugin-facing options, defaults, same-ID reuse, anonymous behavior, handle shape, actions, close callbacks, and custom-render contract, and adopts the upstream content-aware action sizing/ellipsis treatment. Private per-show entries provide stable React keys and exact close identity without mutating caller objects or global prototypes; successful handle closes emit immediately. Initialization is idempotent and occurs after Settings/DOM/Toast prerequisites but before builtins, plugins, and updater callers. | Keep upstream's public contract authoritative. Preserve the scoped action-layout adaptation and only the capability-, identity-, emission-, and initialization-safe private plumbing until upstream supplies equivalent behavior. Migrate internal callers with the store; do not add a fork-only option, close prop, alternate API, runtime version gate, or phantom global declaration. |
 | Release checksum artifacts | Upstream adds `dist/checksums.txt` with 8 packed-input hashes, uploads the ASAR and checksum file separately for pull requests, and publishes both through its Canary release. | Keeps the upstream checksum manifest and separate unarchived pull-request artifacts, but adapts publication to the fork's rolling `develop-latest` release. The list hashes packed inputs, not the ASAR stream. | Preserve the checksum behavior while keeping the fork's branch and release model unless that model is explicitly reworked. |
 | `BdApi.UI` setting dependencies | Upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829) makes plugin-created settings reactive, but its nested-category checks reverse the otherwise documented `enableWith` and `disableWith` behavior. Its top-level checks are correct. | Uses the upstream reactive panel while making nested categories follow the same polarity as top-level settings and `SettingsStore`: `enableWith` requires its controller to be on; `disableWith` blocks the dependent setting while its controller is on. | Preserve the two-line correction and its source comment until upstream fixes or explicitly clarifies the nested-category semantics; then prefer the upstream equivalent. |
 | Standard plugin setting controls | Upstream [`dc704ba8`](https://github.com/BetterDiscord/BetterDiscord/commit/dc704ba89fda0e9d4374d31260952792fa151054) converts the standard controls to controlled/uncontrolled value semantics. Later [`d2a0b6e1`](https://github.com/BetterDiscord/BetterDiscord/commit/d2a0b6e1ac1219416e05f1bd9158fbd537dda0c4) changes panel callback routing, while [`2a432824`](https://github.com/BetterDiscord/BetterDiscord/commit/2a432824030d5d5ee6039e092b2337eaee17b17e) lets live core provider state override a stale copied `disabled` prop. Upstream [`dfb4148f`](https://github.com/BetterDiscord/BetterDiscord/commit/dfb4148fbb69437dbfb85d6d59fac6ad9afe728f) corrects the Number decrement guard to use `min`; the fork already matches that behavior. | Fork [`28202051`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/282020515d3f0150bd5dbf9c2300e33959aaa2ac) preserves controlled/uncontrolled, provider-plus-local disabled, Color, Number, Radio, Keybind, Search, callback-order, and single-dispatch contracts. Collection-backed context-consuming controls omit only the redundant disabled snapshot so live `SettingsStore` dependency state updates immediately; direct props remain for plugin controls and non-context `file`, `button`, and `custom` types. | Retain plugin-visible contracts and callback ownership. For core dependency fixes, keep live Store state authoritative without weakening explicit local disabled props outside that collection path. |
@@ -815,6 +815,22 @@ receives exactly `{notification}`, stays inside the outer
 `.bd-notification`, replaces all standard content/action/close/progress chrome,
 and keeps the default spring expiry paused. Do not add a fork-only close prop
 or reinterpret that custom-render lifecycle.
+
+Upstream [`5224e6eb`](https://github.com/BetterDiscord/BetterDiscord/commit/5224e6eb687f6e4d6ea7d4cedc4e645b6053877f)
+fixes uneven wrapping caused by the fixed three-column notification action layout.
+The fork adopts its two scoped hunks: the action `Button` forces `grow=false`
+after the action spread, while notification-scoped CSS removes calc-based
+three-column minimum sizing and uses content-aware flex sizing with width,
+min-width, and max-width overrides plus no-wrap/ellipsis for long labels. This
+changes only default action presentation; action callbacks, `dontClose`/Shift
+behavior, timeout/hover/progress/`onClose`, store identity/emission,
+optional/same/anonymous IDs, custom rendering, initialization, public options,
+MessageLogger, and core/addon updater behavior are unchanged. Focused
+test-first checks pass with 2 tests, 10 expectations, and 0 failures. The full
+suite passes with 460 passes, 24 expected skips, 1,277 expectations, and 0
+failures; full ESLint and typecheck pass. Targeted stylelint reports the same 13
+pre-existing `notifications.css` warnings before and after the adaptation, with
+no warning introduced by the new declarations.
 
 The fork keeps that public behavior with private compatibility plumbing:
 
