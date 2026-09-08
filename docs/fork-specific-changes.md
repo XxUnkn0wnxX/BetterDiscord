@@ -6,14 +6,27 @@ Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
 The latest reviewed upstream boundary is
+[`64360114`](https://github.com/BetterDiscord/BetterDiscord/commit/64360114da8efc28af4a1dec8fc40ae2cd30250d)
+on 2026-09-08, using
 [`5224e6eb`](https://github.com/BetterDiscord/BetterDiscord/commit/5224e6eb687f6e4d6ea7d4cedc4e645b6053877f)
-on 2026-09-03, using
-[`dfb4148f`](https://github.com/BetterDiscord/BetterDiscord/commit/dfb4148fbb69437dbfb85d6d59fac6ad9afe728f)
-as its range base. The range is in `develop` ancestry through tree-neutral
-marker
+as its range base. The ten-commit range covers message-group subscriptions,
+Windows/Linux host-update migration, and Webpack Source Viewer links. The fork
+adapts their internal lifecycle and IPC handling, retains existing addon-link
+aliases, and omits superseded module rewriting and commented DevTools debugging
+code. No workflow or package-version change is part of this integration.
+Local verification and the user runtime-test handoff are recorded below; live
+injection and publication remain pending until the user tests the local build.
+
+The full range is recorded in local ancestry through tree-neutral marker
+`413c6a25f3ee7766e385f51e8872f2350facba84`, with first parent `c70bb53d`
+and second parent `64360114`. Its tree exactly matches the first parent; the
+verified adaptations and this contract update are committed immediately above it.
+
+The earlier notification action-layout range through `5224e6eb` is in ancestry
+through tree-neutral marker
 [`712aa085`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/712aa0856e8351cbfea5f644473b6ee3c3cdfc6e),
-whose first parent is `45bed24d` and second parent is `5224e6eb`. The scoped
-notification action-layout adaptation is applied directly above that marker.
+whose first parent is `45bed24d` and second parent is `5224e6eb`. Its scoped
+notification action-layout adaptation remains above that marker.
 Earlier integration records through `44e21745`, `8e3078b4`, `474dc6e1`,
 `49e7f142`, `b2830689`, `46b95b20`, `37a229a5`, and `dfb4148f` remain
 historical authority for their affected contracts rather than being rewritten.
@@ -22,6 +35,25 @@ incremental Stable testing against fork build `1ab30540`; no installed plugin
 exposed the Color reset swatch or linked-setting transition during keybind
 recording, so those remain coverage limits rather than observed failures.
 Commit labels are abbreviated for readability; links target full SHAs.
+
+Local validation for `5224e6eb..64360114` on 2026-09-08:
+
+- Bun 1.1.20 full suite: **485 passed, 24 skipped, 0 failed**, with 1,419
+  assertions across 61 test files. Process-isolated wrappers also run the
+  ThemeAttributes React and source-viewer/protocol harnesses.
+- Full ESLint, TypeScript `--noEmit`, and whitespace checks passed.
+- The fully adapted production build passed using
+  `./local-build.zsh dist -mrts 45`; all eight packed-input checksums verified.
+  Release handoffs rebuild after committing so bundled metadata identifies the
+  tested adaptation.
+- macOS recovery/handoff implementations, local wrappers, preload, BrowserWindow,
+  workflows, and core-updater code remain byte-identical to fork base `c70bb53d`.
+  Migrator changes are only the host-hook import and registration; its existing
+  macOS initialization and `before-quit` callback remain unchanged.
+- Synthetic merge conflicts in ThemeAttributes and migrator were resolved by
+  adapting the upstream feature around fork ownership/lookup and macOS recovery
+  behavior. No live injection, Discord restart, Windows/Linux update cycle, or
+  publication was performed; those runtime results are not implied by fixtures.
 
 ## Merge policy
 
@@ -48,7 +80,9 @@ Commit labels are abbreviated for readability; links target full SHAs.
 
 | Area | What upstream does | What this fork prefers/does | Merge rule |
 | --- | --- | --- | --- |
-| Injection and Discord updates | Uses the application-ASAR wrapper model. In [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), the only new injector change is a spelling correction and the only migrator change suppresses production logs. | Extends the wrapper model with cross-platform resource discovery, release/dev injection, safe uninject, macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing. Port only a reviewed target-layout/path adjustment, never a wholesale replacement. |
+| Injection and Discord updates | Uses the application-ASAR wrapper model. PR #2247 adds Windows/Linux migration before `host-updated` event delivery, retaining quit-time migration. | Routes that event through the existing owned-wrapper migration, with migration failures contained before original event delivery. Retains cross-platform resource discovery, release/dev injection, safe uninject, separate macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing and Windows/Linux-only event gate. Never replace macOS quit registration with upstream's supported-platform block or treat a host-update event as macOS restart permission. |
+| Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscription identity with commit-scoped grouping state, working cleanup, and guarded message identity. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Preserve upstream-visible grouping attributes while keeping owner lifecycle and malformed-tree handling safe. Do not replace the registry with upstream's ineffective cleanup or reintroduce grouping-only message rerenders. |
+| Webpack Source Viewer | PR #2248 adds source links and coordinates, a developer setting, and DevTools IPC. It interpolates unchecked coordinates and polls for DevTools at a sub-millisecond interval, while narrowing Store links to the canonical alias. | Keeps the source-link feature/settings with runtime-validated IPC input, serialized arguments, bounded readiness, handled errors, and capability checks. Store and source viewer share protocol ownership; existing Store aliases remain supported. | Preserve `EDITOR_CLOSE`, window security preferences, independent setting gates, shared protocol ownership, and accepted source URL/coordinate semantics. Keep validation and cleanup until upstream provides equivalent protection; do not add the commented debug windows. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
 | Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
 | BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
@@ -122,6 +156,22 @@ Non-negotiable installed-recovery and handoff behavior:
 - Normal and fast user quits may repair replaced ASARs but stay closed. Only a
   current explicit updater-restart signal may authorize a helper to relaunch
   Discord.
+
+PR #2247 (`78fe55a9`, `1e63671d`, `e09ed366`, merge `738118c6`) adds a second
+Windows/Linux migration trigger. `src/electron/main/hostupdate.ts` installs the
+final EventEmitter proxy only on `win32`/`linux`, calls the existing
+`migrateVersionDirectory()` before exact `host-updated` event delivery, and
+preserves the original emit receiver, arguments, return value, and listener
+exceptions. Migration failures alone are contained so they cannot suppress the
+host event, including failures before the migration routine's inner catch.
+Repeated events and the existing quit fallback reuse matching-wrapper detection.
+
+The migrator change is one import and one registration call; its macOS recovery,
+startup helper initialization, restart-intent listener, and `before-quit`
+callback remain unchanged. The intermediate `Module.wrap`/global-function
+injection from upstream is superseded and is not installed. Inert fixtures
+exercise event-to-migration behavior without running an installed client; a real
+Windows/Linux host-update cycle is still a separate runtime verification gate.
 
 ### Plugin loading and library neutrality
 
@@ -885,6 +935,71 @@ but no current UI or lifecycle entry point invokes it. The old
 `shouldSkipAutoCheck()` helper remains unnecessary because there is no active
 core path to branch-gate.
 
+### Message grouping subscriptions
+
+PR #2246 (`392b0901`, `f121495d`, `e1e9645a`, merge `faa53118`) replaces
+changing grouping Context values with per-message subscriptions in
+`src/betterdiscord/builtins/general/themeattributes.tsx`. The fork adopts that
+behavior using `src/betterdiscord/utils/messagegrouping.ts`:
+
+- Each mounted list owns its store. Render builds a candidate grouping map;
+  a layout effect publishes it and prunes entries absent from that committed
+  stream. An abandoned render cannot mutate published state or prune entries.
+- A message keeps the same subscription function while its ID remains present.
+  Grouping-only changes update `data-message-group-start` and
+  `data-message-group-end` on the current DOM node without rerendering memoized
+  message children. Replacement DOM identities resubscribe in a layout effect.
+- Late subscribers receive committed state without consuming another listener's
+  pending update. Effects unsubscribe on cleanup, and list unmount clears the
+  owner map. Invalid or empty committed streams also clear obsolete entries.
+- Missing message IDs remain unwrapped while still contributing to neighboring
+  group boundaries. Non-message entries, wrapped export handling, callable
+  declaration filters, bounded tree traversal, and author/reply attributes keep
+  the fork's existing behavior.
+
+The isolated React harness covers actual layout effects, grouping changes without
+message rerenders, invalid trees, removal/reuse, DOM replacement, unmount,
+abandoned render state, and late subscriptions. A live pinned-client check of
+message insertion/removal, scrolling, channel switches, and Theme Attributes
+disable/re-enable remains part of the user's runtime handoff.
+
+### Webpack Source Viewer and protocol ownership
+
+PR #2248 (`fa8a1186`, merge `64360114`) adds
+`src/betterdiscord/builtins/developer/webpackSourceViewer.ts`, its developer
+setting and locale strings, renderer IPC, and `OPEN_DEVTOOLS_SOURCE`. The fork
+keeps the upstream feature and default-enabled setting dependent on `devTools`,
+with these internal adaptations:
+
+- Both settings gate each delivered link, including a captured launch URL.
+  Initialization registers custom and base lifecycle listeners only once;
+  setting transitions update protocol ownership without a restart.
+- `src/betterdiscord/utils/betterdiscordprotocol.ts` shares ownership of the
+  Discord `betterdiscord:` allowlist entry between the viewer and Addon Store.
+  Disabling either leaves the other active; final release removes only an entry
+  inserted by this helper. A pre-existing entry remains untouched.
+- `src/common/webpackSource.ts` accepts the patched Webpack source namespace,
+  validates the normalized path, preserves hash/query coordinate precedence,
+  defaults invalid or negative coordinates to zero, and strips those coordinates
+  from the source URL passed to DevTools.
+- The main IPC handler independently validates the URL and requires nonnegative
+  safe-integer numeric coordinates. `src/electron/main/modules/devtools.ts`
+  serializes arguments as data, checks the requested DevTools capability, awaits
+  execution, and waits at most five seconds for the DevTools window to open.
+  Closure, destruction, opening failure, and timeout all settle with listener
+  cleanup. Inspect-element uses the same readiness helper, and send-style
+  failures are handled instead of becoming unhandled rejections.
+- Existing `EDITOR_CLOSE`, window security preferences, and Addon Store's
+  plugin/theme/addon/store aliases, full-match-length correction, and resolved
+  module/key cache remain intact. Source links do not match the Store routes.
+  The upstream BrowserWindow debug comments and cosmetic preload callback
+  parameter rename are omitted.
+
+Parser, DevTools, renderer lifecycle, shared ownership, and alias regression
+tests use isolated mocks/fixtures. The pinned Discord frontend must still prove
+first-open/reopen readiness, `DevToolsAPI.revealSourceLine`, coordinate placement,
+inspect-element, launch-delivered links, and source links with the Store disabled.
+
 ### Runtime compatibility hardening
 
 These are secondary review surfaces, not reasons to reject unrelated upstream
@@ -979,6 +1094,11 @@ required named export. This concrete adaptation is recorded in
 ## Required checks after an overlapping upstream change
 
 - Injection/OpenAsar: run injection, resource-discovery, recovery, and handoff tests; then ask before live injection changes.
+- Host updates: verify the Windows/Linux-only hook, migration-before-listener
+  ordering, original emit behavior and exceptions, migration-failure forwarding,
+  repeated events/quit, owned and foreign layouts, and rollback. Compare macOS
+  recovery/handoff code with the fork baseline and keep real Windows/Linux
+  updater emission as a separate runtime gate.
 - Plugin loading: verify disabled plugins stay inert, enablement runs `load()` once, and no library filename bypass exists.
 - Settings: verify placement, search/navigation, the version row, debug-copy,
   and tooltip behavior. Exercise controlled rerenders versus uncontrolled
@@ -1003,7 +1123,18 @@ required named export. This concrete adaptation is recorded in
   correct, and each plugin callback runs once.
 - ThemeAttributes: verify the direct `Filters.byStrings` declaration lookup
   and the null-safe message-tree path, including a safe no-op when the expected
-  declaration or tree shape is absent.
+  declaration or tree shape is absent. Exercise real layout effects, stable
+  subscription identity, grouping-only updates without message rerenders, late
+  subscribers, abandoned renders, invalidation/pruning, missing IDs, replacement
+  DOM nodes, and owner cleanup. Spot-check insertion/removal, scrolling, channel
+  changes, and disable/re-enable in the pinned client.
+- Webpack Source Viewer: test parser semantics and main IPC validation,
+  initialization and both setting gates, captured launch delivery, shared
+  protocol release in both orders, pre-existing registration, retained Store
+  aliases, bounded DevTools readiness and cleanup, missing capability, and
+  execution failure. Keep `EDITOR_CLOSE` and window preferences unchanged;
+  verify live source reveal/coordinates and inspect-element on first open and
+  reopen with the Store disabled as well as enabled.
 - Custom CSS/editor focus: verify enabled/disabled startup, disable/re-enable,
   all open actions, file watching, saving, and detached close behavior. Exercise
   first open and close/reopen for Settings, external, detached Custom CSS,

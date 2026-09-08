@@ -2,14 +2,18 @@
 
 This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
 
-## Fork ([2feefd75](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2feefd75da22339ef676bb5ebe16d912d74c72dc))
+## Fork (1.14.1)
 
 This fork now reports BetterDiscord `1.14.1` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
 
-- Integrated and reviewed upstream [`44e21745`](https://github.com/BetterDiscord/BetterDiscord/commit/44e21745d07d8f6672c20e52b889cbfcaf7ee829), adapting overlapping changes around the fork instead of replacing its protected behavior.
+- Reviewed and adapted upstream development through [`64360114`](https://github.com/BetterDiscord/BetterDiscord/commit/64360114da8efc28af4a1dec8fc40ae2cd30250d), preserving the fork's compatibility and lifecycle behavior.
+- Updated message-group theme attributes through subscriptions, avoiding unnecessary message rerenders while keeping listener cleanup and missing-message handling safe.
+- Added Windows/Linux recovery when Discord reports a completed host update, retaining the existing quit fallback and the separate macOS recovery flow.
+- Added Webpack Source Viewer links with line/column navigation, validated IPC arguments, and bounded DevTools readiness. Existing addon-link aliases remain supported, and source-link protocol registration is shared with the Addon Store.
+- Adopted upstream notification-card behavior and flexible action-button sizing while preserving older-runtime compatibility, stable notification identity, and immediate programmatic closing.
 - Preserved the custom macOS injection, reinjection, recovery, and identity-matched OpenAsar bootstrap/handoff flow.
 - Added settings, Custom CSS/editor, Addon Store lifecycle, and Discord/Webpack compatibility fixes while retaining the fork's plugin-loading rules.
 - Added identity-aware plugin/theme updates that safely compare declared `@updateUrl` and Store candidates, with persistent scheduling, provider backoff, stale-state pruning, and optional failure notifications. BetterDiscord core update checks remain disabled.

@@ -7,6 +7,7 @@ import {execFileSync, spawn} from "child_process";
 import {findLatestDiscordResources, parseDiscordVersionDirectory} from "@common/discordResources";
 import {findMatchingOpenAsarHandoff, findPendingOpenAsarHandoff} from "./macoshandoff";
 import {getMacOSRecoveryEnvironment, macOSRecoveryHelperSource} from "./macosrecovery";
+import {installHostUpdatedMigrationHook} from "./hostupdate";
 
 
 const markerFilename = ".betterdiscord-inject.json";
@@ -460,6 +461,7 @@ function armMacRecovery() {
 }
 
 initializeMacBootstrap();
+installHostUpdatedMigrationHook(process.platform, migrateVersionDirectory);
 app.on("before-quit", () => {
     if (process.platform === "darwin") armMacRecovery();
     else if (process.platform === "win32" || process.platform === "linux") migrateVersionDirectory();

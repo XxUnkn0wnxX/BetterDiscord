@@ -62,6 +62,10 @@ export default new class IPCRenderer {
         return ipc.send(IPCEvents.OPEN_PATH, path);
     }
 
+    openDevtoolsSource(url: string, line = 0, column = 0) {
+        return ipc.invoke(IPCEvents.OPEN_DEVTOOLS_SOURCE, url, line, column);
+    }
+
     allowPreloadOverride = {
         async set(value: boolean) {
             await ipc.invoke(IPCEvents.SET_ALLOW_PRELOAD_OVERRIDE, value);

@@ -8,14 +8,29 @@ export default {
     // https://youtu.be/BZq1eb9d0HI?si=67V2eArlF4atnGnz
     video: "https://www.youtube.com/embed/Qv1HUqqUgkg?si=67V2eArlF4atnGnz&vq=hd720p&hd=1&rel=0&showinfo=0&mute=0&loop=1&autohide=1",
     // banner: "https://i.imgur.com/wuh5yMK.png",
-    blurb: "New Injection Style and Bug fixes!",
+    blurb: "Fork updates: smoother message grouping, Webpack source links, and update recovery.",
     changes: [
         {
             type: "improved",
-            title: "New Injection Style",
+            title: "Update Recovery",
             items: [
-                "Windows and Linux users should not have to ever re-inject BetterDiscord",
-                "macOS users will have to re-inject BetterDiscord less frequently"
+                "Windows and Linux now attempt to restore BetterDiscord as soon as Discord reports a completed host update",
+                "macOS retains this fork's update recovery and OpenAsar handoff support"
+            ]
+        },
+        {
+            type: "improved",
+            title: "Message Theme Attributes",
+            items: [
+                "Message grouping attributes update without unnecessarily rerendering messages"
+            ]
+        },
+        {
+            type: "added",
+            title: "Webpack Source Viewer",
+            items: [
+                "Open patched Webpack module links in developer tools, including a requested line and column",
+                "Enable DevTools in Developer Settings to use the Webpack Source Viewer option"
             ]
         },
         {

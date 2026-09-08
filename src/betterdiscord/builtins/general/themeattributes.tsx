@@ -1,12 +1,10 @@
 import Builtin from "@structs/builtin";
 import {Filters, getLazy, getLazyBySource, getLazyByStrings, getMangledLazy, Stores} from "@webpack";
 import {findInTree} from "@common/utils";
-import React from "react";
+import {createMessageGroupingStore, type MessageGroupingSubscriber} from "@utils/messagegrouping";
+import React, {createContext, useContext, useLayoutEffect, useMemo} from "react";
 
-const MessageGroupingContext = React.createContext({
-    first: false,
-    last: false
-});
+const MessageGroupingEvents = createContext<MessageGroupingSubscriber>(() => () => {});
 
 export default new class ThemeAttributes extends Builtin {
     get name() {return "ThemeAttributes";}
@@ -23,11 +21,22 @@ export default new class ThemeAttributes extends Builtin {
         if (typeof MessageComponent?.type !== "function") return;
 
         this.after(MessageComponent!, "type", (_, [props], returnValue) => {
-            const {first, last} = React.useContext(MessageGroupingContext);
+            const subscribe = useContext(MessageGroupingEvents);
 
             const li = findInTree(returnValue, (node) => node?.className?.includes("messageListItem"), {
                 walkable: ["props", "children"]
             });
+
+            useLayoutEffect(() => subscribe(({first, last}) => {
+                if (typeof li?.id !== "string") return;
+
+                const node = document.getElementById(li.id);
+                if (!node) return;
+
+                node.setAttribute("data-message-group-start", first.toString());
+                node.setAttribute("data-message-group-end", last.toString());
+            }), [subscribe, li]);
+
             if (!li) return;
 
             const author = findInTree(props, (arg) => arg?.username, {walkable: ["message", "author"]});
@@ -43,9 +52,6 @@ export default new class ThemeAttributes extends Builtin {
 
             li["data-author-is-deleted"] = author.id === "456226577798135808";
             li["data-author-is-bot"] = author.bot && author.discriminator !== "0000";
-
-            li["data-message-group-start"] = first;
-            li["data-message-group-end"] = last;
 
             li["data-message-is-reply"] = props?.message?.messageReference?.type === 0;
             li["data-message-is-forward"] = props?.message?.messageReference?.type === 1;
@@ -63,6 +69,14 @@ export default new class ThemeAttributes extends Builtin {
         if (typeof messageHook?.key !== "function") return;
 
         this.after(messageHook!, "key", (_, __, res) => {
+            const grouping = useMemo(() => createMessageGroupingStore(), []);
+            const render = grouping.createRender();
+
+            useLayoutEffect(() => {
+                grouping.commit(render);
+            });
+            useLayoutEffect(() => () => grouping.dispose(), [grouping]);
+
             const node = findInTree(res, m => m?.["data-list-id"] === "chat-messages", {
                 walkable: ["props", "children"]
             });
@@ -73,19 +87,20 @@ export default new class ThemeAttributes extends Builtin {
 
             if (!baseChannelStreamMarkup) return;
 
-            const channelStreamMarkup: Array<[number, React.ReactElement<any, any>]> = [];
+            const channelStreamMarkup: Array<[number, React.ReactElement<any, any>, string | undefined]> = [];
             for (let index = 0; index < baseChannelStreamMarkup.length; index++) {
                 const element = baseChannelStreamMarkup[index];
 
                 if (React.isValidElement(element) && typeof (element as React.ReactElement<any, any>).props.groupId === "string") {
-                    channelStreamMarkup.push([index, element]);
+                    const messageId = (element as React.ReactElement<any, any>).props.message?.id;
+                    channelStreamMarkup.push([index, element, typeof messageId === "string" ? messageId : undefined]);
                 }
             }
 
             if (!channelStreamMarkup.length) return;
 
             for (let i = 0; i < channelStreamMarkup.length; i++) {
-                const [index, element] = channelStreamMarkup[i];
+                const [index, element, messageId] = channelStreamMarkup[i];
                 const next = channelStreamMarkup[i + 1];
                 const pre = channelStreamMarkup[i - 1];
 
@@ -98,9 +113,15 @@ export default new class ThemeAttributes extends Builtin {
                 if (!next) last = true;
                 else if (element.props.groupId !== next[1].props.groupId) last = true;
 
+                if (!messageId) continue;
+
                 // We could directly pass props to the Message component
                 // but we will not be doing that
-                baseChannelStreamMarkup[index] = <MessageGroupingContext value={{last, first}}>{baseChannelStreamMarkup[index]}</MessageGroupingContext>;
+                baseChannelStreamMarkup[index] = (
+                    <MessageGroupingEvents key={element.key ?? index} value={render.createSubscriber(messageId, {last, first})}>
+                        {baseChannelStreamMarkup[index]}
+                    </MessageGroupingEvents>
+                );
             }
         });
     }

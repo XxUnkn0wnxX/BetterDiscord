@@ -5,6 +5,7 @@ import * as IPCEvents from "@common/constants/ipcevents";
 import Editor from "./editor";
 import BetterDiscord from "./betterdiscord";
 import type {DialogOptions} from "@common/types/ipc";
+import {inspectElement as inspectDevToolsElement, openDevtoolsSource} from "./devtools";
 
 const getPath = (event: IpcMainEvent, pathReq: string) => {
     let returnPath;
@@ -110,12 +111,11 @@ const createBrowserWindow = (_: IpcMainInvokeEvent, url: string, {windowOptions,
     });
 };
 
-const inspectElement = async (event: IpcMainEvent) => {
-    if (!event.sender.isDevToolsOpened()) {
-        event.sender.openDevTools();
-        while (!event.sender.isDevToolsOpened()) await new Promise(r => setTimeout(r, 100));
-    }
-    event.sender.devToolsWebContents?.executeJavaScript("DevToolsAPI.enterInspectElementMode();");
+const inspectElement = (event: IpcMainEvent) => {
+    void inspectDevToolsElement(event.sender).catch(error => {
+        // eslint-disable-next-line no-console
+        console.error("BetterDiscord could not start element inspection", error);
+    });
 };
 
 const setMinimumSize = (event: IpcMainEvent, width: number, height: number) => {
@@ -226,6 +226,9 @@ export default class IPCMain {
             ipc.handle(IPCEvents.GET_ALLOW_PRELOAD_OVERRIDE, getAllowPreloadOverride);
             ipc.handle(IPCEvents.SET_ALLOW_PRELOAD_OVERRIDE, setAllowPreloadOverride);
             ipc.handle(IPCEvents.RUN_RENDERER, runRenderer);
+            ipc.handle(IPCEvents.OPEN_DEVTOOLS_SOURCE, (event, url: unknown, line: unknown, column: unknown) => {
+                return openDevtoolsSource(event.sender, url, line, column);
+            });
         }
         catch (err) {
             // eslint-disable-next-line no-console

@@ -10,9 +10,10 @@ import ErrorBoundary from "@ui/errorboundary";
 import Web from "@data/web";
 
 import RemoteAPI from "@polyfill/remote";
-import {Filters, getBySource, getLazy, getLazyBySource, getWithKey} from "@webpack";
+import {Filters, getLazy, getLazyBySource, getWithKey} from "@webpack";
 import {findInTree} from "@common/utils";
 import {getInternalInstance, getOwnerInstance} from "@utils/react";
+import {retainBetterDiscordProtocol} from "@utils/betterdiscordprotocol";
 
 let MessageAccessories;
 
@@ -107,8 +108,7 @@ export default new class AddonStoreBuiltin extends Builtin {
     async enabled() {
         this.patchEmbeds();
         this.patchLinkOpener();
-
-        this.extractDiscordProtocolList().push("betterdiscord:");
+        this.protocolRelease ??= retainBetterDiscordProtocol();
     }
 
     /** The patches are slightly late sometimes, so this will update chat */
@@ -154,15 +154,7 @@ export default new class AddonStoreBuiltin extends Builtin {
         });
     }
 
-    private protocolList: string[] | undefined;
-    private extractDiscordProtocolList() {
-        if (this.protocolList) return this.protocolList;
-
-        return this.protocolList = getBySource(["discord:", "mailto:"], {
-            searchDefault: false,
-            declarationFilter: x => Array.isArray(x) && x.includes("discord:")
-        }) || [];
-    }
+    private protocolRelease?: () => void;
 
     async patchEmbeds() {
         MessageAccessories ??= await getLazy(Filters.byPrototypeKeys(["renderEmbeds"]), {searchExports: true});
@@ -219,11 +211,8 @@ export default new class AddonStoreBuiltin extends Builtin {
     }
 
     async disabled() {
-        const list = this.extractDiscordProtocolList();
-        const index = list.indexOf("betterdiscord:");
-        if (index !== -1) {
-            list.splice(index, 1);
-        }
+        this.protocolRelease?.();
+        this.protocolRelease = undefined;
 
         this.unpatchAll();
         this.forceUpdateChat();
