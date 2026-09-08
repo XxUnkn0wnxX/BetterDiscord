@@ -29,7 +29,7 @@ export function getByStrings<T>(strings: readonly string[], options: Webpack.Opt
 export function getAllByStrings<T extends unknown[]>(strings: readonly string[], options: Webpack.Options = {}) {
     return getAllModules<T>(Filters.byStrings(...strings), options);
 }
-export function getLazyByStrings<T>(strings: readonly string[], options: Webpack.Options = {}) {
+export function getLazyByStrings<T>(strings: readonly string[], options: Webpack.LazyOptions = {}) {
     return getLazy<T>(Filters.byStrings(...strings), options);
 }
 
@@ -49,7 +49,7 @@ export function getBySource<T>(sources: ReadonlyArray<string | RegExp>, options:
 export function getAllBySource<T extends unknown[]>(sources: ReadonlyArray<string | RegExp>, options: Webpack.Options = {}) {
     return getAllModules<T>(Filters.bySource(...sources), options);
 }
-export function getLazyBySource<T>(sources: ReadonlyArray<string | RegExp>, options: Webpack.Options = {}) {
+export function getLazyBySource<T>(sources: ReadonlyArray<string | RegExp>, options: Webpack.LazyOptions = {}) {
     return getLazy<T>(Filters.bySource(...sources), options);
 }
 

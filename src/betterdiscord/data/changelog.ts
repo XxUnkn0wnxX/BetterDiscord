@@ -37,6 +37,7 @@ export default {
             type: "fixed",
             title: "Fixes",
             items: [
+                "Fixed Discord crashing when switching Theme Attributes off or on",
                 "Discord Activities are fixed",
                 "BetterDiscord's location in settings is now fixed",
                 "Plugin settings are now fixed"

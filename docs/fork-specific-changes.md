@@ -36,7 +36,8 @@ exposed the Color reset swatch or linked-setting transition during keybind
 recording, so those remain coverage limits rather than observed failures.
 Commit labels are abbreviated for readability; links target full SHAs.
 
-Local validation for `5224e6eb..64360114` on 2026-09-08:
+Initial local validation for `5224e6eb..64360114` on 2026-09-08 (before the
+Theme Attributes runtime regression described below):
 
 - Bun 1.1.20 full suite: **485 passed, 24 skipped, 0 failed**, with 1,419
   assertions across 61 test files. Process-isolated wrappers also run the
@@ -81,7 +82,7 @@ Local validation for `5224e6eb..64360114` on 2026-09-08:
 | Area | What upstream does | What this fork prefers/does | Merge rule |
 | --- | --- | --- | --- |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. PR #2247 adds Windows/Linux migration before `host-updated` event delivery, retaining quit-time migration. | Routes that event through the existing owned-wrapper migration, with migration failures contained before original event delivery. Retains cross-platform resource discovery, release/dev injection, safe uninject, separate macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing and Windows/Linux-only event gate. Never replace macOS quit registration with upstream's supported-platform block or treat a host-update event as macOS restart permission. |
-| Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscription identity with commit-scoped grouping state, working cleanup, and guarded message identity. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Preserve upstream-visible grouping attributes while keeping owner lifecycle and malformed-tree handling safe. Do not replace the registry with upstream's ineffective cleanup or reintroduce grouping-only message rerenders. |
+| Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscriptions with commit-scoped state in owned React components, guarded identity, and cancelled stale patch lookups. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Keep removable patch callbacks hook-free and exercise toggles without unmounting the Discord owner. Preserve working registry cleanup and cancellation; do not reintroduce grouping-only message rerenders. |
 | Webpack Source Viewer | PR #2248 adds source links and coordinates, a developer setting, and DevTools IPC. It interpolates unchecked coordinates and polls for DevTools at a sub-millisecond interval, while narrowing Store links to the canonical alias. | Keeps the source-link feature/settings with runtime-validated IPC input, serialized arguments, bounded readiness, handled errors, and capability checks. Store and source viewer share protocol ownership; existing Store aliases remain supported. | Preserve `EDITOR_CLOSE`, window security preferences, independent setting gates, shared protocol ownership, and accepted source URL/coordinate semantics. Keep validation and cleanup until upstream provides equivalent protection; do not add the commented debug windows. |
 | Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
 | Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
@@ -942,6 +943,12 @@ changing grouping Context values with per-message subscriptions in
 `src/betterdiscord/builtins/general/themeattributes.tsx`. The fork adopts that
 behavior using `src/betterdiscord/utils/messagegrouping.ts`:
 
+- Grouping hooks run only in BetterDiscord-owned React components. The patched
+  Discord callbacks contain no hooks: the list callback replaces its stream
+  child slot with a grouping component, and the message callback returns a
+  component that owns the subscription effect around its existing output.
+  These add no DOM wrapper. Toggle-time insertion/removal may remount the owned
+  subtree but must never change a still-mounted Discord fiber's hook sequence.
 - Each mounted list owns its store. Render builds a candidate grouping map;
   a layout effect publishes it and prunes entries absent from that committed
   stream. An abandoned render cannot mutate published state or prune entries.
@@ -956,6 +963,33 @@ behavior using `src/betterdiscord/utils/messagegrouping.ts`:
   group boundaries. Non-message entries, wrapped export handling, callable
   declaration filters, bounded tree traversal, and author/reply attributes keep
   the fork's existing behavior.
+- Each enable owns an AbortController shared by this builtin's lazy patch
+  lookups. Disable aborts it before unpatching; each completed lookup checks
+  its own signal before registering. Repeated enable is idempotent, and an old
+  enable's delayed lookup cannot install a patch in a newer enable cycle.
+  `getLazyByStrings` and `getLazyBySource` accept the existing `LazyOptions`
+  type so callers can pass cancellation; their runtime forwarding is unchanged.
+
+User testing of `97cc0378` reproduced React error #300 when Theme Attributes was
+toggled. That build called `useMemo` and layout effects directly inside removable
+patch callbacks. Removing a callback left a mounted Discord owner with fewer
+hooks; adding it could produce the inverse error. The original harness manually
+called recorded callbacks and did not exercise real patch removal, so its passing
+unmount/remount checks did not prove toggle safety. Retained-owner regression
+cases reproduce both failures against that commit and cover stale async patch
+registration across disable/re-enable. Preserve this ownership rule in future
+upstream adaptations rather than retaining hook-adding callbacks indefinitely.
+
+The follow-up fix was checked with the same real-Patcher/React lifecycle harness
+against the immutable `97cc0378` source and the corrected source: **0 passed / 5
+failed before; 5 passed / 0 failed after**. Both retained-proxy removal cases
+produce the user's fewer-hooks error on the old source; initial enable records
+the inverse hook error through Patcher's error handler. The existing grouping
+harness passes all ten cases, including same-ID DOM replacement. The full suite
+passes **486 tests, 24 skipped, 0 failed**, with full ESLint, TypeScript, and
+whitespace checks passing. The production build passes with
+`./local-build.zsh dist -mrts 45`. The user's fresh release-injected toggle retest
+is still required before publication.
 
 The isolated React harness covers actual layout effects, grouping changes without
 message rerenders, invalid trees, removal/reuse, DOM replacement, unmount,
@@ -1126,7 +1160,11 @@ required named export. This concrete adaptation is recorded in
   declaration or tree shape is absent. Exercise real layout effects, stable
   subscription identity, grouping-only updates without message rerenders, late
   subscribers, abandoned renders, invalidation/pruning, missing IDs, replacement
-  DOM nodes, and owner cleanup. Spot-check insertion/removal, scrolling, channel
+  DOM nodes, and owner cleanup. Exercise initial-off enable, on/off/on, repeated
+  toggles, and delayed lookup settlement while the same Discord owner remains
+  mounted; check both captured patched functions and current module properties.
+  Confirm aborted enable cycles cannot install late or duplicate patches.
+  Spot-check insertion/removal, scrolling, channel
   changes, and disable/re-enable in the pinned client.
 - Webpack Source Viewer: test parser semantics and main IPC validation,
   initialization and both setting gates, captured launch delivery, shared

@@ -9,7 +9,7 @@ Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true});
 
 const needle = "SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries";
 
-type AfterCallback = (thisObject: object, args: any[], returnValue: any) => void;
+type AfterCallback = (thisObject: object, args: any[], returnValue: any) => unknown;
 type PatchRecord = {object: object; functionName: string; callback: AfterCallback;};
 type MangledCall = {
     source: string;
@@ -21,6 +21,7 @@ type ChatItem = {
     groupId: string;
     message: {id?: unknown; author?: {id: string; username: string; discriminator: string; bot: boolean;};};
     domId: string;
+    outputKey?: string;
 };
 
 const patches: PatchRecord[] = [];
@@ -105,13 +106,13 @@ function messageTypePatch() {
     return patch;
 }
 
-const ThemeMessage = React.memo(function ThemeMessage({domId, message}: Pick<ChatItem, "domId" | "groupId" | "message">) {
+const ThemeMessage = React.memo(function ThemeMessage({domId, message, outputKey}: Pick<ChatItem, "domId" | "groupId" | "message" | "outputKey">) {
     const messageId = typeof message.id === "string" ? message.id : "missing";
     renderCounts.set(messageId, (renderCounts.get(messageId) ?? 0) + 1);
 
-    const returnValue = <li id={domId} className="messageListItem" />;
-    messageTypePatch().callback({}, [{message}], returnValue);
-    return returnValue;
+    const returnValue = <li key={outputKey} id={domId} className="messageListItem" />;
+    const patchedValue = messageTypePatch().callback({}, [{message}], returnValue);
+    return (patchedValue ?? returnValue) as React.ReactElement;
 });
 
 function ChatList({items, malformed = false, onMarkup}: {items: ChatItem[]; malformed?: boolean; onMarkup?(markup: React.ReactNode[]): void;}) {
@@ -122,12 +123,15 @@ function ChatList({items, malformed = false, onMarkup}: {items: ChatItem[]; malf
     }
 
     const markup: React.ReactNode[] = items.map(chatItem => (
-        <ThemeMessage key={chatItem.key} groupId={chatItem.groupId} message={chatItem.message} domId={chatItem.domId} />
+        <ThemeMessage key={chatItem.key} groupId={chatItem.groupId} message={chatItem.message} domId={chatItem.domId} outputKey={chatItem.outputKey} />
     ));
     const result = {props: {children: [{"data-list-id": "chat-messages", "children": [markup]}]}};
-    patch.callback({}, [], result);
+    const patchedValue = patch.callback({}, [], result);
+    const rendered = patchedValue ?? result;
+    const node = findInTree(rendered, value => value?.["data-list-id"] === "chat-messages", {walkable: ["props", "children"]});
     onMarkup?.(markup);
-    return <>{markup}</>;
+    const children: React.ReactNode[] = Array.isArray(node?.children) ? node.children : [rendered as React.ReactNode];
+    return <>{children.map((child, index) => React.isValidElement(child) ? React.cloneElement(child, {key: child.key ?? index}) : child)}</>;
 }
 
 function item(id: string, groupId: string, domId = id): ChatItem {
@@ -180,7 +184,8 @@ describe("ThemeAttributes", () => {
         expect(filterCalls).toEqual([[needle]]);
         expect(mangledCalls[0].options).toEqual({
             cacheId: "core-themeattributes-messageHook",
-            mapDeclarations: true
+            mapDeclarations: true,
+            signal: undefined
         });
 
         const mapper = mangledCalls[0].mapper.key;
@@ -229,8 +234,9 @@ describe("ThemeAttributes", () => {
 
         await act(async () => root.render(<HookOwner />));
         expect(markup[1]).toBe(untouched);
-        expect((markup[0] as React.ReactElement<{children: unknown;}>).props.children).toBe(first);
-        expect((markup[2] as React.ReactElement<{children: unknown;}>).props.children).toBe(last);
+        const node = findInTree(result, value => value?.["data-list-id"] === "chat-messages", {walkable: ["props", "children"]});
+        expect(node.children[0]).toBeInstanceOf(Object);
+        expect((node.children[0] as React.ReactElement<{items: unknown[];}>).props.items).toEqual([first, untouched, last]);
     });
 
     test("keeps missing IDs untouched while retaining their boundary and updates group attributes without rerendering a stable message", async () => {
@@ -257,15 +263,20 @@ describe("ThemeAttributes", () => {
 
     test("prunes removed messages after invalidation, cleans up an unmounted owner, and updates replacement DOM identities", async () => {
         await installRuntimePatches();
-        const first = item("first", "a", "first-before");
+        const first = {...item("first", "a", "first-before"), outputKey: "first-before-output"};
         const second = item("second", "a");
 
         await renderList([first, second]);
         expect(grouping("first-before")).toEqual({first: "true", last: "false"});
         expect(grouping("second")).toEqual({first: "false", last: "true"});
 
-        await renderList([{...first, domId: "first-after"}, second]);
+        await renderList([{...first, domId: "first-after", outputKey: "first-after-output"}, second]);
         expect(container.querySelector("#first-before")).toBeNull();
+        expect(grouping("first-after")).toEqual({first: "true", last: "false"});
+
+        const firstAfter = container.querySelector("#first-after");
+        await renderList([{...first, domId: "first-after", outputKey: "first-replacement-output"}, second]);
+        expect(container.querySelector("#first-after")).not.toBe(firstAfter);
         expect(grouping("first-after")).toEqual({first: "true", last: "false"});
 
         await renderList([second]);
