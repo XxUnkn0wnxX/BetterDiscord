@@ -1,4 +1,5 @@
 # BetterDiscord fork-local work
+.tmp/
 tmp/
 mergedocs/
 AGENTS.md
