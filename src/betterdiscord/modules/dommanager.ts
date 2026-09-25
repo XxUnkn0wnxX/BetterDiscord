@@ -17,6 +17,8 @@ type CreateElementOptions = Partial<HTMLElementTagNameMap[keyof HTMLElementTagNa
 // TODO: revamp the "manager" part
 export default class DOMManager {
 
+    private static headStyles = new Map<string, HTMLLinkElement>();
+
     /** Document/window width */
     static get screenWidth() {return Math.max(document.documentElement.clientWidth, window.innerWidth || 0);}
 
@@ -78,17 +80,41 @@ export default class DOMManager {
         return node.childNodes.length > 1 ? node.childNodes : node.childNodes[0];
     }
 
+    private static getManagedElement(id: string, container: Element) {
+        const element = document.getElementById(id);
+        if (element && element !== container && container.contains(element)) return element;
+
+        // A foreign duplicate ID can hide our node from document.getElementById.
+        for (const child of container.querySelectorAll("[id]")) {
+            if (child.id === id) return child;
+        }
+        return null;
+    }
+
+    private static getStyle(id: string) {
+        const style = this.getManagedElement(id, this.bdStyles);
+        if (style) return style;
+
+        // Only reuse head links created by this manager, never unrelated DOM IDs.
+        const link = this.headStyles.get(id);
+        if (link?.id === id && link.parentNode === document.head) return link;
+        this.headStyles.delete(id);
+        return null;
+    }
+
     static removeStyle(id: string) {
         id = this.escapeID(id);
-        const exists = this.getElement(`#${id}`, this.bdStyles);
+        const exists = this.getStyle(id);
         if (exists) exists.remove();
+        this.headStyles.delete(id);
     }
 
     static injectStyle(id: string, css: string) {
         id = this.escapeID(id);
-        const style = this.getElement(`#${id}`, this.bdStyles) || this.createElement("style", {id});
+        const style = this.getStyle(id) || this.createElement("style", {id});
         style.textContent = css;
         this.bdStyles.append(style);
+        this.headStyles.delete(id);
     }
 
     static unlinkStyle(id: string) {
@@ -98,11 +124,13 @@ export default class DOMManager {
     static linkStyle(id: string, url: string, {documentHead = false} = {}) {
         id = this.escapeID(id);
         return new Promise(resolve => {
-            const link: HTMLLinkElement = this.getElement(`#${id}`, this.bdStyles) as HTMLLinkElement || this.createElement("link", {id});
+            const link: HTMLLinkElement = this.getStyle(id) as HTMLLinkElement || this.createElement("link", {id});
             link.rel = "stylesheet";
             link.href = url;
             link.onload = resolve;
             const target = documentHead ? document.head : this.bdStyles;
+            if (documentHead) this.headStyles.set(id, link);
+            else this.headStyles.delete(id);
             target.append(link);
         });
     }
@@ -126,14 +154,14 @@ export default class DOMManager {
 
     static removeScript(id: string) {
         id = this.escapeID(id);
-        const exists = this.getElement(`#${id}`, this.bdScripts);
+        const exists = this.getManagedElement(id, this.bdScripts);
         if (exists) exists.remove();
     }
 
     static injectScript(id: string, url: string) {
         id = this.escapeID(id);
         return new Promise((resolve, reject) => {
-            const script: HTMLScriptElement = this.getElement(`#${id}`, this.bdScripts) as HTMLScriptElement || this.createElement("script", {id});
+            const script: HTMLScriptElement = this.getManagedElement(id, this.bdScripts) as HTMLScriptElement || this.createElement("script", {id});
             script.src = url;
             script.onload = resolve;
             script.onerror = reject;

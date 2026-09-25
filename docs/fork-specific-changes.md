@@ -6,6 +6,43 @@ Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
 The latest reviewed upstream boundary is
+[`8a1abced`](https://github.com/BetterDiscord/BetterDiscord/commit/8a1abcedf5166e2be3d4587404eec875977a1079)
+on 2026-09-26, with `64360114..8a1abced` reviewed through the local
+`upstream-development` branch. The four-commit range contains three changes:
+
+- Adapt `f5012ca3` / PR #2249's literal-ID style/script lookup fix while
+  retaining managed-container ownership and tracking only manager-created head
+  stylesheets. Keep the existing escaped stored IDs and direct-append startup.
+- Accept `f6d2709d` / PR #2250's `alwaysEnable: true` Addon Store default.
+  Saved false values remain false; missing settings and reset use true.
+- Retain the fork README instead of `7739cf67` / PR #2253's upstream installer
+  link changes. The rehearsal's only textual conflict was in README; this
+  content remains skipped while its commit is included in reviewed ancestry.
+
+The full range is integrated through tree-neutral two-parent ancestry marker
+`d190cbe5`, with fork base `b3234629` first and upstream `8a1abced` second. The adaptations,
+regressions, and this contract record are committed directly above that marker.
+No workflow, package-version, injection, recovery, or core-updater changes are
+part of this integration. Publication and user runtime testing remain pending.
+
+Local verification for this range:
+
+- Bun 1.1.20: **506 passed, 24 skipped, 0 failed**, with 1,495 assertions across
+  62 test files, using `bun test --timeout 15000 tests/`. The unchanged recovery
+  fallback fixture exceeded the default five-second test limit in two earlier
+  runs; it passes with the explicit test-runner budget. Production recovery
+  timing is unchanged.
+- Full ESLint, TypeScript `--noEmit`, and whitespace checks passed.
+- `./local-build.zsh dist -mrts 45` passed. All eight manifest entries match both
+  unpacked and ASAR contents; the embedded production branch/commit and
+  45-second recovery timeout were checked. The release handoff rebuilds after
+  committing so its metadata identifies the final adaptation.
+- README, workflows, wrappers, Electron/injection/recovery, core updater, and
+  package metadata remain byte-identical to fork base `b3234629`.
+- No live injection, Discord restart, or push was performed. The user will test
+  plugin style toggles, editor styling, and Store installs in both enable modes.
+
+The previous reviewed upstream boundary was
 [`64360114`](https://github.com/BetterDiscord/BetterDiscord/commit/64360114da8efc28af4a1dec8fc40ae2cd30250d)
 on 2026-09-08, using
 [`5224e6eb`](https://github.com/BetterDiscord/BetterDiscord/commit/5224e6eb687f6e4d6ea7d4cedc4e645b6053877f)
@@ -649,6 +686,13 @@ The install-modal settlement contract and the settled `Addon.download()` path
 remain responsible for closing successful downloads when **Automatically
 Enable** is either on or off.
 
+The `64360114..8a1abced` integration takes upstream's default of **Automatically
+Enable** on. This only changes fresh/missing settings and reset defaults;
+persisted false values remain authoritative. Preserve the modal's per-install
+checkbox and the existing enabled/disabled settlement behavior. The isolated
+SettingsManager regression exercises fresh storage, a missing persisted key,
+saved false/true, and reset without accessing user data.
+
 The Store subview also keeps a narrow navigation convenience in
 `src/betterdiscord/ui/settings/addonpage.tsx`: while the Plugin or Theme Store
 is open, clicking its already-selected sidebar item returns to the respective
@@ -1034,6 +1078,37 @@ tests use isolated mocks/fixtures. The pinned Discord frontend must still prove
 first-open/reopen readiness, `DevToolsAPI.revealSourceLine`, coordinate placement,
 inspect-element, launch-delivered links, and source links with the Store disabled.
 
+### DOM style and script ownership
+
+Primary file: `src/betterdiscord/modules/dommanager.ts`.
+
+Upstream `f5012ca3` (merged through `8a1abced`, PR #2249) replaces CSS-selector
+lookups with literal `document.getElementById()` calls. That fixes IDs containing
+punctuation, spaces, backslashes, or leading digits because the manager already
+stores the escaped ID as a literal attribute. Its unrestricted document lookup
+can also overwrite, reparent, or remove a foreign same-ID element.
+
+The fork takes literal matching with these internal ownership constraints:
+
+- Keep existing `CSS.escape()` ID normalization. Exact lookups must refer to
+  that stored ID, without reinterpreting it as a CSS selector.
+- Style and script operations stay inside `bd-styles` and `bd-scripts`.
+  Verify containment before accepting a document lookup; if a foreign duplicate
+  masks the owned node, compare literal IDs only among the container's
+  descendants.
+- Track manager-created `documentHead` stylesheet links by identity. Repeated
+  linking reuses the same node, moves between head and `bd-styles` retain that
+  identity, and unlink removes only the owned node. Disconnected, moved-out,
+  or renamed head links are no longer reusable under their old registration.
+- Keep existing theme lookup behavior and direct-append startup initialization.
+  No public API, caller ID, or global DOM prototype changes are introduced.
+
+The DOM regressions cover public unbound/bound style APIs, script updates and
+removal, special IDs, foreign host/theme collisions, head-link relocation,
+unrelated head-link collisions, and stale identity replacement. Network loads
+are simulated in Happy DOM; live plugin toggles and editor styling remain part
+of the user's release-build handoff.
+
 ### Runtime compatibility hardening
 
 These are secondary review surfaces, not reasons to reject unrelated upstream
@@ -1127,6 +1202,11 @@ required named export. This concrete adaptation is recorded in
 
 ## Required checks after an overlapping upstream change
 
+- DOM IDs: verify style/script updates reuse one node and removal works with
+  special IDs. Keep foreign same-ID host/theme/head elements intact, and test
+  owned head-link reuse, relocation, removal, and stale identity cleanup.
+- Store defaults: verify fresh/missing settings and reset use the configured
+  default while saved false/true survive loading; retain both install modes.
 - Injection/OpenAsar: run injection, resource-discovery, recovery, and handoff tests; then ask before live injection changes.
 - Host updates: verify the Windows/Linux-only hook, migration-before-listener
   ordering, original emit behavior and exceptions, migration-failure forwarding,

@@ -1,4 +1,6 @@
 import {test, expect, describe, beforeEach, afterEach} from "bun:test";
+import type {Window as HappyDOMWindow} from "happy-dom";
+import {DOM, BoundDOM} from "@api/dom";
 import DOMManager from "@modules/dommanager";
 
 
@@ -172,6 +174,136 @@ describe("DOMManager", () => {
 
             const theme = DOMManager.getElement(`#${testId}`, DOMManager.bdThemes) as HTMLStyleElement;
             expect(theme.textContent).toBe(newCSS);
+        });
+    });
+
+    describe("literal ID lookup and ownership", () => {
+        const ids = ["plain-id", "plugin.name", "plugin:name", "123plugin", "plugin name", "test@#$%", "back\\slash"];
+        const browserSettings = (window as unknown as HappyDOMWindow).happyDOM.settings;
+        let originalSettings: typeof browserSettings;
+        const foreignNodes: Element[] = [];
+
+        beforeEach(() => {
+            originalSettings = {...browserSettings};
+            browserSettings.disableCSSFileLoading = true;
+            browserSettings.disableJavaScriptFileLoading = true;
+            browserSettings.handleDisabledFileLoadingAsSuccess = true;
+        });
+
+        afterEach(() => {
+            for (const id of [...ids, "owned-link", "collision-id"]) {
+                DOMManager.removeStyle(id);
+                DOMManager.removeScript(id);
+            }
+            for (const node of foreignNodes.splice(0)) node.remove();
+            Object.assign(browserSettings, originalSettings);
+        });
+
+        function foreignElement(tag: string, id: string, parent: Element = document.body) {
+            const node = document.createElement(tag);
+            node.id = CSS.escape(id);
+            node.textContent = "unrelated content";
+            parent.append(node);
+            foreignNodes.push(node);
+            return node;
+        }
+
+        for (const id of ids) {
+            test(`public style APIs update and remove the same node for ${JSON.stringify(id)}`, () => {
+                const api = new DOM();
+                const bound = new BoundDOM(id);
+                api.addStyle(id, "body { color: red; }");
+                const first = DOMManager.bdStyles.lastElementChild!;
+                bound.addStyle("body { color: blue; }");
+                expect(DOMManager.bdStyles.lastElementChild === first).toBe(true);
+                expect(first.textContent).toBe("body { color: blue; }");
+                expect(Array.from(DOMManager.bdStyles.children).filter(node => node.id === first.id)).toHaveLength(1);
+                bound.removeStyle();
+                expect(first.isConnected).toBe(false);
+                api.removeStyle(id);
+            });
+
+            test(`scripts reuse and remove their node for ${JSON.stringify(id)}`, async () => {
+                await DOMManager.injectScript(id, "data:text/javascript,void 0");
+                const first = DOMManager.bdScripts.lastElementChild!;
+                await DOMManager.injectScript(id, "data:text/javascript,void 1");
+                expect(DOMManager.bdScripts.lastElementChild === first).toBe(true);
+                expect(Array.from(DOMManager.bdScripts.children).filter(node => node.id === first.id)).toHaveLength(1);
+                DOMManager.removeScript(id);
+                expect(first.isConnected).toBe(false);
+            });
+        }
+
+        test("style and script operations leave colliding host and theme IDs alone", async () => {
+            const id = "collision-id";
+            const host = foreignElement("div", id);
+            document.body.prepend(host);
+            const theme = foreignElement("style", id, DOMManager.bdThemes);
+            const hostParent = host.parentNode;
+            const themeParent = theme.parentNode;
+            DOMManager.removeStyle(id);
+            DOMManager.removeScript(id);
+            DOMManager.injectStyle(id, "body { color: red; }");
+            await DOMManager.injectScript(id, "data:text/javascript,void 0");
+            DOMManager.removeStyle(id);
+            DOMManager.removeScript(id);
+            for (const node of [host, theme]) {
+                expect(node.isConnected).toBe(true);
+                expect(node.textContent).toBe("unrelated content");
+            }
+            expect(host.parentNode === hostParent).toBe(true);
+            expect(theme.parentNode === themeParent).toBe(true);
+        });
+
+        test("linked styles retain identity when updated and moved between managed containers", async () => {
+            const id = "plugin.name";
+            await DOMManager.linkStyle(id, "data:text/css,body{}", {documentHead: true});
+            const first = document.head.lastElementChild!;
+            await DOMManager.linkStyle(id, "data:text/css,html{}", {documentHead: true});
+            expect(document.head.lastElementChild === first).toBe(true);
+            await DOMManager.linkStyle(id, "data:text/css,div{}");
+            expect(first.parentNode === DOMManager.bdStyles).toBe(true);
+            await DOMManager.linkStyle(id, "data:text/css,span{}", {documentHead: true});
+            expect(first.parentNode === document.head).toBe(true);
+            DOMManager.unlinkStyle(id);
+            expect(first.isConnected).toBe(false);
+        });
+
+        test("head links do not reuse or remove an unrelated colliding link", async () => {
+            const foreign = foreignElement("link", "owned-link", document.head);
+            await DOMManager.linkStyle("owned-link", "data:text/css,body{}", {documentHead: true});
+            const owned = document.head.lastElementChild!;
+            expect(owned === foreign).toBe(false);
+            DOMManager.unlinkStyle("owned-link");
+            expect(owned.isConnected).toBe(false);
+            expect(foreign.parentNode === document.head).toBe(true);
+            expect(foreign.hasAttribute("href")).toBe(false);
+        });
+
+        test("a detached head link is not reused after an unrelated replacement appears", async () => {
+            await DOMManager.linkStyle("owned-link", "data:text/css,body{}", {documentHead: true});
+            const previous = document.head.lastElementChild!;
+            previous.remove();
+            const foreign = foreignElement("link", "owned-link", document.head);
+            await DOMManager.linkStyle("owned-link", "data:text/css,html{}", {documentHead: true});
+            const replacement = document.head.lastElementChild!;
+            expect(replacement === previous).toBe(false);
+            expect(replacement === foreign).toBe(false);
+            expect(previous.isConnected).toBe(false);
+            DOMManager.unlinkStyle("owned-link");
+            expect(replacement.isConnected).toBe(false);
+            expect(foreign.parentNode === document.head).toBe(true);
+        });
+
+        test("a renamed head link is no longer owned under its old ID", async () => {
+            await DOMManager.linkStyle("owned-link", "data:text/css,body{}", {documentHead: true});
+            const previous = document.head.lastElementChild!;
+            previous.id = "renamed-link";
+            foreignNodes.push(previous);
+            DOMManager.unlinkStyle("owned-link");
+            expect(previous.parentNode === document.head).toBe(true);
+            await DOMManager.linkStyle("owned-link", "data:text/css,html{}", {documentHead: true});
+            expect(document.head.lastElementChild === previous).toBe(false);
         });
     });
 });
