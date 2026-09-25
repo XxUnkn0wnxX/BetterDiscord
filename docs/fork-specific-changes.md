@@ -20,10 +20,12 @@ on 2026-09-26, with `64360114..8a1abced` reviewed through the local
   content remains skipped while its commit is included in reviewed ancestry.
 
 The full range is integrated through tree-neutral two-parent ancestry marker
-`d190cbe5`, with fork base `b3234629` first and upstream `8a1abced` second. The adaptations,
-regressions, and this contract record are committed directly above that marker.
+`d190cbe5`, with fork base `b3234629` first and upstream `8a1abced` second.
+Adaptation `80afab32` contains the code, regressions, and initial contract record
+directly above that marker.
 No workflow, package-version, injection, recovery, or core-updater changes are
-part of this integration. Publication and user runtime testing remain pending.
+part of this integration. The user approved publication on 2026-09-26 after the
+qualified runtime checks recorded below.
 
 Local verification for this range:
 
@@ -39,8 +41,13 @@ Local verification for this range:
   committing so its metadata identifies the final adaptation.
 - README, workflows, wrappers, Electron/injection/recovery, core updater, and
   package metadata remain byte-identical to fork base `b3234629`.
-- No live injection, Discord restart, or push was performed. The user will test
-  plugin style toggles, editor styling, and Store installs in both enable modes.
+- The user tested release build `80afab32` and reported the editor and Addon
+  Store checks were broadly okay and the client looked stable. This is a smoke
+  result, not confirmation that every editor or install-mode case was exercised.
+- The user could not test the special-character plugin style toggle/removal
+  case. That behavior has automated regression coverage but remains unverified
+  in the live client; publication was explicitly approved with this limitation.
+- This runtime-status documentation update changes no source or build behavior.
 
 The previous reviewed upstream boundary was
 [`64360114`](https://github.com/BetterDiscord/BetterDiscord/commit/64360114da8efc28af4a1dec8fc40ae2cd30250d)
@@ -51,8 +58,8 @@ Windows/Linux host-update migration, and Webpack Source Viewer links. The fork
 adapts their internal lifecycle and IPC handling, retains existing addon-link
 aliases, and omits superseded module rewriting and commented DevTools debugging
 code. No workflow or package-version change is part of this integration.
-Local verification and the user runtime-test handoff are recorded below; live
-injection and publication remain pending until the user tests the local build.
+The original local verification and then-pending runtime-test handoff are
+retained below as historical evidence, separate from the current release status.
 
 The full range is recorded in local ancestry through tree-neutral marker
 `413c6a25f3ee7766e385f51e8872f2350facba84`, with first parent `c70bb53d`
@@ -1032,8 +1039,9 @@ the inverse hook error through Patcher's error handler. The existing grouping
 harness passes all ten cases, including same-ID DOM replacement. The full suite
 passes **486 tests, 24 skipped, 0 failed**, with full ESLint, TypeScript, and
 whitespace checks passing. The production build passes with
-`./local-build.zsh dist -mrts 45`. The user's fresh release-injected toggle retest
-is still required before publication.
+`./local-build.zsh dist -mrts 45`. The original handoff requested a fresh
+release-injected toggle retest; this historical record does not establish that
+specific runtime result.
 
 The isolated React harness covers actual layout effects, grouping changes without
 message rerenders, invalid trees, removal/reuse, DOM replacement, unmount,
@@ -1106,8 +1114,8 @@ The fork takes literal matching with these internal ownership constraints:
 The DOM regressions cover public unbound/bound style APIs, script updates and
 removal, special IDs, foreign host/theme collisions, head-link relocation,
 unrelated head-link collisions, and stale identity replacement. Network loads
-are simulated in Happy DOM; live plugin toggles and editor styling remain part
-of the user's release-build handoff.
+are simulated in Happy DOM. The user reported editor smoke checks broadly okay
+on `80afab32`; special-character plugin style toggles could not be tested live.
 
 ### Runtime compatibility hardening
 
