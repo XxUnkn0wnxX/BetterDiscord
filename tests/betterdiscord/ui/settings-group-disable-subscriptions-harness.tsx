@@ -36,6 +36,11 @@ mock.module("@stores/settings", () => ({
     }
 }));
 mock.module("@ui/settings/components/file", () => ({"default": () => <div data-file-setting />}));
+// Preserve the real Button while isolating its new Discord-backed Spinner dependency.
+mock.module("@ui/spinner", () => ({
+    "default": () => null,
+    "SpinnerType": {PULSING_ELLIPSIS: "pulsing-ellipsis"}
+}));
 const noopFunction = () => undefined;
 
 mock.module("@polyfill/remote", () => ({

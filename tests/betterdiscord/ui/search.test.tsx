@@ -1,8 +1,14 @@
-import {afterEach, beforeEach, describe, expect, test} from "bun:test";
+import {afterEach, beforeEach, describe, expect, mock, test} from "bun:test";
 import React, {act, useState} from "react";
 import {createRoot, type Root} from "react-dom/client";
 
-import Search from "@ui/settings/components/search";
+// Button now imports Spinner, whose runtime accessibility context comes from Discord.
+mock.module("@ui/spinner", () => ({
+    "default": () => null,
+    "SpinnerType": {PULSING_ELLIPSIS: "pulsing-ellipsis"}
+}));
+
+const {default: Search} = await import("@ui/settings/components/search");
 
 
 Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true});

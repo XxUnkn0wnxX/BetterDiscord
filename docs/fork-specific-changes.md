@@ -6,6 +6,70 @@ Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
 The latest reviewed upstream boundary is
+[`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)
+on 2026-10-03. The twenty-commit range `8a1abced..9fc106e8` was reviewed
+through local `upstream-development` and contains PR #2257's ContextMenu work
+and PR #2258's reusable Modal component. This integration takes both features:
+
+- Accept the expanded ContextMenu prop vocabulary, renderable labels, direct
+  `buildItem({type: "group"})` support, string-safe ID derivation, and upstream
+  discovery, patching, and action behavior. Correct only declarations for the
+  runtime's retained deprecated `onClick` wrapper and rendered submenu
+  `children`; descriptor arrays continue to belong in `items` or legacy `render`.
+- Accept `BdApi.Components.Modal` and `Checkbox`, Button's optional `submitting`
+  spinner, and SettingItem's optional `divider` with its default of `true`.
+  Preserve the Modal's public props, action settlement, and callback lifecycle.
+  Its private mapping helper also recognizes the existing empty-string dynamic
+  size/custom color constants, and action failures log the original error.
+- Accept the shared modal presentation, including upstream's `10px` root
+  padding, content color, notices, and footer/checkbox layout. Omit invalid
+  `display` values and duplicate declarations introduced by the upstream CSS
+  conversion; give the notice margin a valid `16px` fallback. Green buttons use
+  upstream's `--control-connected-*` variables first, with the previous
+  `--control-connect-*` names as fallbacks for older clients.
+
+The reviewed merge uses fork base `35d9ef87` as its first parent and upstream
+`9fc106e8` as its second parent, so the entire reviewed range remains in
+ancestry, including superseded CSS hunks. The merge rehearsal and integration
+had no textual conflicts. The automatically merged Components and SettingItem
+files preserve their existing fork formatting and receive upstream additions.
+No workflow, package metadata, injection/recovery, core/addon updater, plugin
+lifecycle, editor, retained-search, or notification-store changes are included.
+
+Local verification for this range:
+
+- Bun 1.1.20: **511 passed, 24 skipped, 0 failed**, with 1,511 assertions across
+  64 test files, using `bun test --timeout 15000 tests/`. The suite includes
+  isolated nine-test ContextMenu and nine-test Modal/component harnesses.
+- TypeScript `--noEmit`, ESLint over `src`, `scripts`, and `tests`, and CRLF-aware
+  whitespace checks passed. The three existing UI fixtures only gain Spinner
+  mocks/import ordering; their behavioral assertions remain unchanged. This
+  isolates the new Button-to-Spinner Discord dependency in the test environment.
+- Transpiled runtime output for ContextMenu, Components, Button, and SettingItem
+  is identical to upstream. The ContextMenu differences are declarations only.
+- Happy DOM verifies current green-token precedence and legacy-only fallback
+  for normal filled/outlined buttons; source assertions cover all eight state
+  references. Hover/pressed appearance still needs the injected-client check.
+- CSS lint is not globally clean: `buttons.css` retains its 179 baseline
+  findings without additions. Modal CSS drops from 23 findings to four: two
+  pre-existing duplicate selectors and two retained upstream transition-longhand
+  style findings. Invalid display values and duplicate declarations are removed.
+- `./local-build.zsh dist -mrts 45` passes. All eight packed-input manifest
+  checksums match the unpacked files and ASAR contents, and the production
+  metadata and 45-second recovery timeout are verified. The release handoff
+  rebuilds after committing so the archive records the final merge commit.
+- Workflows, package metadata, local wrappers, Electron/injection/recovery,
+  managers/stores/updaters, builtins, Webpack, editor handling, retained settings
+  title/search ownership, and existing modal close owners remain byte-identical
+  to fork base `35d9ef87`.
+
+Live injection and runtime confirmation remain a separate user-owned handoff.
+Check existing settings/confirmation dialogs after the shared padding change,
+the new Modal's actions/checkbox/spinner, ContextMenu labels/submenus/toggles,
+and green buttons in normal/hover/pressed states on the pinned client. Automated
+fixtures do not establish live Discord rendering or native focus behavior.
+
+The previous reviewed upstream boundary is
 [`8a1abced`](https://github.com/BetterDiscord/BetterDiscord/commit/8a1abcedf5166e2be3d4587404eec875977a1079)
 on 2026-09-26, with `64360114..8a1abced` reviewed through the local
 `upstream-development` branch. The four-commit range contains three changes:
@@ -125,6 +189,8 @@ Theme Attributes runtime regression described below):
 
 | Area | What upstream does | What this fork prefers/does | Merge rule |
 | --- | --- | --- | --- |
+| ContextMenu public surface | PR #2257 expands props/types, handles non-string labels safely during ID derivation, and supports direct group creation. Some revised declarations omit retained runtime forms. | Takes the upstream runtime unchanged. Keeps deprecated `onClick` typed where the existing runtime maps it to `action`, and types rendered submenu `children` as React nodes; descriptor arrays use `items`/legacy `render`. | Preserve upstream-supported plugin behavior and discovery/patching. Prefer upstream declaration fixes when equivalent; do not introduce a fork-only menu API or descriptor conversion for `children`. |
+| Reusable Modal and supporting components | PR #2258 exposes Modal/Checkbox, adds a Button loading spinner and optional SettingItem divider, and updates shared modal/green-button styles. | Takes upstream props, defaults, layout, and lifecycle. Recognizes the declared empty-string size/color constants, logs action errors correctly, removes invalid/redundant CSS, and retains old green-color variables only as fallbacks. | Preserve upstream action/checkbox/callback semantics and existing fork controls. Internal fixes may improve correctness or older-client support without adding plugin-only options, changing ownership, or redefining close callbacks. |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. PR #2247 adds Windows/Linux migration before `host-updated` event delivery, retaining quit-time migration. | Routes that event through the existing owned-wrapper migration, with migration failures contained before original event delivery. Retains cross-platform resource discovery, release/dev injection, safe uninject, separate macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing and Windows/Linux-only event gate. Never replace macOS quit registration with upstream's supported-platform block or treat a host-update event as macOS restart permission. |
 | Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscriptions with commit-scoped state in owned React components, guarded identity, and cancelled stale patch lookups. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Keep removable patch callbacks hook-free and exercise toggles without unmounting the Discord owner. Preserve working registry cleanup and cancellation; do not reintroduce grouping-only message rerenders. |
 | Webpack Source Viewer | PR #2248 adds source links and coordinates, a developer setting, and DevTools IPC. It interpolates unchecked coordinates and polls for DevTools at a sub-millisecond interval, while narrowing Store links to the canonical alias. | Keeps the source-link feature/settings with runtime-validated IPC input, serialized arguments, bounded readiness, handled errors, and capability checks. Store and source viewer share protocol ownership; existing Store aliases remain supported. | Preserve `EDITOR_CLOSE`, window security preferences, independent setting gates, shared protocol ownership, and accepted source URL/coordinate semantics. Keep validation and cleanup until upstream provides equivalent protection; do not add the commented debug windows. |
@@ -433,6 +499,33 @@ bytes were unchanged.
 Preserve these plugin-visible controlled/uncontrolled contracts and the
 provider/context, disabled-state, and legacy compatibility adaptations when
 merging future standard-control changes.
+
+### Reusable Modal, buttons, and checkbox exports
+
+PR #2258 exposes `BdApi.Components.Modal` and the existing fork-compatible
+`Checkbox`. The accepted Modal accepts upstream title/subtitle/content, notice,
+size, action, checkbox, and close props. Size/color aliases and canonical
+constants keep the upstream meanings; the empty-string dynamic/custom constants
+must not accidentally select medium/primary defaults.
+
+Each action follows upstream's awaited control flow: pending actions show a
+spinner and disable the modal's action buttons; fulfilled results close unless
+the result or `closeOnClick` is `false`; rejected actions log and remain open;
+pending state clears in `finally`. Button's `submitting` prop itself only selects
+spinner presentation and does not independently redefine disabled behavior.
+
+`onCloseCallback({checked})` retains upstream's layout-effect behavior on mount
+and whenever checkbox state or callback identity changes. Despite its name, it
+is not rewritten into a close-only callback. The separate `onClose` action and
+`checkboxProps.onChange` retain upstream ownership and ordering. Existing
+confirmation, Addon Store install, and addon-unload close ownership are untouched.
+
+The new exports continue using the fork's existing Checkbox implementation and
+Settings provider/local-disabled contracts. `SettingItem.divider` defaults to
+`true`, preserving old callers. The shared modal CSS adopts upstream spacing
+for existing dialogs too; this is intentional visual alignment and belongs in
+the injected visual check. Green filled/outlined buttons prefer connected-color
+tokens and fall back per state to the corresponding legacy connect-color token.
 
 ### Custom CSS
 
@@ -1210,6 +1303,17 @@ required named export. This concrete adaptation is recorded in
 
 ## Required checks after an overlapping upstream change
 
+- ContextMenu: verify string and renderable labels, explicit/generated IDs,
+  direct/nested groups, descriptor `items` versus rendered `children`, legacy
+  `onClick` and action precedence, and toggle/radio behavior. Keep declarations
+  consistent with supported runtime forms without redesigning the menu API.
+- Reusable Modal/components: verify aliases and canonical size/color constants,
+  resolved/false/rejected/pending actions, `closeOnClick`, disabled buttons,
+  checkbox callbacks, and upstream `onCloseCallback` effect timing. Check Button
+  submitting/default rendering, SettingItem divider defaults, existing settings
+  subscriptions, and notification actions. Inspect existing dialogs and new
+  Modal notices/footers after injection; exercise green buttons with current
+  and legacy-only CSS variables.
 - DOM IDs: verify style/script updates reuse one node and removal works with
   special IDs. Keep foreign same-ID host/theme/head elements intact, and test
   owned head-link reuse, relocation, removal, and stale identity cleanup.
