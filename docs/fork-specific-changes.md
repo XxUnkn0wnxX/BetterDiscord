@@ -143,6 +143,18 @@ Final integration evidence for `9fc106e8..7d6772f3`:
   `e05908e6`. Core checks remain dormant; Store/external addon updates and equal
   plugin enabled-state rules remain active.
 
+Live follow-up on 2026-10-08: Stable on Big Sur (Darwin 20.6.0), using Electron
+37.6.0, passed the user-observed native window-effects checks. Active rendered
+Sidebar and Under Window translucent, Inactive rendered them opaque, and Follow
+Window showed the effect when focused. Temporary diagnostics confirmed the
+requested constructor states and successful native vibrancy calls without
+capability skips or failures. The preview exposed the native background through
+transparent content; ordinary opaque Discord styling can hide that effect.
+These results do not justify a fork-specific vibrancy backport. The user also
+reported that the other planned live checks behaved correctly; this does not
+claim a separate PTB/Canary runtime pass. Diagnostic source was preserved only
+locally and removed from the release source, and the audit plugin was unlinked.
+
 Live injection is a user-owned handoff. Check existing plugin ContextMenus,
 settings dropdowns, always-available Store navigation with auto-updates off,
 manual Store/external updates, notification/paginator/editor presentation, and
