@@ -6,6 +6,7 @@ import Editor from "./editor";
 import BetterDiscord from "./betterdiscord";
 import type {DialogOptions} from "@common/types/ipc";
 import {inspectElement as inspectDevToolsElement, openDevtoolsSource} from "./devtools";
+import {supportsBackgroundMaterial, supportsVibrancy} from "./nativewindow";
 
 const getPath = (event: IpcMainEvent, pathReq: string) => {
     let returnPath;
@@ -120,7 +121,14 @@ const inspectElement = (event: IpcMainEvent) => {
 
 const setMinimumSize = (event: IpcMainEvent, width: number, height: number) => {
     const window = BrowserWindow.fromWebContents(event.sender);
-    window?.setMinimumSize(width, height);
+    if (!window || window.isDestroyed()) return;
+
+    if (process.platform === "darwin") {
+        width ||= 1;
+        height ||= 1;
+    }
+
+    BrowserWindow.prototype.setMinimumSize.call(window, width, height);
 };
 
 const setWindowSize = (event: IpcMainEvent, width: number, height: number) => {
@@ -201,6 +209,22 @@ const runRenderer = (event: IpcMainInvokeEvent) => {
     BetterDiscord.injectRenderer(BrowserWindow.fromWebContents(event.sender)!);
 };
 
+const setVibrancy = (event: IpcMainInvokeEvent, vibrancy: Parameters<BrowserWindow["setVibrancy"]>[0] | "none") => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed() || !supportsVibrancy(window)) return;
+
+    window.setVibrancy(vibrancy === "none" ? null : vibrancy, {animationDuration: 100});
+    window.setBackgroundColor("#00000000");
+};
+
+const setBackgroundMaterial = (event: IpcMainInvokeEvent, material: Parameters<BrowserWindow["setBackgroundMaterial"]>[0]) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window.isDestroyed() || !supportsBackgroundMaterial(window)) return;
+
+    window.setBackgroundMaterial(material);
+    window.setBackgroundColor("#00000000");
+};
+
 
 export default class IPCMain {
     static registerEvents() {
@@ -229,6 +253,8 @@ export default class IPCMain {
             ipc.handle(IPCEvents.OPEN_DEVTOOLS_SOURCE, (event, url: unknown, line: unknown, column: unknown) => {
                 return openDevtoolsSource(event.sender, url, line, column);
             });
+            ipc.handle(IPCEvents.SET_VIBRANCY, setVibrancy);
+            ipc.handle(IPCEvents.SET_BACKGROUND_MATERIAL, setBackgroundMaterial);
         }
         catch (err) {
             // eslint-disable-next-line no-console

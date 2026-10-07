@@ -75,9 +75,12 @@ const DefaultSettings = [
         settings: [
             {type: "switch", id: "transparency", value: false},
             {type: "switch", id: "removeMinimumSize", value: false},
-            {type: "switch", id: "frame", value: false},
-            // MacOS exclusive
-            {type: "switch", id: "inAppTrafficLights", value: false, disabled: process.env.BETTERDISCORD_NATIVE_FRAME === "true", hidden: process.platform !== "darwin"}
+            {type: "switch", id: "frame", value: false, enableWith: "roundedCorners"},
+            {type: "switch", id: "roundedCorners", value: true, disableWith: "frame", hidden: process.platform === "darwin"},
+            {type: "switch", id: "acceptFirstMouse", value: false, hidden: process.platform !== "darwin"},
+            {type: "dropdown", id: "vibrancy", hidden: process.platform !== "darwin", value: "none", options: [{value: "none"}, {value: "titlebar"}, {value: "selection"}, {value: "menu"}, {value: "popover"}, {value: "sidebar"}, {value: "header"}, {value: "sheet"}, {value: "window"}, {value: "hud"}, {value: "fullscreen-ui"}, {value: "tooltip"}, {value: "content"}, {value: "under-window"}, {value: "under-page"}]},
+            {type: "dropdown", id: "visualEffectState", hidden: process.platform !== "darwin", value: "followWindow", options: [{value: "followWindow"}, {value: "active"}, {value: "inactive"}]},
+            {type: "dropdown", id: "backgroundMaterial", hidden: process.platform !== "win32", value: "auto", options: [{value: "auto"}, {value: "none"}, {value: "mica"}, {value: "acrylic"}, {value: "tabbed"}]}
         ]
     },
     {

@@ -5,6 +5,7 @@ import BetterDiscord from "./betterdiscord";
 import Editor from "./editor";
 import * as IPCEvents from "@common/constants/ipcevents";
 import {isProxy} from "util/types";
+import {supportsBackgroundMaterial, supportsVibrancy} from "./nativewindow";
 
 // const EDITOR_URL_REGEX = /^betterdiscord:\/\/editor\/(?:custom-css|(theme|plugin)\/([^/]+))\/?/;
 
@@ -62,20 +63,39 @@ class BrowserWindow extends electron.BrowserWindow {
             options.backgroundColor = "#00000000";
         }
 
-        const inAppTrafficLights = Boolean(BetterDiscord.getSetting("window", "inAppTrafficLights") ?? false);
+        const vibrancy = BetterDiscord.getSetting("window", "vibrancy");
+        if (vibrancy && vibrancy !== "none" && supportsVibrancy(electron.BrowserWindow.prototype)) {
+            options.vibrancy = vibrancy;
+            options.backgroundColor = "#00000000";
+            options.visualEffectState = BetterDiscord.getSetting("window", "visualEffectState") || "followWindow";
+        }
+
+        const backgroundMaterial = BetterDiscord.getSetting("window", "backgroundMaterial");
+        if (backgroundMaterial && supportsBackgroundMaterial(electron.BrowserWindow.prototype)) {
+            options.backgroundColor = "#00000000";
+            options.backgroundMaterial = backgroundMaterial;
+        }
+
         options.frame = Boolean(BetterDiscord.getSetting("window", "frame") ?? options.frame ?? true);
+        if (options.frame) {
+            delete options.trafficLightPosition;
+            options.titleBarStyle = "default";
+        }
 
         process.env.BETTERDISCORD_NATIVE_FRAME = options.frame.toString();
-        process.env.BETTERDISCORD_IN_APP_TRAFFIC_LIGHTS = inAppTrafficLights.toString();
-
-        if (inAppTrafficLights) {
-            delete options.titleBarStyle;
-        }
 
         const removeMinimumSize = Boolean(BetterDiscord.getSetting("window", "removeMinimumSize") ?? false);
         if (removeMinimumSize) {
             options.minWidth = 0;
             options.minHeight = 0;
+        }
+
+        if (process.platform === "darwin" && BetterDiscord.getSetting("window", "acceptFirstMouse")) {
+            options.acceptFirstMouse = true;
+        }
+
+        if (BetterDiscord.getSetting("window", "roundedCorners") === false) {
+            options.roundedCorners = false;
         }
 
         super(options);

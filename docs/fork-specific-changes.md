@@ -40,7 +40,12 @@ verification and upstream ancestry are recorded only after all groups are done:
   and reconnect. Retain request, protocol, download, and updater safeguards.
   Remove the fork's sidebar-reselection shortcut to follow upstream navigation;
   preserve retained search/title state and detached-editor close ownership.
-- Native window controls remain pending the subsequent adaptation group.
+- Native window controls: accept upstream frame/title-bar handling, macOS
+  vibrancy/visual-effect state/first-click options, Windows background material,
+  rounded corners, and live minimum-size changes with an 800x500 normal minimum.
+  Remove the legacy traffic-light option, environment bridge, and preload flag
+  override. Supported upstream native paths remain the default; guards apply
+  only to missing capabilities, unsupported platforms, and invalid windows.
 
 CSS verification reproduces 38px paginator buttons with upstream's unadapted
 selectors and passes with the intended 28px sizing, content width, and native
@@ -71,6 +76,38 @@ Scoped ESLint and whitespace checks pass; full-suite and native runtime results
 remain separate gates.
 The Store navigation/defaults wrappers also pass: three UI cases and six
 persisted/default/reset scenarios, including a legacy saved Store opt-out.
+
+Native compatibility contract for future merges:
+
+- `src/electron/main/modules/nativewindow.ts` shares capability predicates
+  between constructor options and live IPC. Vibrancy requires its macOS native
+  setter; Windows background materials require their setter and the documented
+  Windows 11 22H2 OS floor (10.0.22621). This is an OS feature requirement, not
+  an Electron version gate; Electron 35/37 already expose the reviewed APIs.
+- Unsupported effects leave existing window options/background unchanged.
+  Live native effects run before the transparent-background update, so a
+  throwing native method cannot first make the window transparent. Renderer
+  listeners handle rejected IPC promises. Preserve upstream values, animation
+  duration, and `none`/null reset behavior rather than introducing a new UI or
+  background-restoration policy.
+- Minimum-size IPC ignores missing/destroyed windows before using the native
+  prototype method. Keep its intentional bypass of Discord's instance override,
+  macOS's 1x1 live zero-size floor, and the 800x500 restored normal minimum.
+- Retain secure window preferences, validated/bounded DevTools source handling,
+  `EDITOR_CLOSE`, original preload ownership, queued accent updates, and macOS
+  recovery/OpenAsar handoff. Frame/control visibility still needs live checks
+  on the pinned clients; no legacy override is retained without a demonstrated
+  compatibility failure.
+
+Native-window, DevTools, and accent regressions pass 44 targeted tests. The
+isolated native fixtures execute the production constructor and registered IPC
+handlers, including supported/missing capabilities, Windows OS boundaries,
+native failures, resets, closed windows, and the minimum-size prototype bypass.
+Renderer window/default fixtures pass three wrappers (six platform/startup/live
+scenarios), covering dependencies, one listener registration, handled rejected
+effects, restart actions, and live minimum-size toggles. Locale JSON parsing,
+scoped ESLint, TypeScript, and whitespace checks pass. Native rendering remains
+unverified until the user tests the final release in the pinned clients.
 
 The previously integrated upstream boundary is
 [`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)

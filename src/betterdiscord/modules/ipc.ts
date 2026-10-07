@@ -1,4 +1,4 @@
-import {ipcRenderer as ipc} from "electron";
+import {ipcRenderer as ipc, type BrowserWindow} from "electron";
 
 import * as IPCEvents from "@common/constants/ipcevents";
 
@@ -64,6 +64,14 @@ export default new class IPCRenderer {
 
     openDevtoolsSource(url: string, line = 0, column = 0) {
         return ipc.invoke(IPCEvents.OPEN_DEVTOOLS_SOURCE, url, line, column);
+    }
+
+    setVibrancy(vibrancy: Parameters<BrowserWindow["setVibrancy"]>[0] | "none") {
+        return ipc.invoke(IPCEvents.SET_VIBRANCY, vibrancy);
+    }
+
+    setBackgroundMaterial(material: Parameters<BrowserWindow["setBackgroundMaterial"]>[0]) {
+        return ipc.invoke(IPCEvents.SET_BACKGROUND_MATERIAL, material);
     }
 
     allowPreloadOverride = {
