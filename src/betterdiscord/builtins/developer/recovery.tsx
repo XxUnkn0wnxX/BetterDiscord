@@ -4,7 +4,6 @@ import Logger from "@common/logger";
 import DiscordModules from "@modules/discordmodules";
 import {t} from "@common/i18n";
 import Builtin from "@structs/builtin";
-import Settings from "@stores/settings";
 import Toasts from "@stores/toasts";
 import pluginmanager from "@modules/pluginmanager";
 import IPC from "@modules/ipc";
@@ -152,7 +151,7 @@ const ErrorDetails = ({componentStack, pluginInfo, stack, instance}: ErrorDetail
                             onClick={openGithubIssue}
                             color={ButtonColors.YELLOW}
                         >
-                            {t("Collections.settings.developer.recovery.report")}
+                            {t("Recovery.report")}
                         </Button>
                     )}
                     {pluginInfo?.invite && (
@@ -171,7 +170,7 @@ const ErrorDetails = ({componentStack, pluginInfo, stack, instance}: ErrorDetail
                         }}
                         color={ButtonColors.RED}
                     >
-                        {t("Collections.settings.developer.recovery.safeMode")}
+                        {t("Recovery.safeMode")}
                     </Button>
                 </div>
             </div>
@@ -189,15 +188,12 @@ const ErrorDetails = ({componentStack, pluginInfo, stack, instance}: ErrorDetail
 
 export default new class Recovery extends Builtin {
     get name() {return "Recovery";}
-    get category() {return "developer";}
-    get id() {return "recovery";}
-
-    async enabled() {
+    async initialize() {
+        if (this.initialized) return;
         this.patchErrorBoundry();
-    }
+        this.initialized = true;
 
-    async disabled() {
-        this.unpatchAll();
+        return super.initialize();
     }
 
     getPluginInfo(pluginName: string): PluginInfo | null {
@@ -222,7 +218,6 @@ export default new class Recovery extends Builtin {
         const mod = getByPrototypes<typeof React.PureComponent>(["_handleSubmitReport"], {firstId: 670735, cacheId: "core-recovery-ErrorBoundary"});
 
         this.after(mod?.prototype, "render", (instance, _, retValue) => {
-            if (!Settings.get(this.collection, this.category, this.id)) return;
             const buttons = retValue?.props?.action?.props;
 
             if (!buttons) return;
@@ -269,7 +264,7 @@ export default new class Recovery extends Builtin {
                         }
                     }}
                 >
-                    {t("Collections.settings.developer.recovery.button")}
+                    {t("Recovery.button")}
                 </Button>
             );
 

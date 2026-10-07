@@ -27,9 +27,16 @@ verification and upstream ancestry are recorded only after all groups are done:
   deprecated `onClick` and rendered submenu `children` declarations. Scope
   paginator size rules so later generic button styles cannot override them.
   Do not preserve removed recovery layouts or unnecessary cosmetic overrides.
-- Settings/recovery, permanent Store availability, and native window controls
-  are pending the subsequent adaptation groups. This intermediate stage does
-  not establish that those features are already integrated.
+- Settings/recovery: accept translated dropdown radio submenus with reactive
+  values/dependencies and the existing Settings mutation path. Recovery is a
+  core feature independent of DevTools and the removed recovery setting.
+  Retain the distinct `Recovery` patch owner, initialize it once, and remove
+  upstream's stale render-time check of the deleted setting so its controls
+  actually appear. Move action translations to `Recovery.*`. This grants no
+  installed plugin or library an enabled-state exception.
+- Permanent Store availability and native window controls are pending the
+  subsequent adaptation groups. This intermediate stage does not establish
+  that those features are already integrated.
 
 CSS verification reproduces 38px paginator buttons with upstream's unadapted
 selectors and passes with the intended 28px sizing, content width, and native
@@ -41,6 +48,13 @@ null/primitive children, depth limits, callback isolation, rerenders, and captur
 wrapper unpatching; the existing item harness passes 9 cases (60 assertions).
 Scoped ESLint and CRLF-aware whitespace checks pass. No live injection result
 is claimed.
+
+Settings/recovery verification passes 10 targeted tests across the menu,
+recovery, settings-dependency, and layout wrappers (49 outer assertions).
+The isolated menu and recovery harnesses execute four and three cases with
+real Settings subscriptions and Builtin ownership respectively. Scoped ESLint,
+TypeScript, and whitespace checks pass. Recovery no longer consults its deleted
+setting, retains the `Recovery` owner, and ignores legacy setting updates.
 
 The previously integrated upstream boundary is
 [`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)

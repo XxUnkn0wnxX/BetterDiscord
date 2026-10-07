@@ -7,7 +7,7 @@ import Patcher from "@modules/patcher";
 
 import AddonPage from "@ui/settings/addonpage";
 
-import type {SettingsCategory} from "@data/settings";
+import type {DropdownSetting, SettingsCategory} from "@data/settings";
 import VersionInfo from "./misc/versioninfo";
 import {findInTree} from "@common/utils";
 import {useStateFromStores} from "./hooks";
@@ -742,13 +742,30 @@ function useCollectionMenu(collection: SettingsCollection) {
         return collection.settings.map(category => ({
             id: category.id,
             name: category.name!,
-            settings: category.settings.filter(s => s.type === "switch" && !s.hidden).map(setting => ({
-                id: setting.id,
-                label: setting.name!,
-                disabled: setting.disabled,
-                checked: Settings.get<boolean>(collection.id, category.id, setting.id),
-                action: () => Settings.set(collection.id, category.id, setting.id, !Settings.get(collection.id, category.id, setting.id))
-            }))
+            settings: category.settings
+                .filter(s => (s.type === "switch" || s.type === "dropdown") && !s.hidden)
+                .map(setting => {
+                    if (setting.type === "dropdown") {
+                        return {
+                            type: "dropdown",
+                            id: setting.id,
+                            label: setting.name!,
+                            disabled: setting.disabled,
+                            options: (setting as DropdownSetting<string>).options,
+                            value: Settings.get<string>(collection.id, category.id, setting.id),
+                            action: (value: string) => Settings.set(collection.id, category.id, setting.id, value)
+                        } as const;
+                    }
+
+                    return {
+                        type: "switch",
+                        id: setting.id,
+                        label: setting.name!,
+                        disabled: setting.disabled,
+                        checked: Settings.get<boolean>(collection.id, category.id, setting.id),
+                        action: () => Settings.set(collection.id, category.id, setting.id, !Settings.get(collection.id, category.id, setting.id))
+                    } as const;
+                })
         }));
     }, []);
 
@@ -761,9 +778,29 @@ function useCollectionMenu(collection: SettingsCollection) {
                     action={() => openCategory(collection.id)}
                     key={`bd.${collection.id}.${category.id}`}
                 >
-                    {category.settings.map(setting => (
-                        <ContextMenu.CheckboxItem {...setting} key={`bd.${collection.id}.${category.id}.${setting.id}`} />
-                    ))}
+                    {category.settings.map(setting => {
+                        if (setting.type === "dropdown") {
+                            return (
+                                <ContextMenu.Item key={`bd.${collection.id}.${category.id}.${setting.id}`} label={setting.label} id={setting.id} disabled={setting.disabled}>
+                                    <ContextMenu.Group id={setting.id}>
+                                        {setting.options.map(option => (
+                                            <ContextMenu.RadioItem
+                                                label={option.label}
+                                                group={setting.id}
+                                                id={`${setting.id}-${option.value}`}
+                                                key={`bd.${collection.id}.${category.id}.${setting.id}-${option.value}`}
+                                                action={() => setting.action(option.value)}
+                                                checked={setting.value === option.value}
+                                            />
+                                        ))}
+                                    </ContextMenu.Group>
+                                </ContextMenu.Item>
+                            );
+                        }
+                        return (
+                            <ContextMenu.CheckboxItem {...setting} key={`bd.${collection.id}.${category.id}.${setting.id}`} />
+                        );
+                    })}
                 </ContextMenu.Item>
             ))}
         </>

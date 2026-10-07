@@ -152,13 +152,6 @@
                     "name": "DevTools",
                     "note": "Enables toggling DevTools with ctrl+shift+i"
                 },
-                "recovery": {
-                    "name": "Recovery",
-                    "note": "Enables the ability to attempt to save discord without reloading",
-                    "button": "Attempt to recover Discord",
-                    "report": "Report on Github",
-                    "safeMode": "Relaunch in Safe Mode"
-                },
                 "webpackSourceViewer": {
                     "name": "Webpack Source Viewer",
                     "note": "Quickly view webpack modules in developer tools"
@@ -452,5 +445,10 @@
     "Paginator": {
         "back": "Back",
         "next": "Next"
+    },
+    "Recovery": {
+        "button": "Attempt to recover Discord",
+        "report": "Report on Github",
+        "safeMode": "Relaunch in Safe Mode"
     }
 }
