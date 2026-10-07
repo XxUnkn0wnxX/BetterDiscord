@@ -5,7 +5,44 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-The latest reviewed upstream boundary is
+The current reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
+through local `upstream-development` at
+[`7d6772f3`](https://github.com/BetterDiscord/BetterDiscord/commit/7d6772f37474c5ff39329ebf5276734b490a4f6c).
+Its seven commits cover ContextMenu traversal, CSS selectors, and settings,
+Store, recovery, and native window controls. Fork base is `e05908e6`.
+
+Follow upstream UI, defaults, settings removals, and public plugin contracts.
+Use supported upstream runtime paths first, with private compatibility fallbacks
+only for missing capabilities or demonstrated failures. Keep older Discord/
+Electron support, macOS OpenAsar ownership, identity-aware Store and external
+addon updates, and equal enabled-state/lifecycle rules for all plugins.
+
+Adaptation is committed in independently checked groups. Full-suite/release
+verification and upstream ancestry are recorded only after all groups are done:
+
+- ContextMenu/CSS: accept render-prop traversal, `MenuGroup.id`, the final
+  upstream depth limit of ten, notification gap/animations, and upstream
+  editor/recovery/error presentation. Exclude null from object-child traversal
+  so the existing component fallback remains reachable; retain the supported
+  deprecated `onClick` and rendered submenu `children` declarations. Scope
+  paginator size rules so later generic button styles cannot override them.
+  Do not preserve removed recovery layouts or unnecessary cosmetic overrides.
+- Settings/recovery, permanent Store availability, and native window controls
+  are pending the subsequent adaptation groups. This intermediate stage does
+  not establish that those features are already integrated.
+
+CSS verification reproduces 38px paginator buttons with upstream's unadapted
+selectors and passes with the intended 28px sizing, content width, and native
+disabled styles. Targeted paginator, notification, Custom CSS, and editor-focus
+wrappers pass (8 tests). Stylelint on the four changed stylesheets drops from
+210 baseline findings to zero. The real-NodePatcher ContextMenu harness passes
+14 cases (74 assertions), including dispatcher/lazy/render-prop discovery,
+null/primitive children, depth limits, callback isolation, rerenders, and captured
+wrapper unpatching; the existing item harness passes 9 cases (60 assertions).
+Scoped ESLint and CRLF-aware whitespace checks pass. No live injection result
+is claimed.
+
+The previously integrated upstream boundary is
 [`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)
 on 2026-10-03. The twenty-commit range `8a1abced..9fc106e8` was reviewed
 through local `upstream-development` and contains PR #2257's ContextMenu work
@@ -189,7 +226,7 @@ Theme Attributes runtime regression described below):
 
 | Area | What upstream does | What this fork prefers/does | Merge rule |
 | --- | --- | --- | --- |
-| ContextMenu public surface | PR #2257 expands props/types, handles non-string labels safely during ID derivation, and supports direct group creation. Some revised declarations omit retained runtime forms. | Takes the upstream runtime unchanged. Keeps deprecated `onClick` typed where the existing runtime maps it to `action`, and types rendered submenu `children` as React nodes; descriptor arrays use `items`/legacy `render`. | Preserve upstream-supported plugin behavior and discovery/patching. Prefer upstream declaration fixes when equivalent; do not introduce a fork-only menu API or descriptor conversion for `children`. |
+| ContextMenu public surface | PR #2257 expands props/types and group creation; PR #2262 adds render-prop discovery and `MenuGroup.id` with a traversal limit of ten. | Takes upstream discovery and callback semantics with non-null object-child guards so a returned component with null children remains discoverable. Keeps deprecated `onClick` typed where runtime maps it to `action`, and rendered submenu `children` as React nodes; descriptor arrays use `items`/legacy `render`. | Preserve upstream-supported inputs, callbacks, render-prop arguments, depth limit, and unpatch behavior. Prefer equivalent upstream fixes; do not introduce a fork-only menu API or convert rendered `children` into descriptors. |
 | Reusable Modal and supporting components | PR #2258 exposes Modal/Checkbox, adds a Button loading spinner and optional SettingItem divider, and updates shared modal/green-button styles. | Takes upstream props, defaults, layout, and lifecycle. Recognizes the declared empty-string size/color constants, logs action errors correctly, removes invalid/redundant CSS, and retains old green-color variables only as fallbacks. | Preserve upstream action/checkbox/callback semantics and existing fork controls. Internal fixes may improve correctness or older-client support without adding plugin-only options, changing ownership, or redefining close callbacks. |
 | Injection and Discord updates | Uses the application-ASAR wrapper model. PR #2247 adds Windows/Linux migration before `host-updated` event delivery, retaining quit-time migration. | Routes that event through the existing owned-wrapper migration, with migration failures contained before original event delivery. Retains cross-platform resource discovery, release/dev injection, safe uninject, separate macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing and Windows/Linux-only event gate. Never replace macOS quit registration with upstream's supported-platform block or treat a host-update event as macOS restart permission. |
 | Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscriptions with commit-scoped state in owned React components, guarded identity, and cancelled stale patch lookups. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Keep removable patch callbacks hook-free and exercise toggles without unmounting the Discord owner. Preserve working registry cleanup and cancellation; do not reintroduce grouping-only message rerenders. |
@@ -1303,7 +1340,9 @@ required named export. This concrete adaptation is recorded in
 
 ## Required checks after an overlapping upstream change
 
-- ContextMenu: verify string and renderable labels, explicit/generated IDs,
+- ContextMenu: exercise real NodePatcher/dispatcher direct, lazy, and render-prop
+  discovery; null children; depth ten; exception isolation; repeated renders;
+  and unpatch through captured wrappers. Verify string and renderable labels, explicit/generated IDs,
   direct/nested groups, descriptor `items` versus rendered `children`, legacy
   `onClick` and action precedence, and toggle/radio behavior. Keep declarations
   consistent with supported runtime forms without redesigning the menu API.
