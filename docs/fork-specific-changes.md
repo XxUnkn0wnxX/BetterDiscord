@@ -17,8 +17,8 @@ only for missing capabilities or demonstrated failures. Keep older Discord/
 Electron support, macOS OpenAsar ownership, identity-aware Store and external
 addon updates, and equal enabled-state/lifecycle rules for all plugins.
 
-Adaptation is committed in independently checked groups. Full-suite/release
-verification and upstream ancestry are recorded only after all groups are done:
+Adaptation is committed in four independently checked groups, followed by
+full-suite/release verification and a reviewed upstream ancestry merge:
 
 - ContextMenu/CSS: accept render-prop traversal, `MenuGroup.id`, the final
   upstream depth limit of ten, notification gap/animations, and upstream
@@ -72,8 +72,8 @@ retries, provider rate limits, protocol ownership/aliases, install completion,
 and Store/external addon updates. The real coordinator keeps automatic addon
 checks off when disabled even though catalogue browsing remains active. Builtin
 protocol ownership and launch delivery do not wait for lazy module lookups.
-Scoped ESLint and whitespace checks pass; full-suite and native runtime results
-remain separate gates.
+Scoped ESLint and whitespace checks pass; native runtime verification remains
+a separate user-owned gate.
 The Store navigation/defaults wrappers also pass: three UI cases and six
 persisted/default/reset scenarios, including a legacy saved Store opt-out.
 
@@ -108,6 +108,49 @@ scenarios), covering dependencies, one listener registration, handled rejected
 effects, restart actions, and live minimum-size toggles. Locale JSON parsing,
 scoped ESLint, TypeScript, and whitespace checks pass. Native rendering remains
 unverified until the user tests the final release in the pinned clients.
+
+Final integration evidence for `9fc106e8..7d6772f3`:
+
+- Adaptation commits are `b19d87d9` (ContextMenu/CSS), `ef858041`
+  (settings/recovery), `a3bb83af` (Store), and `1a472802` (native windows).
+  Each group passed targeted tests before its commit. The full suite ran only
+  after all four groups were complete: Bun 1.1.20 reports **542 passed,
+  24 skipped, 0 failed**, with 1,643 assertions across 72 files. The earlier
+  isolated selection's fixture-order failures did not recur in the full suite;
+  unrelated UI fixtures were not changed.
+- TypeScript `--noEmit`, full ESLint over `src`, `scripts`, and `tests`, and
+  CRLF-aware whitespace checks pass. The four changed stylesheets pass
+  Stylelint; this does not claim that unrelated CSS is globally lint-clean.
+- `./local-build.zsh dist -mrts 45` passes. All eight manifest entries match
+  both unpacked payloads and their ASAR contents. Production mode, `develop`
+  metadata, and the 45-second macOS recovery timeout are verified. Rebuild the
+  final merge commit before live injection so artifact metadata matches HEAD.
+- The final reviewed merge retains `1a472802` as first parent and the refreshed
+  `upstream-development` head `7d6772f3` as second parent. It records the entire
+  seven-commit range, including superseded intermediate hunks, without changing
+  the tested source tree; only this verification record changes at that merge.
+  No feature group is omitted, and no unreviewed automatic merge hunk is taken.
+- The merge preview found conflicts in both Store implementations and Electron
+  main IPC. Store resolution takes upstream's permanent availability and
+  removes the old consumer gates while retaining fork request/protocol/update
+  safeguards. IPC resolution keeps fork security, validated DevTools handling,
+  and editor ownership while adding the new guarded native handlers. Literal
+  replacement would discard those safeguards or leave unsupported native calls.
+- There is no incoming workflow or dependency/build-script drift. Workflows,
+  local wrappers, injection/build scripts, macOS recovery/handoff, host update,
+  migration, preload initialization, DevTools helper, addon/core updater,
+  plugin manager, editor module, Patcher, and Webpack remain unchanged from
+  `e05908e6`. Core checks remain dormant; Store/external addon updates and equal
+  plugin enabled-state rules remain active.
+
+Live injection is a user-owned handoff. Check existing plugin ContextMenus,
+settings dropdowns, always-available Store navigation with auto-updates off,
+manual Store/external updates, notification/paginator/editor presentation, and
+recovery actions. On each pinned client verify frame on/off after restart,
+traffic-light controls, live minimum-size changes, macOS vibrancy/reset, visual
+effect state, and first-click behavior. Native Windows material rendering is
+not established by the macOS fixtures. No new public plugin API or required
+plugin migration is introduced by this range.
 
 The previously integrated upstream boundary is
 [`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)
