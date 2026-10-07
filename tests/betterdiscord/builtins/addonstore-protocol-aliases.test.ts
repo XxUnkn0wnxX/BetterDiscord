@@ -1,5 +1,6 @@
 import {expect, test} from "bun:test";
 import fs from "node:fs";
+import path from "node:path";
 
 const source = fs.readFileSync(new URL("../../../src/betterdiscord/builtins/store/addonstore.ts", import.meta.url), "utf8");
 
@@ -14,6 +15,17 @@ const extractRegex = (name: string) => {
 const protocolRegex = extractRegex("PROTOCOL_REGEX");
 const appProtocolRegex = extractRegex("APP_PROTOCOL_REGEX");
 const addonKinds = ["theme", "themes", "plugin", "plugins", "addon", "addons", "store"];
+
+test("permanent Store initializes real builtin patches, launch protocols and shared ownership despite old false", () => {
+    const result = Bun.spawnSync({
+        cmd: [process.execPath, path.join(import.meta.dir, "addonstore-lifecycle-harness.ts")],
+        cwd: path.join(import.meta.dir, "../../.."),
+        stdout: "pipe",
+        stderr: "pipe"
+    });
+    expect(result.exitCode, new TextDecoder().decode(result.stderr)).toBe(0);
+    expect(new TextDecoder().decode(result.stdout).trim()).toBe("addon-store-builtin-lifecycle: ok");
+});
 
 test("Addon Store keeps all addon protocol aliases while excluding source and editor routes", () => {
     for (const kind of addonKinds) {

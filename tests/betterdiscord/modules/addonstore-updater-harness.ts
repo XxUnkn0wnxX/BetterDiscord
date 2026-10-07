@@ -55,12 +55,12 @@ if (!await AddonStore.updaterRequestAddons(false) || getFetchCalls() !== 1) {
 }
 
 automaticUpdatesEnabled = false;
-if (await AddonStore.updaterRequestAddons(false) || getFetchCalls() !== 1) {
-    throw new Error("A disabled background updater unexpectedly bypassed the catalogue consumer gate.");
+if (!await AddonStore.updaterRequestAddons(false) || getFetchCalls() !== 2) {
+    throw new Error("Turning off automatic addon updates impaired the permanent Store catalogue consumer.");
 }
 
-if (!await AddonStore.updaterRequestAddons(true) || getFetchCalls() !== 2) {
-    throw new Error("Manual plugin/theme refresh could not bypass the disabled Store/background gate.");
+if (!await AddonStore.updaterRequestAddons(true) || getFetchCalls() !== 3) {
+    throw new Error("Manual plugin/theme refresh could not use the permanent Store catalogue consumer.");
 }
 
-process.stdout.write("addon-store-updater-gates: ok\n");
+process.stdout.write("addon-store-updater-consumers: ok\n");

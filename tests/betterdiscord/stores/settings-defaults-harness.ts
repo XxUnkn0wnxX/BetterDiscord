@@ -2,12 +2,12 @@ import {mock} from "bun:test";
 
 
 type SettingsState = Record<string, Record<string, unknown>>;
-type Scenario = "missing" | "missing-setting" | "saved-false" | "saved-true" | "reset";
+type Scenario = "missing" | "missing-setting" | "saved-false" | "saved-true" | "legacy-store-disabled" | "reset";
 
 const scenario = process.env.SETTINGS_DEFAULTS_SCENARIO as Scenario;
 const stored: SettingsState | undefined = scenario === "missing"
     ? undefined
-    : {store: scenario === "missing-setting" ? {} : {alwaysEnable: scenario === "saved-true"}};
+    : {store: scenario === "missing-setting" ? {} : scenario === "legacy-store-disabled" ? {bdAddonStore: false} : {alwaysEnable: scenario === "saved-true"}};
 const writes: SettingsState[] = [];
 
 const jsonStore = {
@@ -33,6 +33,9 @@ Settings.initialize();
 const value = Settings.get<boolean>("settings", "store", "alwaysEnable");
 const setting = Settings.getSetting("settings", "store", "alwaysEnable");
 assert(setting?.defaultValue === true, `Expected alwaysEnable defaultValue to be true, got ${String(setting?.defaultValue)}.`);
+assert(Settings.getSetting("settings", "store", "bdAddonStore") === undefined, "Expected the removed Addon Store checkbox to be absent.");
+assert(Settings.get<boolean>("settings", "store", "bdAddonStore") === undefined, "Expected the removed Addon Store checkbox to have no active setting value.");
+assert(Settings.getSetting("settings", "store", "addonEmbeds")?.disabled === undefined, "Expected addon embeds to have no Addon Store dependency.");
 
 if (scenario === "reset") {
     assert(value === false, `Expected saved false before reset, got ${String(value)}.`);
@@ -41,6 +44,6 @@ if (scenario === "reset") {
     assert(writes.at(-1)?.store.alwaysEnable === true, "Reset did not persist alwaysEnable=true.");
 }
 else {
-    const expected = scenario === "missing" || scenario === "missing-setting" || scenario === "saved-true";
+    const expected = scenario === "missing" || scenario === "missing-setting" || scenario === "saved-true" || scenario === "legacy-store-disabled";
     assert(value === expected, `Expected alwaysEnable=${String(expected)}, got ${String(value)}.`);
 }

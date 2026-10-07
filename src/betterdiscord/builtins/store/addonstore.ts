@@ -82,6 +82,8 @@ function extractAddonLinks(text: string, max = Infinity) {
 }
 
 export default new class AddonStoreBuiltin extends Builtin {
+    private hasInitialized = false;
+
     constructor() {
         super();
 
@@ -89,26 +91,26 @@ export default new class AddonStoreBuiltin extends Builtin {
     }
 
     async initialize() {
-        RemoteAPI.addProtocolListener((url) => {
-            if (!Settings.get(this.collection, this.category, this.id)) return;
+        if (this.hasInitialized) return;
+        this.hasInitialized = true;
 
+        RemoteAPI.addProtocolListener((url) => {
             const match = url.match(APP_PROTOCOL_REGEX);
             if (!match) return;
 
             AddonStore.requestAddon(decodeURIComponent(match[1])).then((addon) => addon.download());
         });
 
-        return super.initialize();
+        await this.enable();
+        this.initialized = true;
+        this.emitChange();
     }
 
     get name() {return "AddonStore";}
     get category() {return "store";}
-    get id() {return "bdAddonStore";}
-
     async enabled() {
-        this.patchEmbeds();
-        this.patchLinkOpener();
         this.protocolRelease ??= retainBetterDiscordProtocol();
+        await Promise.all([this.patchEmbeds(), this.patchLinkOpener()]);
     }
 
     /** The patches are slightly late sometimes, so this will update chat */

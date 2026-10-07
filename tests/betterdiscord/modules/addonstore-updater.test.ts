@@ -2,8 +2,8 @@ import {describe, expect, test} from "bun:test";
 import path from "node:path";
 
 
-describe("addon store updater consumer gates", () => {
-    test("keeps plugin/theme updates independent from the Store UI toggle", () => {
+describe("addon store updater consumers", () => {
+    test("keeps the permanent catalogue available with automatic addon updates off", () => {
         const harness = path.join(import.meta.dir, "addonstore-updater-harness.ts");
         const result = Bun.spawnSync({
             cmd: [process.execPath, harness],
@@ -15,6 +15,6 @@ describe("addon store updater consumer gates", () => {
         const stdout = new TextDecoder().decode(result.stdout).trim();
         const stderr = new TextDecoder().decode(result.stderr).trim();
         expect(result.exitCode, stderr).toBe(0);
-        expect(stdout).toBe("addon-store-updater-gates: ok");
+        expect(stdout).toBe("addon-store-updater-consumers: ok");
     });
 });

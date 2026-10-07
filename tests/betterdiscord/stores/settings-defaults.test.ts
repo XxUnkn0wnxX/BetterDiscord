@@ -3,7 +3,7 @@ import path from "node:path";
 
 
 const cwd = path.join(import.meta.dir, "../../..");
-const scenarios = ["missing", "missing-setting", "saved-false", "saved-true", "reset"] as const;
+const scenarios = ["missing", "missing-setting", "saved-false", "saved-true", "legacy-store-disabled", "reset"] as const;
 
 describe("settings defaults", () => {
     test("keeps the Addon Store always-enable default and persisted values", () => {

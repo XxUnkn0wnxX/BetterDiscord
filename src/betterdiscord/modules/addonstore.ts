@@ -353,7 +353,7 @@ export class Addon {
 
 const CATALOGUE_TIMEOUT_MS = 30_000;
 
-type CatalogueCancelReason = "disabled" | "offline";
+type CatalogueCancelReason = "offline";
 
 interface CatalogueRequest {
     id: number;
@@ -379,12 +379,16 @@ const addonStore = new class AddonStore extends Store {
     #rateLimitBlockedUntil = 0;
     #rateLimitFailureCount = 0;
     #rateLimitSkipWarningUntil = 0;
+    #initialized = false;
 
     public get promise() {
         return this.#promise;
     }
 
     public initialize() {
+        if (this.#initialized) return;
+        this.#initialized = true;
+
         const stored = JsonStore.get("addon-store") as Partial<{addons: Record<string, BdWebAddon>; known: string[]; version: string;}> | undefined;
 
         // Fork review: old or malformed cache shapes must not turn `known` into a non-array.
@@ -411,40 +415,9 @@ const addonStore = new class AddonStore extends Store {
             };
         }
 
-        // window.AddonStore = this;
-
-        const isEnabled = () => (
-            Settings.get<boolean>("settings", "store", "bdAddonStore")
-            || Settings.get<boolean>("settings", "addons", "checkForUpdates")
-        );
-
-        let wasEnabled = isEnabled();
-
-        const handle = () => {
-            const isNowEnabled = isEnabled();
-            if (wasEnabled === isNowEnabled) return;
-
-            wasEnabled = isNowEnabled;
-
-            if (isNowEnabled) {
-                Logger.debug("AddonStore", "A catalogue consumer was enabled; loading the addon catalogue.");
-                this._useCache();
-                void this.requestAddons(!this.hasDoneFirstRequest);
-                this.hasDoneFirstRequest = true;
-                return;
-            }
-
-            this._stopCatalogueActivity();
-        };
-
-        Settings.on("settings", "store", "bdAddonStore", handle);
-        Settings.on("settings", "addons", "checkForUpdates", handle);
-
-        if (wasEnabled) {
-            this._useCache();
-            void this.requestAddons(true);
-            this.hasDoneFirstRequest = true;
-        }
+        this._useCache();
+        void this.requestAddons(true);
+        this.hasDoneFirstRequest = true;
     }
 
     // Caching stuff
@@ -557,13 +530,6 @@ const addonStore = new class AddonStore extends Store {
     error: Error | null = null;
     loading = false;
 
-    private _isEnabled() {
-        return Boolean(
-            Settings.get<boolean>("settings", "store", "bdAddonStore")
-            || Settings.get<boolean>("settings", "addons", "checkForUpdates")
-        );
-    }
-
     private _clearRetry() {
         if (!this._setTimeout) return;
         window.clearTimeout(this._setTimeout);
@@ -585,40 +551,9 @@ const addonStore = new class AddonStore extends Store {
     private _onLineListener = () => {
         this._removeOnlineListener();
 
-        if (!this._isEnabled()) {
-            Logger.debug("AddonStore", "Ignored reconnect refresh because no catalogue consumer is enabled.");
-            return;
-        }
-
         Logger.info("AddonStore", "Connection restored; refreshing the addon catalogue.");
         void this.requestAddons();
     };
-
-    private _stopCatalogueActivity() {
-        this._clearRetry();
-
-        if (this.#waitingForOnline) {
-            Logger.debug("AddonStore", "Stopped waiting for a reconnect because no catalogue consumer is enabled.");
-            this._removeOnlineListener();
-        }
-
-        const activeRequest = this.#activeRequest;
-        if (activeRequest) {
-            // Fork review: abort and detach so a late completion cannot restore loading or timers.
-            activeRequest.cancelReason = "disabled";
-            window.removeEventListener("offline", activeRequest.offlineListener);
-            Logger.warn("AddonStore", `Cancelling catalogue request #${activeRequest.id} because the Addon Store and addon updates are disabled.`);
-            activeRequest.controller.abort();
-            this.#activeRequest = null;
-        }
-
-        if (this.loading || activeRequest) {
-            this.loading = false;
-            this.emitChange();
-        }
-
-        this.#promise = Promise.resolve();
-    }
 
     private _handleOffline(catalogueRequest?: CatalogueRequest, requestFailure?: Error) {
         const firstDisconnectNotice = !this.#waitingForOnline;
@@ -663,13 +598,7 @@ const addonStore = new class AddonStore extends Store {
         return false;
     }
 
-    public requestAddons(firstRun = false, forceUpdaterRequest = false): Promise<void> {
-        if (!this._isEnabled() && !forceUpdaterRequest) {
-            Logger.debug("AddonStore", "Skipped catalogue request because no catalogue consumer is enabled.");
-            this.#promise = Promise.resolve();
-            return this.#promise;
-        }
-
+    public requestAddons(firstRun = false): Promise<void> {
         if (this.#activeRequest) {
             // Fork review: Store and updater consumers must wait on the exact same request.
             Logger.debug("AddonStore", `Reusing in-flight catalogue request #${this.#activeRequest.id}.`);
@@ -853,20 +782,15 @@ const addonStore = new class AddonStore extends Store {
         return promise;
     }
 
-    public async updaterRequestAddons(force = false): Promise<boolean> {
-        // Manual addon checks still work when automatic checks and the Store UI are disabled.
+    public async updaterRequestAddons(_force = false): Promise<boolean> {
+        // Keep the coordinator's call contract; the Store always consumes the catalogue.
         const previousSuccessSequence = this.#successfulRequestSequence;
-        await this.requestAddons(this.hasDoneFirstRequest, force);
+        await this.requestAddons(this.hasDoneFirstRequest);
         this.hasDoneFirstRequest = true;
         return this.#successfulRequestSequence > previousSuccessSequence;
     }
 
     private _scheduleNextRequest() {
-        if (!Settings.get<boolean>("settings", "store", "bdAddonStore")) {
-            Logger.debug("AddonStore", "Skipped the Store refresh timer because only the addon updater needs the catalogue.");
-            return;
-        }
-
         if (this.error && !window.navigator.onLine) {
             Logger.info("AddonStore", "Connection unavailable; waiting to refresh the catalogue after reconnect.");
             this._waitForOnline();

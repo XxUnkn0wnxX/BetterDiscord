@@ -37,10 +37,6 @@
             },
             "store": {
                 "name": "Addon Store",
-                "bdAddonStore": {
-                    "name": "Enable Addon Store",
-                    "note": "Enables the BetterDiscord Addon Store."
-                },
                 "alwaysEnable": {
                     "name": "Always Enable",
                     "note": "When enabled by default addons downloaded via the addon store will be enabled."

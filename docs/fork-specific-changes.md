@@ -34,9 +34,13 @@ verification and upstream ancestry are recorded only after all groups are done:
   upstream's stale render-time check of the deleted setting so its controls
   actually appear. Move action translations to `Recovery.*`. This grants no
   installed plugin or library an enabled-state exception.
-- Permanent Store availability and native window controls are pending the
-  subsequent adaptation groups. This intermediate stage does not establish
-  that those features are already integrated.
+- Addon Store: accept permanent availability, remove the Store opt-out, and
+  retain Always Enable/Addon Embeds without the deleted dependency. Keep the
+  catalogue active with automatic addon updates off, including startup, refresh,
+  and reconnect. Retain request, protocol, download, and updater safeguards.
+  Remove the fork's sidebar-reselection shortcut to follow upstream navigation;
+  preserve retained search/title state and detached-editor close ownership.
+- Native window controls remain pending the subsequent adaptation group.
 
 CSS verification reproduces 38px paginator buttons with upstream's unadapted
 selectors and passes with the intended 28px sizing, content width, and native
@@ -55,6 +59,18 @@ The isolated menu and recovery harnesses execute four and three cases with
 real Settings subscriptions and Builtin ownership respectively. Scoped ESLint,
 TypeScript, and whitespace checks pass. Recovery no longer consults its deleted
 setting, retains the `Recovery` owner, and ignores legacy setting updates.
+
+The Store lifecycle/updater integration passes 73 targeted tests across 12
+files, covering online/offline startup, cache reads, shared request settlement,
+refresh/reconnect, stale responses, inactivity timeout configuration, fixed
+retries, provider rate limits, protocol ownership/aliases, install completion,
+and Store/external addon updates. The real coordinator keeps automatic addon
+checks off when disabled even though catalogue browsing remains active. Builtin
+protocol ownership and launch delivery do not wait for lazy module lookups.
+Scoped ESLint and whitespace checks pass; full-suite and native runtime results
+remain separate gates.
+The Store navigation/defaults wrappers also pass: three UI cases and six
+persisted/default/reset scenarios, including a legacy saved Store opt-out.
 
 The previously integrated upstream boundary is
 [`9fc106e8`](https://github.com/BetterDiscord/BetterDiscord/commit/9fc106e8e53e51589374c05cfb03b35f4149d0a2)
@@ -786,10 +802,12 @@ Primary files:
 - `src/betterdiscord/ui/settings/addonstore.tsx`
 
 Stage 6 takes upstream's Store/native-fetch catalogue design. Settings now
-initialize before the catalogue, embeds and settings pages subscribe through
-the common Store hook, and the catalogue starts only while the Addon Store or
-addon updater needs it. Stage 7B's shared plugin/theme coordinator uses this
-catalogue for Store candidates instead of retaining a private Store request.
+initialize before the catalogue, and embeds and settings pages subscribe through
+the common Store hook. The `9fc106e8..7d6772f3` adaptation makes the Store a
+permanent consumer: startup, refresh, and reconnect remain active even when
+automatic addon updates are disabled. The removed `bdAddonStore` value no
+longer controls availability. Stage 7B's shared plugin/theme coordinator uses
+this catalogue for Store candidates instead of retaining a private request.
 
 Intentional request-lifecycle corrections:
 
@@ -798,28 +816,28 @@ Intentional request-lifecycle corrections:
   await the fetch chain on the initiating path.
 - The bulk catalogue uses a 30-second network-inactivity timeout instead of
   `timeout: null`.
-- Going offline or disabling both catalogue consumers aborts the active
-  request. Request identity checks prevent a cancelled or older response from
+- Going offline aborts the active request. Request identity checks prevent a
+  cancelled or older response from
   changing the newer catalogue, loading state, or retry timer.
 - Offline fallback replaces the visible rows instead of appending the cache,
   and persisted `known` filenames are normalized to an array.
-- Non-success HTTP responses and non-array JSON are failures. While the Addon
-  Store is enabled, successful Store refreshes use the configured hourly
+- Non-success HTTP responses and non-array JSON are failures. Successful Store
+  refreshes use the configured hourly
   interval; failed Store refreshes retry after five minutes, or 30 seconds for
   `ECONNRESET`, without multiplying that delay by the interval setting.
-  Updater-only scheduling remains owned by the Stage 7B coordinator.
-- Disable removes reconnect listeners and scheduled Store refreshes. Reconnect
-  starts a fresh request only while the Store or addon updater is enabled.
-- The Addon Store UI and plugin/theme updates are independent consumers. Turning
-  off **Enable Addon Store** may hide/stop the Store itself, but it does not
-  impair automatic addon checks while **Automatically Check For Updates** is
-  enabled. An explicit manual updater refresh may request the catalogue even
-  when both background consumers are off.
+  Actual addon-update scheduling remains owned by the Stage 7B coordinator.
+- Reconnect starts a fresh request for the permanent Store. Obsolete
+  disable-both-consumers listeners and branches are removed; offline request
+  cancellation, retry cleanup, and stale-completion protection remain.
+- The Addon Store UI and plugin/theme updates remain independent. Turning off
+  **Automatically Check For Updates** does not disable catalogue browsing.
+  Catalogue availability does not authorize installing updates or enabling
+  plugins; the update coordinator and managers retain those decisions.
 
 Logging is deliberately tiered:
 
 - `debug`: request start/success, shared-request reuse, stale-result discard,
-  timer scheduling/cleanup, and harmless disabled guards.
+  and timer scheduling/cleanup.
 - `info`: connection loss and reconnection/recovery.
 - `warn`: deliberate request cancellation, skipped offline requests, finite
   timeouts, invalid cache repair, HTTP failures, and unexpected cancellation.
@@ -844,12 +862,10 @@ checkbox and the existing enabled/disabled settlement behavior. The isolated
 SettingsManager regression exercises fresh storage, a missing persisted key,
 saved false/true, and reset without accessing user data.
 
-The Store subview also keeps a narrow navigation convenience in
-`src/betterdiscord/ui/settings/addonpage.tsx`: while the Plugin or Theme Store
-is open, clicking its already-selected sidebar item returns to the respective
-installed-addons page. The listener targets only that panel's current
-`data-list-item-id`; it does not alter the fork's Settings placement or refresh
-hooks.
+The `9fc106e8..7d6772f3` adaptation removes the fork-only sidebar-reselection
+shortcut from `src/betterdiscord/ui/settings/addonpage.tsx`. Store entry/exit now
+follows upstream navigation and its breadcrumb/toggle. The fork's detached-editor
+callback and retained Settings title/search ownership remain independent fixes.
 
 ### Identity-aware plugin/theme updater (Stage 7B)
 
@@ -1228,7 +1244,7 @@ with these internal adaptations:
 Parser, DevTools, renderer lifecycle, shared ownership, and alias regression
 tests use isolated mocks/fixtures. The pinned Discord frontend must still prove
 first-open/reopen readiness, `DevToolsAPI.revealSourceLine`, coordinate placement,
-inspect-element, launch-delivered links, and source links with the Store disabled.
+inspect-element, launch-delivered links, and source links alongside the permanent Store.
 
 ### DOM style and script ownership
 
@@ -1417,7 +1433,8 @@ required named export. This concrete adaptation is recorded in
   aliases, bounded DevTools readiness and cleanup, missing capability, and
   execution failure. Keep `EDITOR_CLOSE` and window preferences unchanged;
   verify live source reveal/coordinates and inspect-element on first open and
-  reopen with the Store disabled as well as enabled.
+  reopen alongside the permanent Store; disabling the viewer must retain the
+  Store's shared protocol registration.
 - Custom CSS/editor focus: verify enabled/disabled startup, disable/re-enable,
   all open actions, file watching, saving, and detached close behavior. Exercise
   first open and close/reopen for Settings, external, detached Custom CSS,
@@ -1431,5 +1448,5 @@ required named export. This concrete adaptation is recorded in
   exactly once without an unhandled rejection.
 - System editor: verify a successful `openPath()` closes the BetterDiscord
   editor and a failed launch leaves it open.
-- Updater: verify no BetterDiscord core request occurs at startup, on the scheduler, or from the explicit Updates-panel refresh; plugin/theme automatic/manual checks must still work with the Addon Store UI both enabled and disabled.
+- Updater: verify no BetterDiscord core request occurs at startup, on the scheduler, or from the explicit Updates-panel refresh. Verify permanent Store startup/browsing/refresh/reconnect with automatic addon checks off, and retain Store/external-source manual and automatic update behavior and equal plugin enabled-state rules.
 - Workflows/docs/wrappers: compare them byte-for-byte with fork `develop` unless that stage explicitly changes them.

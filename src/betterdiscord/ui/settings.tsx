@@ -24,7 +24,6 @@ import {t} from "@common/i18n";
 import Modals from "./modals";
 import changelog from "@data/changelog";
 import {type Plugin} from "@modules/pluginmanager";
-import DOMManager from "@modules/dommanager";
 import type AddonManager from "@modules/addonmanager";
 import toasts from "@stores/toasts";
 import ContextMenuPatcher from "@api/contextmenu";
@@ -809,7 +808,6 @@ function useCollectionMenu(collection: SettingsCollection) {
 
 function useAddonMenu(manager: AddonManager) {
     const addons = useStateFromStores(manager, () => manager.addonList.map(a => a.name || (a as any).getName?.()).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).map((name) => [name as string, manager.resolveAddon(name), manager.isEnabled(name)] as const), [], true);
-    const addonStoreIsEnabled = useStateFromStores(Settings, () => Settings.get("settings", "store", "bdAddonStore"), []);
 
     const toggles = React.useMemo(() => addons.map(([name, addon, enabled]) => (
         <ContextMenu.CheckboxItem
@@ -847,19 +845,13 @@ function useAddonMenu(manager: AddonManager) {
             <ContextMenu.Group key={`bd.${manager.prefix}.installed`}>
                 {toggles}
             </ContextMenu.Group>
-            {!!addonStoreIsEnabled && (
-                <ContextMenu.Group key={`bd.${manager.prefix}.store`}>
-                    <ContextMenu.Item
-                        label={t("Addons.openStore", {context: manager.prefix})}
-                        id={`${manager.prefix}-store`}
-                        action={() => {
-                            openCategory(manager.prefix + "s");
-                            // If the addon store instantly opens have it just stop basically
-                            DOMManager.onAdded(":where(.bd-store-card, .bd-addon-title > :nth-child(3))", (elem) => (elem as HTMLElement)?.click());
-                        }}
-                    />
-                </ContextMenu.Group>
-            )}
+            <ContextMenu.Group key={`bd.${manager.prefix}.store`}>
+                <ContextMenu.Item
+                    label={t("Addons.openStore", {context: manager.prefix})}
+                    id={`${manager.prefix}-store`}
+                    action={() => openCategory(manager.prefix + "s")}
+                />
+            </ContextMenu.Group>
         </>
     );
 }

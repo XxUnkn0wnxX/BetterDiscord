@@ -34,9 +34,8 @@ const DefaultSettings = [
         collapsible: true,
         shown: false,
         settings: [
-            {type: "switch", id: "bdAddonStore", value: true},
-            {type: "switch", id: "alwaysEnable", value: true, enableWith: "bdAddonStore"},
-            {type: "switch", id: "addonEmbeds", value: true, enableWith: "bdAddonStore"}
+            {type: "switch", id: "alwaysEnable", value: true},
+            {type: "switch", id: "addonEmbeds", value: true}
         ]
     },
     {
