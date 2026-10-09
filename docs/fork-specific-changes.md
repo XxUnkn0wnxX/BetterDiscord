@@ -12,8 +12,9 @@ The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through
 The fresh `upstream/development` fetch and local `upstream-development` review
 branch both identify that target. The starting fork commit is `cf048297`.
 All 20 incoming commits have a reviewed disposition, including intermediate
-changes superseded within the range. Implementation is recorded by group below;
-reviewed ancestry alone does not establish that a pending group is implemented.
+changes superseded within the range. All four implementation groups below pass
+their focused checks and the full integration checkpoint. The reviewed merge
+records the pinned target's ancestry without importing a newer staging head.
 
 ### Webpack options and consumers
 
@@ -158,8 +159,66 @@ the Bun 1.1.20 pin, dormant core updater checks, active plugin/theme updater,
 and fork rolling `develop-latest` release policy. Protected CI/Crowdin workflow
 files are not merged or rewritten.
 
-Full integration, declaration, release-build and manual runtime evidence is
-recorded separately after all four groups complete.
+### Integration verification and runtime handoff
+
+Adaptation commits are `aa7d5820` (Webpack), `35018828` (plugin lifecycle),
+`2dd9e0a7` (CSS performance), and `ce3d6a8d` (release metadata). Each group
+includes its fork-contract record and focused validation. The full source
+checkpoint runs once after all groups: Bun 1.1.20 reports **546 passed,
+24 skipped, 0 failed**, with 1,648 assertions across 76 files in 80.14 seconds.
+The skipped assertions are the existing macOS 11/Bun native-Intl compatibility
+cases; no new skip is added. The unchanged Settings-title tests pass in normal
+full-suite order. Full ESLint over `src`, `scripts`, and `tests`, TypeScript
+`--noEmit`, and CRLF-aware whitespace checks pass.
+
+`bun scripts/types.ts` generates the declaration package successfully. Rollup
+reports `node:https` as an external dependency; a separate strict TypeScript
+consumer compilation without `skipLibCheck` passes against the generated
+package. It exercises PluginInstance/constructor/factory exports, typed plugin
+versus theme access, mapped/lazy/bulk owner-key options, deprecated helpers, and
+rejection of the removed host load hook. Implementation-only `PluginModule`
+and unused `ModuleWithKey` aliases remain source types; the existing declaration
+bundler omits them rather than adding a new fork-specific public namespace.
+No type package is published.
+
+The merge has `ce3d6a8d` as first parent and exact target `133bc83b` as second
+parent. All adopted code is already in the first parent; the merge's only tree
+change is this verification record, so it is source-neutral. The incoming
+intermediate/synchronization merges remain in history without replaying their
+superseded implementations. No upstream commits beyond the target existed at
+the implementation fetch (`2026-10-09T07:59:48Z`).
+
+The eight rehearsal conflicts were resolved by the reviewed adaptations:
+changelogs retain accurate fork history/OpenAsar context; Theme Attributes and
+Store take new lookup APIs around existing ownership; Webpack types add the
+new options; lazy/shared matching keeps capability/getter guards; Settings takes
+search/lifecycle changes while retaining its DOM version row. The raw upstream
+tree would discard these protections. The generator workaround is superseded,
+and the Settings version-renderer hunk is deliberately omitted. All other
+incoming meaningful hunks are accepted or adapted as recorded above.
+
+The final scope audit contains the 21 incoming source/release paths plus tests
+and this contract record. Workflows (including protected CI/Crowdin), wrappers,
+build/injection/recovery/preload/Electron code, dependencies/lockfile, addon-state
+manager, updater policy and existing mapObject guards remain unchanged from
+`cf048297`. Source contains no temporary trace markers. The retained addon-search
+diagnostic stash and patch checksum remain intact.
+
+Release preparation uses `./local-build.zsh dist -mrts 45` after this final
+commit, followed by verification of all eight unpacked and ASAR checksum inputs,
+the exact commit/branch/version metadata, and the recovery timeout. The local
+checklist records the resulting artifact evidence. This is a local build and
+source-validation handoff, not native runtime or publication proof.
+
+The user owns manual release injection and relaunch. Test Stable first: startup
+and disabled-library state; maintained-plugin features and enable/disable/reload;
+late MessageLoggerV2/Experiments lookups; ContextMenus and command icons; Settings
+search/version/debug-copy and reload-closing addon dialogs; repeated Store links
+and install enabled-state behavior; Theme Attributes on/off/on while messages
+remain mounted; and the affected Discord settings/game-option layout. Verify
+plugin/theme update controls still work with core checks dormant. Spot-check
+PTB/Canary when used because Discord module matches may differ. Runtime and any
+later publication remain separate gates; mocks do not establish native results.
 
 ## Previously integrated range through 7d6772f3
 
