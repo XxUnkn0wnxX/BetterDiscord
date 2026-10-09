@@ -121,6 +121,26 @@ settings-modal, editor, detached-open, updater-restart, and Custom CSS focus
 wrappers also pass. Scoped ESLint, TypeScript, and CRLF-aware whitespace checks
 pass; live plugin behavior remains unverified.
 
+### Targeted CSS performance fix
+
+Adopt PR #2268's final `Performance` builtin and registry export unchanged.
+It scans linked stylesheets at startup and listens for newly added head links
+and stylesheet loads. It removes the top-level `CSSStyleRule` containing
+`:has(.gameOption_`, guards unreadable `cssRules`, and disconnects observation
+after finding the target. The intermediate diagnostic log is omitted as in the
+final upstream commit. This changes renderer CSSOM only; it adds no setting,
+plugin API, recursive rewrite, or Electron dependency. Preserve the narrow
+upstream selector scope. Runtime visual/performance effects are not established
+by the unit checks.
+
+The isolated source-backed CSSOM wrapper passes: it checks initial and delayed
+matches, removal at the correct index with adjacent rules preserved, unreadable
+rules, nonmatching/grouping rules, direct head-child observation, disconnect on
+match, and ignored later load callbacks. The new source matches the pinned
+upstream builtin byte-for-byte; registry wiring is reviewed. Scoped ESLint,
+TypeScript and CRLF-aware whitespace checks pass. DOM/CSSOM objects in this
+harness are simulated; it does not measure native Chromium rendering or speed.
+
 ## Previously integrated range through 7d6772f3
 
 The previous reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
