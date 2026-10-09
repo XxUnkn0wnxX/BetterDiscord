@@ -10,5 +10,5 @@ test("passes the isolated Addon Store navigation harness", () => {
     });
     const output = new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr);
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain("3 pass");
+    expect(output).toContain("6 pass");
 });

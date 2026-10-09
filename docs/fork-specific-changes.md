@@ -16,6 +16,48 @@ changes superseded within the range. All four implementation groups below pass
 their focused checks and the full integration checkpoint. The reviewed merge
 records the pinned target's ancestry without importing a newer staging head.
 
+### Runtime follow-up: Store context-menu shortcuts
+
+The 2026-10-09 injected trace shows both cog-menu Store actions execute and
+close the menu, but the strict Settings lookup returns no module. The current
+Discord frontend exports `openUserSettings` from module 766075 and has moved
+the modal-key constant into a separate module, 941933. Requiring both exports
+therefore rejects the available opener; this is distinct from page rendering.
+
+Keep upstream's combined-export lookup first, with an internal opener-only
+fallback when the combined form is absent. The existing Settings close tiers
+remain unchanged: the separate constant still has their reviewed
+`USER_SETTINGS_MODAL_MODAL_KEY` value. This fallback is an **optional,
+replaceable compatibility fix**. Prefer an upstream replacement once it supports
+both export layouts and opens the intended full Settings page on supported
+clients. It introduces no new public API or Electron-version gate.
+
+Also restore upstream's context-menu Store callback, accidentally removed in
+`a3bb83af`: open the full Plugins/Themes page, then use `DOMManager.onAdded` to
+click its existing Store entry. If Store is already visible, the upstream
+breadcrumb selector completes without toggling back. This restoration is an
+adaptation correction, **not a protected fork divergence**. It does not restore
+the intentionally removed sidebar-reselection workaround.
+
+The Store-navigation harness executes the production lookup, opening method,
+category action and addon menu with real AddonPage/AddonList/AddonHeader and
+DOMManager code. It covers combined-export preference, the split-export
+fallback, close/open ordering, receiver/route arguments, delayed plugin-page
+mount, mounted theme-page navigation, and an initially empty Store. HappyDOM
+mis-matches the upstream `:where(...)` selector, so this isolated harness checks
+the original selector and delegates using its equivalent selector list; native
+Chromium selector behavior remains a manual injected check. Temporary tracing
+is preserved locally and excluded from the permanent source and release.
+
+Verification passes all six isolated Store-navigation cases and the existing
+addon-settings caller wrapper. The full Bun 1.1.20 suite passes **546 tests,
+24 existing platform skips, 0 failures** across 76 files. Full ESLint identified
+one operator-linebreak formatting error in the fallback; after correcting it,
+the affected-file lint passes. TypeScript and CRLF-aware whitespace checks pass.
+Release preparation uses `./local-build.zsh dist -mrts 45`, checks all eight
+packed/unpacked inputs, and repeats the build after committing. Native runtime
+confirmation of the corrected shortcuts and publication remain separate gates.
+
 ### Webpack options and consumers
 
 Adopt upstream's `map`, `mapDeclarations`, and `withKey` options, shared
@@ -572,7 +614,7 @@ Theme Attributes runtime regression described below):
 | Webpack Source Viewer | PR #2248 adds source links and coordinates, a developer setting, and DevTools IPC. It interpolates unchecked coordinates and polls for DevTools at a sub-millisecond interval, while narrowing Store links to the canonical alias. | Keeps the source-link feature/settings with runtime-validated IPC input, serialized arguments, bounded readiness, handled errors, and capability checks. Store and source viewer share protocol ownership; existing Store aliases remain supported. | Preserve `EDITOR_CLOSE`, window security preferences, independent setting gates, shared protocol ownership, and accepted source URL/coordinate semantics. Keep validation and cleanup until upstream provides equivalent protection; do not add the commented debug windows. |
 | Plugin startup | Upstream removes host calls to legacy load/metadata methods and acquires its shared observer on demand, but still force-starts `0BDFDB.plugin.js`. | Takes the supported lifecycle and types while giving no plugin or library special treatment. Disabled files stay unevaluated; enablement constructs lazily and calls `start()`. Parsed metadata stays authoritative. | Preserve the generic enabled-state gate and upstream lifecycle contract. Do not reintroduce automatic `load()`/metadata-getter invocation or library exceptions. |
 | Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
-| BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
+| BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Prefers the strict lookup with an opener-only fallback for Discord's split modal-key export. Keeps resilient footer-first placement, the DOM-backed version/debug row, and reviewed close tiers. | The opening fallback is optional and replaceable by an upstream fix covering both export layouts. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | OS accent color | Upstream initializes the color in Electron main and listens for `accent-color-changed`, but its in-flight guard can use an uninitialized CSS key, remain stuck after a rejection, and drop a newer event. Electron does not expose that event on macOS. | Keeps startup initialization on every `dom-ready`, serializes and coalesces live changes, recovers after CSS insertion/removal failures, and on all supported macOS versions uses Electron's local-notification bridge for AppKit's public `NSSystemColorsDidChangeNotification` before re-reading the authoritative accent getter. Registration fallbacks remain for Electron/runtime compatibility. | Preserve the queued lifecycle and platform-specific listener until upstream provides equivalent behavior. Do not version-gate the AppKit notification or replace it with the early `AppleAquaColorVariantChanged` signal. When removing the old accent IPC, keep the fork's unrelated `EDITOR_CLOSE` IPC path. |
 | Activity iframe hardening | Upstream exempts `*.discordsays.com` Activity frames from the generic `contentWindow` proxy. | Keeps that Activity exception, but validates the URL safely and grants direct `contentWindow` access only to real `*.discordsays.com` hosts. Every other frame keeps the existing proxy and localStorage protection. | Preserve the upstream exception and the fork's URL guard without changing the plugin-visible Activity flow. |
 | `BdApi.Patcher.instead` semantics | Upstream uses nested `instead` patch behavior with delegated callbacks and edge-case continuation ordering. | Keeps first-registered `instead` outermost, preserves callback argument/receiver forwarding, explicit/omitted returns, non-delegating suppression, and after-patch ordering while retaining the existing `unpatch()` idempotent-guard behavior. | Preserve upstream-observable semantics exactly and keep idempotent unpatch semantics as an isolated fork guard. |
@@ -759,12 +801,14 @@ Primary files: `src/betterdiscord/ui/settings.tsx`,
 - [`2c4f777b`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/2c4f777b964fa339b44bebee86a5a22f6cd91395) added resilient BetterDiscord section placement through
   `getBetterDiscordSectionIndex()`.
 
-The `44e21745` integration review deliberately replaces the fork's
+The `44e21745` integration review deliberately replaced the fork's
 `openUserSettings`-only
 lookup from `f0eb9941` with upstream's stricter lookup requiring both
-`openUserSettings` and `USER_SETTINGS_MODAL_KEY`. That adoption is not a
-protected divergence; verify it at runtime and prefer the upstream form while
-it works.
+`openUserSettings` and `USER_SETTINGS_MODAL_KEY`. The 2026-10-09 runtime trace
+disproved that requirement for Discord's newer split exports. Prefer the
+combined form when present and fall back to the opener-only form as described
+in the optional compatibility fix above; do not require the fallback after an
+equivalent upstream fix replaces it.
 
 The protected settings behavior is:
 
@@ -1175,6 +1219,9 @@ The `9fc106e8..7d6772f3` adaptation removes the fork-only sidebar-reselection
 shortcut from `src/betterdiscord/ui/settings/addonpage.tsx`. Store entry/exit now
 follows upstream navigation and its breadcrumb/toggle. The fork's detached-editor
 callback and retained Settings title/search ownership remain independent fixes.
+The cog-menu callback removed alongside that adaptation was not obsolete;
+the 2026-10-09 correction restores it unchanged from upstream, without adding
+a fork-specific navigation contract.
 
 ### Identity-aware plugin/theme updater (Stage 7B)
 

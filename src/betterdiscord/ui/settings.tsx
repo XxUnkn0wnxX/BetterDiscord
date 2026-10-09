@@ -4,6 +4,7 @@ import Settings, {type SettingsCollection} from "@stores/settings";
 import JsonStore from "@stores/json";
 import {Filters, getByKeys, getByStrings, getLazy, getBySource, getModule} from "@webpack";
 import Patcher from "@modules/patcher";
+import DOMManager from "@modules/dommanager";
 
 import AddonPage from "@ui/settings/addonpage";
 
@@ -34,8 +35,8 @@ import {getInternalInstance} from "@utils/react";
 
 const ContextMenu = new ContextMenuPatcher();
 
-// User-approved Stage 4 choice: take upstream 44e21745's stricter opening lookup.
-const UserSettings = getByKeys<any>(["openUserSettings", "USER_SETTINGS_MODAL_KEY"], {firstId: 840065, cacheId: "core-settings-usersettings"});
+// Prefer upstream's combined export; Discord also ships the modal key separately.
+const UserSettings = getByKeys<any>(["openUserSettings", "USER_SETTINGS_MODAL_KEY"], {firstId: 840065, cacheId: "core-settings-usersettings"}) ?? getByKeys<any>(["openUserSettings"], {firstId: 840065, cacheId: "core-settings-usersettings"});
 const closeUserSettings = getByStrings<() => boolean>(["closeUserSettings"]);
 
 const SettingsRenderer = new class SettingsRenderer {
@@ -851,7 +852,11 @@ function useAddonMenu(manager: AddonManager) {
                 <ContextMenu.Item
                     label={t("Addons.openStore", {context: manager.prefix})}
                     id={`${manager.prefix}-store`}
-                    action={() => openCategory(manager.prefix + "s")}
+                    action={() => {
+                        openCategory(manager.prefix + "s");
+                        // If the addon store instantly opens have it just stop basically
+                        DOMManager.onAdded(":where(.bd-store-card, .bd-addon-title > :nth-child(3))", (elem) => (elem as HTMLElement)?.click());
+                    }}
                 />
             </ContextMenu.Group>
         </>
