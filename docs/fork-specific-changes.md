@@ -71,6 +71,56 @@ It passes four cases with the same spinner mock preloaded from ignored scratch;
 the required full-suite checkpoint remains the final ordering check. No
 production behavior or unrelated assertion was changed to hide that limitation.
 
+### Plugin lifecycle, metadata, and types
+
+Adopt PR #2242's final lifecycle and type implementation: the host no longer
+calls `load()`, `getName()`, `getAuthor()`, `getDescription()`, or `getVersion()`.
+Parsed addon headers and the existing parser fallback values remain
+authoritative. Plugin-owned methods can still exist and call one another;
+removing host invocation does not delete methods from an instance.
+
+Adopt `PluginInstance`, constructor/factory/export/module types, the generic
+`AddonAPI`, callable `start`/`stop` validation, typed settings panels and command
+icons. Preserve constructor metadata without the export itself, upstream
+class/function versus arrow-factory selection, and the instance receiver when
+calling `getSettingsPanel()`.
+
+Disabled plugins remain metadata-only until enabled. Keep the generic
+load-point/enabled-state gate, with no privileged BDFDB, Zeres, or other
+filename. Ordinary disable/re-enable retains the instance; reload replaces it.
+Keep addon-state durability, editor cleanup, and settings-modal ID/type ownership
+independent of the lifecycle API removal.
+
+Use upstream's on-demand shared MutationObserver and reference counting:
+detect `observer` after a successful `start()`, acquire observation when needed,
+and release it before `stop()`, even when stop throws. `observer()` and
+`onSwitch()` remain supported but deprecated. No Navigation API runtime
+dependency is introduced. Mutations before the first acquisition are not
+replayed, and adding an observer callback later does not itself start shared
+observation. Preserve upstream callback/error behavior rather than expanding
+this deprecated API.
+
+Plugin maintenance impact: move any initialization solely in legacy `load()`
+to guarded supported startup work; move metadata to headers. The examined
+RightClickJoin source loses its plugin-owned update check and ChannelPermissions
+loses its dependency prompt/update check until migrated. No mandatory source
+migration was identified in MessageLoggerV2, BDConsoleLogger, EmbedCopy,
+Experiments, or JumpToTop; runtime verification remains required. Examined BDFDB
+and Zeres wrapper paths initialize themselves without the host's legacy call.
+Do not add fork-only lifecycle exceptions to compensate for outdated plugins.
+
+Focused lifecycle verification passes 14 tests across eight selected files.
+The isolated real PluginManager/AddonManager/parser harness exercises seven
+cases covering disabled ordinary/BDFDB/Zeres files, class/factory construction,
+header/fallback metadata, ignored legacy methods, callable validation, start
+failure, instance lifetime/reload, shared observation and throwing-stop cleanup,
+and callback exception isolation. Two settings-caller cases execute the actual
+Settings/Card callback source and modal lifecycle, checking receiver binding,
+ID/type changes, matching unload closure and ordinary cleanup. Existing state,
+settings-modal, editor, detached-open, updater-restart, and Custom CSS focus
+wrappers also pass. Scoped ESLint, TypeScript, and CRLF-aware whitespace checks
+pass; live plugin behavior remains unverified.
+
 ## Previously integrated range through 7d6772f3
 
 The previous reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
@@ -421,7 +471,7 @@ Theme Attributes runtime regression described below):
 | Injection and Discord updates | Uses the application-ASAR wrapper model. PR #2247 adds Windows/Linux migration before `host-updated` event delivery, retaining quit-time migration. | Routes that event through the existing owned-wrapper migration, with migration failures contained before original event delivery. Retains cross-platform resource discovery, release/dev injection, safe uninject, separate macOS recovery, and identity-matched BetterDiscord/OpenAsar handoff handling. | Keep the fork plumbing and Windows/Linux-only event gate. Never replace macOS quit registration with upstream's supported-platform block or treat a host-update event as macOS restart permission. |
 | Message grouping attributes | PR #2246 replaces changing grouping Context values with per-message subscriptions and layout-effect DOM writes. Its registry fails to prune removed entries and a late subscriber can clear dispatch owed to existing subscribers. | Keeps the upstream attribute behavior and stable subscriptions with commit-scoped state in owned React components, guarded identity, and cancelled stale patch lookups. Wrapped exports, callable lookups, author guards, and bounded tree traversal remain intact. | Keep removable patch callbacks hook-free and exercise toggles without unmounting the Discord owner. Preserve working registry cleanup and cancellation; do not reintroduce grouping-only message rerenders. |
 | Webpack Source Viewer | PR #2248 adds source links and coordinates, a developer setting, and DevTools IPC. It interpolates unchecked coordinates and polls for DevTools at a sub-millisecond interval, while narrowing Store links to the canonical alias. | Keeps the source-link feature/settings with runtime-validated IPC input, serialized arguments, bounded readiness, handled errors, and capability checks. Store and source viewer share protocol ownership; existing Store aliases remain supported. | Preserve `EDITOR_CLOSE`, window security preferences, independent setting gates, shared protocol ownership, and accepted source URL/coordinate semantics. Keep validation and cleanup until upstream provides equivalent protection; do not add the commented debug windows. |
-| Plugin startup | Upstream generally keeps disabled plugins inert but still force-starts `0BDFDB.plugin.js`. | No plugin or library receives special treatment. A disabled plugin, including `0BDFDB.plugin.js` or ZeresPluginLibrary, stays disabled. Plugin `load()` remains lazy until enablement. | Preserve the generic enabled-state check in `pluginmanager.ts`. Review any future upstream plugin lifecycle change around it. |
+| Plugin startup | Upstream removes host calls to legacy load/metadata methods and acquires its shared observer on demand, but still force-starts `0BDFDB.plugin.js`. | Takes the supported lifecycle and types while giving no plugin or library special treatment. Disabled files stay unevaluated; enablement constructs lazily and calls `start()`. Parsed metadata stays authoritative. | Preserve the generic enabled-state gate and upstream lifecycle contract. Do not reintroduce automatic `load()`/metadata-getter invocation or library exceptions. |
 | Plugin/theme settings, search, and editors during hot reload | Upstream refreshes the addon list but leaves settings panels and BetterDiscord editor windows created from the old addon open. Its installed-addon search also stores the visible text separately from the filter and labels the placeholder with the filtered result count. The retained Settings-title portal can reuse that search when entering the Addon Store or keep stale callbacks after the addon page remounts. It also tracks only one updater even though Discord can commit two title roots for the same panel. | Closes only the matching settings modal and BetterDiscord detached/external source editors, using a discard-only path with no toast, prompt, automatic reopen, or BetterDiscord save callback. Installed and Store searches are controlled by their owning pages and have distinct mode keys. Titles publish after their owner commits, and a per-provider title store updates every committed title root, so modal/editor activity cannot leave the visible root stale. Every Store entry/exit starts empty. The installed placeholder uses the full count while its results label uses the filtered count. Normal user closes keep their existing behavior; system-editor processes remain untouched. | Preserve the addon type/ID/filename-scoped reload close, post-commit title publication, multi-header title-store fan-out, controlled searches, and distinct installed/Store keys. Do not replace them with a global modal/window close, make reload invoke normal save/confirm callbacks, publish titles by updating another component during render, track only one retained header updater, reuse search state across Store transitions, or use the filtered result count as the installed-total placeholder. |
 | BetterDiscord settings integration | Uses a strict `openUserSettings` + `USER_SETTINGS_MODAL_KEY` lookup, a modal-key close helper, upstream section placement, and upstream version rendering. | Takes the strict opening lookup, but keeps resilient footer-first section placement and the DOM-backed version row with debug-copy and tooltip behavior. Closing uses reviewed modal-key, legacy export, and layer-pop compatibility tiers. | Keep the adopted strict opening lookup unless runtime testing disproves it. Preserve the fork placement/version hooks and close tiers until upstream supplies equivalent compatibility. |
 | OS accent color | Upstream initializes the color in Electron main and listens for `accent-color-changed`, but its in-flight guard can use an uninitialized CSS key, remain stuck after a rejection, and drop a newer event. Electron does not expose that event on macOS. | Keeps startup initialization on every `dom-ready`, serializes and coalesces live changes, recovers after CSS insertion/removal failures, and on all supported macOS versions uses Electron's local-notification bridge for AppKit's public `NSSystemColorsDidChangeNotification` before re-reading the authoritative accent getter. Registration fallbacks remain for Electron/runtime compatibility. | Preserve the queued lifecycle and platform-specific listener until upstream provides equivalent behavior. Do not version-gate the AppKit notification or replace it with the early `AppleAquaColorVariantChanged` signal. When removing the old accent IPC, keep the fork's unrelated `EDITOR_CLOSE` IPC path. |
@@ -515,7 +565,7 @@ Windows/Linux host-update cycle is still a separate runtime verification gate.
 
 Primary file: `src/betterdiscord/modules/pluginmanager.ts`.
 
-- [`453ee9c0`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/453ee9c0c907bbb88fcf69b8deb1cdfbd95ddafd) made disabled plugins inert and deferred `load()` until enablement.
+- [`453ee9c0`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/453ee9c0c907bbb88fcf69b8deb1cdfbd95ddafd) originally made disabled plugins inert and deferred legacy `load()` until enablement. The `133bc83b` adaptation supersedes that legacy invocation while retaining deferred evaluation/construction and library neutrality.
 - [`9e969122`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/9e96912258e4fb64ee91ce43c51fcf9389ad7297) preserved the generic enabled-state check while merging upstream and removed the active `0BDFDB.plugin.js` exception.
 - The required active condition is equivalent to:
 
@@ -1554,7 +1604,7 @@ required named export. This concrete adaptation is recorded in
   repeated events/quit, owned and foreign layouts, and rollback. Compare macOS
   recovery/handoff code with the fork baseline and keep real Windows/Linux
   updater emission as a separate runtime gate.
-- Plugin loading: verify disabled plugins stay inert, enablement runs `load()` once, and no library filename bypass exists.
+- Plugin loading: verify disabled plugins stay unevaluated, enablement constructs lazily and calls `start()`, parsed metadata is authoritative, and no legacy method invocation or library filename bypass exists. Exercise class/factory exports, callable validation, start failures, retained instances on disable/re-enable, fresh instances on reload, observer acquisition/release and throwing-stop cleanup, plus callback exception isolation.
 - Settings: verify placement, search/navigation, the version row, debug-copy,
   and tooltip behavior. Exercise controlled rerenders versus uncontrolled
   `defaultValue` state, then disable and re-enable Number, Color, and Keybind
