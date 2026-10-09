@@ -1,7 +1,7 @@
 import type {Webpack} from "@typed/discord";
-import {getModule} from "./searching";
+import {getMatched, getModule} from "./searching";
 import {lazyListeners, webpackRequire} from "./require";
-import {getDeclaration, getDefaultKey, makeException, shouldSkipModule, wrapModuleFilter} from "./shared";
+import {makeException, wrapModuleFilter} from "./shared";
 import {getBulk} from "./utilities";
 import Logger from "@common/logger.ts";
 
@@ -17,7 +17,7 @@ interface LazyQueue<T = any> {
     resolve(value: QueueResolvedState<T>): void;
 }
 
-type QueueResolvedState<T> = { state: "aborted"; } | { state: "resolved", value: T; };
+type QueueResolvedState<T> = {state: "aborted";} | {state: "resolved", value: T;};
 
 type MapWithComputedInsert<K, V> = Map<K, V> & {
     getOrInsertComputed?: (key: K, callback: (key: K) => V) => V;
@@ -37,6 +37,7 @@ export function getOrInsertComputedCompat<K, V>(map: Map<K, V>, key: K, callback
 const ContentCache = new Map<string, Promise<boolean>>();
 
 const queue = {
+    isFlushing: false,
     /** @private */
     _scheduled: false,
     /** @private */
@@ -48,6 +49,9 @@ const queue = {
             this._scheduled = false;
             return;
         }
+
+        this.isFlushing = true;
+
         if (this._queue.length === 1) {
             const [{resolve, query: {filter, ...options}}] = this._queue;
 
@@ -55,6 +59,7 @@ const queue = {
 
             this._queue.length = 0;
             this._scheduled = false;
+            this.isFlushing = false;
 
             return;
         }
@@ -70,6 +75,7 @@ const queue = {
 
         this._queue.length = 0;
         this._scheduled = false;
+        this.isFlushing = false;
     },
     /** @private */
     _scheduleFlush() {
@@ -119,13 +125,24 @@ const queue = {
     }
 };
 
+export function isFromLazySearch() {
+    return queue.isFlushing;
+}
+
 export async function getLazy<T>(filter: Webpack.ModuleFilter, options: Webpack.LazyOptions = {}): Promise<T | undefined> {
-    const {signal: abortSignal, defaultExport = true, searchDefault = true, searchExports = false, raw = false, fatal = false, declarationFilter} = options;
+    const {
+        signal: abortSignal,
+        fatal = false
+    } = options;
     if (!options.cacheId) options.cacheId = null;
 
     const state = await queue.enqueue<T>(filter, options);
+
     if (state.state === "resolved" && typeof state.value !== "undefined") return state.value;
-    if (state.state === "aborted") return undefined;
+    if (state.state === "aborted") {
+        if (fatal) throw makeException();
+        return undefined;
+    }
 
     filter = wrapModuleFilter(filter);
 
@@ -140,43 +157,11 @@ export async function getLazy<T>(filter: Webpack.ModuleFilter, options: Webpack.
         };
 
         const listener: Webpack.ModuleFilter = (_, module) => {
-            if (shouldSkipModule(module.exports)) return;
+            const match = getMatched<T>(module, filter, options);
 
-            if (filter(module.exports, module, module.id)) {
-                if (declarationFilter) resolve(getDeclaration(module, declarationFilter));
-                else resolve(raw ? module : module.exports);
-
+            if (match) {
+                resolve(match);
                 cancel();
-                return;
-            }
-
-            if (!searchExports && !searchDefault) return;
-
-            let defaultKey: string | undefined;
-            const searchKeys: string[] = [];
-            if (searchExports) searchKeys.push(...Object.keys(module.exports));
-            else if (searchDefault && (defaultKey = getDefaultKey(module))) searchKeys.push(defaultKey);
-
-            for (let i = 0; i < searchKeys.length; i++) {
-                const key = searchKeys[i];
-                const exported = module.exports[key];
-
-                if (shouldSkipModule(exported)) continue;
-
-                if (filter(exported, module, module.id)) {
-                    if (!defaultExport && defaultKey === key) {
-                        if (declarationFilter) resolve(getDeclaration(module, declarationFilter));
-                        else resolve(raw ? module : module.exports);
-
-                        cancel();
-                        return;
-                    }
-
-                    if (declarationFilter) resolve(getDeclaration(module, declarationFilter));
-                    else resolve(raw ? module : exported);
-
-                    cancel();
-                }
             }
         };
 

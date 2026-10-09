@@ -12,6 +12,8 @@ const downloaded: string[] = [];
 let oldSettingReads = 0;
 let protocolListeners = 0;
 let beforeCalls = 0;
+let openerLookups = 0;
+const openerTargets: Array<[unknown, string]> = [];
 let afterCalls = 0;
 let addonEmbeds = false;
 let unpatchOwner = "";
@@ -20,9 +22,9 @@ let renderEmbeds!: (target: unknown, args: unknown[], result: unknown[]) => unkn
 class MessageAccessories {renderEmbeds() {return [];}}
 const opener = {open: () => {}};
 let resolveEmbeds!: (module: typeof MessageAccessories) => void;
-let resolveOpener!: (module: typeof opener) => void;
+let resolveOpener!: (module: [typeof opener, string]) => void;
 const lazyEmbeds = new Promise<typeof MessageAccessories>(resolve => {resolveEmbeds = resolve;});
-const lazyOpener = new Promise<typeof opener>(resolve => {resolveOpener = resolve;});
+const lazyOpener = new Promise<[typeof opener, string]>(resolve => {resolveOpener = resolve;});
 
 mock.module("@common/logger", () => ({"default": {
     debug: () => {},
@@ -39,7 +41,7 @@ mock.module("@modules/addonstore", () => ({"default": {requestAddon: async (id: 
 mock.module("@modules/emitter", () => ({"default": {on: (event: string) => {baseListeners.push(event);}}}));
 mock.module("@modules/commandmanager", () => ({"default": {registerCommand: () => () => {}}}));
 mock.module("@modules/patcher", () => ({"default": {
-    before: (owner: string) => {beforeCalls++; patchOwners.push(owner);},
+    before: (owner: string, target: unknown, key: string) => {beforeCalls++; patchOwners.push(owner); openerTargets.push([target, key]);},
     after: (owner: string, _object: unknown, _key: string, callback: typeof renderEmbeds) => {
         afterCalls++;
         patchOwners.push(owner);
@@ -67,8 +69,11 @@ mock.module("@polyfill/remote", () => ({"default": {addProtocolListener: (callba
 const webpack = {
     Filters: {byPrototypeKeys: () => () => true},
     getLazy: () => lazyEmbeds,
-    getLazyBySource: () => lazyOpener,
-    getWithKey: () => [opener, "open"],
+    getLazyByStrings: (sources: readonly string[], options: {searchExports?: boolean; withKey?: boolean}) => {
+        openerLookups++;
+        assert(sources.join() === ".trackAnnouncementMessageLinkClicked(" && options.searchExports === true && options.withKey === true, "Store link lookup lost its source/member/tuple options.");
+        return lazyOpener;
+    },
     getBySource: () => protocolList
 };
 mock.module("@webpack", () => webpack);
@@ -88,7 +93,7 @@ assert(protocolListeners === 1 && beforeCalls === 0 && afterCalls === 0, "Pendin
 assert(protocolList.filter(value => value === "betterdiscord:").length === 1, "Pending lazy patches blocked permanent Store protocol ownership.");
 assert(downloaded.join() === "Launch addon", "Pending lazy patches blocked the launch protocol download.");
 resolveEmbeds(MessageAccessories);
-resolveOpener(opener);
+resolveOpener([opener, "open"]);
 await initializing;
 await StoreBuiltin.initialize();
 await Promise.resolve();
@@ -112,6 +117,10 @@ const message = {channel_id: "1", content: "<betterdiscord://addons/example>", m
 assert(renderEmbeds(null, [message], original) === original, "Disabled addonEmbeds no longer gates embeds independently.");
 addonEmbeds = true;
 assert((renderEmbeds(null, [message], original) as unknown[]).length === 1, "Permanent Store did not retain its addonEmbeds setting category.");
+
+await StoreBuiltin.patchLinkOpener();
+await StoreBuiltin.patchLinkOpener();
+assert(openerLookups === 1 && openerTargets.length === 3 && openerTargets.every(([target, key]) => target === opener && key === "open"), "Resolved link-opener tuple could not be reused or required a repeated lookup.");
 
 await StoreBuiltin.disable();
 assert(unpatchOwner === "AddonStore" && !protocolList.includes("betterdiscord:"), "Real builtin cleanup failed to remove patches or release the final protocol owner.");

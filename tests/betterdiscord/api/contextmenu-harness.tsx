@@ -22,7 +22,7 @@ mock.module("@webpack", () => ({
     Filters: {bySource: () => () => true, byStrings: () => () => true},
     getByKeys: () => ({MenuSeparator, MenuCheckboxItem, MenuRadioItem, MenuControlItem, MenuGroup, MenuItem, Menu}),
     getLazyByKeys: async () => ({colorDefault: "default", colorDanger: "danger", focused: "focused", checkboxContainer: "checkbox"}),
-    getMangled: () => ({closeContextMenu: () => {}, openContextMenu: () => {}}),
+    getBySource: () => ({closeContextMenu: () => {}, openContextMenu: () => {}}),
     getModule: () => undefined,
     webpackRequire: {m: {}, c: {}}
 }));

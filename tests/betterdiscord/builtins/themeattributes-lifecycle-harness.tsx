@@ -50,13 +50,13 @@ const mockWebpack = () => ({
     Filters: {byStrings: () => () => true},
     getByKeys: () => undefined,
     getLazy: async () => undefined,
-    getLazyBySource: async () => messageComponentModule,
-    getLazyByStrings: async () => undefined,
-    getMangledLazy: async () => {
+    getLazyBySource: async (sources: readonly string[]) => {
+        if (sources[0] !== "SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries") return messageComponentModule;
         const hook = queuedMessageHooks.shift() ?? messageHook;
         if (!deferMessageHook) return hook;
         return await new Promise<typeof messageHook>(resolve => resolveMessageHook = resolve);
     },
+    getLazyByStrings: async () => undefined,
     Stores: {UserStore: {}}
 });
 const webpackPath = import.meta.resolve("../../../src/betterdiscord/webpack");

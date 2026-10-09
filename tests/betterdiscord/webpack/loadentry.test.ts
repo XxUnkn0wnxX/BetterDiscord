@@ -44,6 +44,7 @@ mock.module(requirePath, () => ({
     lazyListeners: new Set()
 }));
 mock.module(searchingPath, () => ({
+    getMatched: () => undefined,
     getModule: () => undefined
 }));
 mock.module(utilitiesPath, () => ({

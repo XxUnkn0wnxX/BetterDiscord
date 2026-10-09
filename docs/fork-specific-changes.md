@@ -5,7 +5,75 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-The current reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
+## Adaptation through 1.14.2
+
+The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through
+[`133bc83b`](https://github.com/BetterDiscord/BetterDiscord/commit/133bc83b6bae998a321615a77e15b94956265d12).
+The fresh `upstream/development` fetch and local `upstream-development` review
+branch both identify that target. The starting fork commit is `cf048297`.
+All 20 incoming commits have a reviewed disposition, including intermediate
+changes superseded within the range. Implementation is recorded by group below;
+reviewed ancestry alone does not establish that a pending group is implemented.
+
+### Webpack options and consumers
+
+Adopt upstream's `map`, `mapDeclarations`, and `withKey` options, shared
+matching for synchronous/bulk/lazy queries, and lazy-batch miss handling.
+Preserve its option precedence and return shapes rather than introducing a
+fork-specific combination policy. A whole-export owner/key pair is
+`[module, "exports"]`; an exported-member pair uses the exports object, and a
+declaration pair uses the declaration container. Deprecated `getWithKey` and
+`getMangled` helpers remain operational as upstream provides them.
+
+The matching implementation follows upstream, with existing private safeguards:
+
+- `getDeclaration()` still reads each declaration once inside a guard before
+  filtering or returning its owner/key pair. `mapObject()` retains guarded
+  property discovery and live read/write-through behavior.
+- `loadEntry()` keeps its exact upstream control flow and the private native
+  `Map#getOrInsertComputed` capability check/fallback. No global prototype or
+  Electron-version gate is added.
+- ContextMenu, ModalActions, Settings search, command patches, and modal
+  TransitionGroup discovery use the upstream option-based lookups.
+- Theme Attributes uses upstream mapped declaration discovery while retaining
+  abort ownership, callable checks, guarded trees, and BetterDiscord-owned
+  grouping/subscription components. Lookup migration does not restore hooks
+  inside removable Discord patch callbacks.
+- Addon Store caches upstream's reusable owner/key tuple. This supersedes the
+  fork's spread-from-generator workaround; permanent startup, protocol aliases,
+  shared protocol ownership, and cleanup remain intact.
+- The Settings version-renderer lookup hunk is skipped because this fork uses
+  its protected DOM-backed version/debug-copy row. Search discovery is adopted;
+  placement, retained title/search ownership, close fallbacks, and addon modal
+  identity are preserved.
+
+This group affects renderer discovery and the plugin Webpack API, not Electron
+injection/recovery. Its public options are upstream-compatible; no plugin
+changes are required merely to keep using the deprecated lookup helpers.
+Actual Discord module selection, especially command icons and lazy consumers,
+still requires the pinned-client runtime handoff.
+
+Focused verification passes 37 tests across 13 selected wrapper/unit files,
+including declaration guards, native/fallback `loadEntry` caching, public
+Webpack options, ContextMenu discovery/items, Theme Attributes grouping and
+retained-owner toggles, Store protocols/lifecycle/navigation/install completion,
+Settings menu/layout, modal components, and addon-settings lifecycle. The isolated
+options harness executes real matching/mapping code and verifies actual tuple
+owner identity, mapped write-through, upstream precedence, cache/first-ID
+selection, all/bulk results, pending mapped lazy misses, late declarations,
+abort/fatal settlement, and retained deprecated helpers. Store tests reuse its
+resolved tuple without another lookup. Scoped ESLint, TypeScript, and
+CRLF-aware whitespace checks pass.
+
+The unchanged Settings-title test has a standalone preload ordering limitation:
+its static Button/Spinner import can perform discovery before its mock exists.
+It passes four cases with the same spinner mock preloaded from ignored scratch;
+the required full-suite checkpoint remains the final ordering check. No
+production behavior or unrelated assertion was changed to hide that limitation.
+
+## Previously integrated range through 7d6772f3
+
+The previous reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
 through local `upstream-development` at
 [`7d6772f3`](https://github.com/BetterDiscord/BetterDiscord/commit/7d6772f37474c5ff39329ebf5276734b490a4f6c).
 Its seven commits cover ContextMenu traversal, CSS selectors, and settings,

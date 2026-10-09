@@ -34,7 +34,7 @@ export const wrapDeclarationFilter = (filter: Webpack.ExportedOnlyFilter) => Obj
     __originalFilter: filter
 });
 
-export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.ExportedOnlyFilter) {
+export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.ExportedOnlyFilter, withKey = false) {
     const wrappedFilter = wrapDeclarationFilter(filter);
 
     for (const name in module.declarations) {
@@ -48,6 +48,7 @@ export function getDeclaration(module: Webpack.Module<any>, filter: Webpack.Expo
         }
 
         if (!wrappedFilter(value)) continue;
+        if (withKey) return [module.declarations, name];
         return value;
     }
 }

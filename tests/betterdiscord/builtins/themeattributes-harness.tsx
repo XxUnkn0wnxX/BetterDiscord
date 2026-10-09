@@ -11,8 +11,8 @@ const needle = "SUMMARIES_UNREAD_BAR_VIEWED,{num_unread_summaries";
 
 type AfterCallback = (thisObject: object, args: any[], returnValue: any) => unknown;
 type PatchRecord = {object: object; functionName: string; callback: AfterCallback;};
-type MangledCall = {
-    source: string;
+type MappedCall = {
+    source: readonly string[];
     mapper: {key: (value: unknown) => boolean;};
     options: Record<string, unknown>;
 };
@@ -26,7 +26,7 @@ type ChatItem = {
 
 const patches: PatchRecord[] = [];
 const filterCalls: string[][] = [];
-const mangledCalls: MangledCall[] = [];
+const mappedCalls: MappedCall[] = [];
 const renderCounts = new Map<string, number>();
 
 let messageHook: unknown;
@@ -54,17 +54,16 @@ const mockFilters = {
     }
 };
 
-const getMangledLazy = async (source: string, mapper: MangledCall["mapper"], options: Record<string, unknown>) => {
-    mangledCalls.push({source, mapper, options});
-    return messageHook;
-};
-
 const mockWebpack = () => ({
     Filters: mockFilters,
     getLazy: async () => undefined,
-    getLazyBySource: async () => messageComponentModule,
+    getLazyBySource: async (source: readonly string[], options: Record<string, unknown>) => {
+        if (source[0] !== needle) return messageComponentModule;
+        const {map, ...rest} = options;
+        mappedCalls.push({source, mapper: map as MappedCall["mapper"], options: rest});
+        return messageHook;
+    },
     getLazyByStrings: async () => undefined,
-    getMangledLazy,
     Stores: {UserStore: {}}
 });
 const webpackPath = import.meta.resolve("../../../src/betterdiscord/webpack");
@@ -161,7 +160,7 @@ function grouping(domId: string) {
 beforeEach(() => {
     patches.length = 0;
     filterCalls.length = 0;
-    mangledCalls.length = 0;
+    mappedCalls.length = 0;
     renderCounts.clear();
     messageHook = {key: matchingMessageHookKey};
     messageComponentModule = undefined;
@@ -179,16 +178,16 @@ describe("ThemeAttributes", () => {
     test("uses the semantic message hook filter and patches only callable key", async () => {
         await ThemeAttributes.patchMessageHook();
 
-        expect(mangledCalls).toHaveLength(1);
-        expect(mangledCalls[0].source).toBe(needle);
+        expect(mappedCalls).toHaveLength(1);
+        expect(mappedCalls[0].source).toEqual([needle]);
         expect(filterCalls).toEqual([[needle]]);
-        expect(mangledCalls[0].options).toEqual({
+        expect(mappedCalls[0].options).toEqual({
             cacheId: "core-themeattributes-messageHook",
             mapDeclarations: true,
             signal: undefined
         });
 
-        const mapper = mangledCalls[0].mapper.key;
+        const mapper = mappedCalls[0].mapper.key;
         expect(mapper(matchingMessageHookKey)).toBe(true);
         expect(mapper(() => "wrong source")).toBe(false);
         expect(mapper({type: matchingMessageHookKey})).toBe(false);
