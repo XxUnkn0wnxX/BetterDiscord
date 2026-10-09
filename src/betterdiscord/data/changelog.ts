@@ -8,48 +8,41 @@ export default {
     // https://youtu.be/BZq1eb9d0HI?si=67V2eArlF4atnGnz
     video: "https://www.youtube.com/embed/Qv1HUqqUgkg?si=67V2eArlF4atnGnz&vq=hd720p&hd=1&rel=0&showinfo=0&mute=0&loop=1&autohide=1",
     // banner: "https://i.imgur.com/wuh5yMK.png",
-    blurb: "Fork updates: smoother message grouping, Webpack source links, and update recovery.",
+    blurb: "Upstream 1.14.2 changes with this fork's older-runtime compatibility and recovery support.",
     changes: [
         {
-            type: "improved",
-            title: "Update Recovery",
+            type: "added",
+            title: "New Settings",
             items: [
-                "Windows and Linux now attempt to restore BetterDiscord as soon as Discord reports a completed host update",
-                "macOS retains this fork's update recovery and OpenAsar handoff support"
+                "Rounded Corners – Control rounded corners on frameless windows where supported",
+                "Accept First Mouse Click – Allow clicking through to an inactive macOS window",
+                "Vibrancy and Visual Effect State – Control macOS window materials and their active appearance",
+                "Background Material – Set the system-drawn Windows background material where supported"
             ]
         },
         {
-            type: "improved",
-            title: "Message Theme Attributes",
+            type: "progress",
+            title: "Removed Settings",
             items: [
-                "Message grouping attributes update without unnecessarily rerendering messages"
+                "Recovery and Addon Store remain available as core features, without opt-out settings",
+                "The obsolete In App Traffic Lights setting has been removed"
             ]
         },
         {
             type: "added",
-            title: "Webpack Source Viewer",
+            title: "Performance",
             items: [
-                "Open patched Webpack module links in developer tools, including a requested line and column",
-                "Enable DevTools in Developer Settings to use the Webpack Source Viewer option"
+                "Removed the targeted slow Discord CSS selector",
+                "Shared plugin mutation observation now runs only while needed"
             ]
         },
         {
             type: "fixed",
-            title: "Fixes",
+            title: "Recovery and Compatibility",
             items: [
-                "Fixed Discord crashing when switching Theme Attributes off or on",
-                "Discord Activities are fixed",
-                "BetterDiscord's location in settings is now fixed",
-                "Plugin settings are now fixed"
-            ]
-        },
-        {
-            type: "improved",
-            title: "QoL",
-            items: [
-                "The Custom CSS editor now fills the settings page",
-                "The floating and popout editors have received additional features",
-                "The addon store and addon updater now share the same backend"
+                "Includes upstream Windows/Linux reinjection improvements",
+                "Preserves this fork's macOS recovery and OpenAsar handoff support",
+                "Retains older-Electron compatibility and Theme Attributes toggle safety"
             ]
         },
         {
@@ -63,7 +56,10 @@ export default {
             type: "added",
             title: "For Developers",
             items: [
-                "BetterDiscord now has official types [@betterdiscord/types](https://www.npmjs.com/package/@betterdiscord/types)"
+                "Webpack now supports withKey, map, and mapDeclarations options; deprecated lookup helpers remain available",
+                "BetterDiscord no longer calls plugin load() or metadata getters. Move initialization into supported startup code and provide metadata in headers",
+                "Plugin observer() and onSwitch() remain supported but are deprecated",
+                "Includes upstream plugin types, notification render support, and Modal/Checkbox components"
             ]
         }
     ]

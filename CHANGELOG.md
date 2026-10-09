@@ -2,14 +2,16 @@
 
 This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
 
-## Fork (1.14.1)
+## Fork (1.14.2)
 
-This fork now reports BetterDiscord `1.14.1` after integrating the upstream
+This fork now reports BetterDiscord `1.14.2` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
 
-- Reviewed and adapted upstream development through [`64360114`](https://github.com/BetterDiscord/BetterDiscord/commit/64360114da8efc28af4a1dec8fc40ae2cd30250d), preserving the fork's compatibility and lifecycle behavior.
+- Reviewed and adapted upstream development through [`133bc83b`](https://github.com/BetterDiscord/BetterDiscord/commit/133bc83b6bae998a321615a77e15b94956265d12), preserving older-Electron compatibility and required fork behavior while following upstream plugin contracts.
+- Adopted upstream Webpack mapping/owner-key options and the supported plugin lifecycle. Headers determine metadata; the host no longer calls legacy `load()` or metadata getters. Plugins that initialize only in `load()` need to move that work into supported startup code.
+- Adopted upstream's targeted CSS performance fix and on-demand shared plugin observer. Deprecated Webpack helpers and plugin observer/navigation callbacks remain supported.
 - Updated message-group theme attributes through subscriptions, avoiding unnecessary message rerenders while keeping listener cleanup and missing-message handling safe.
 - Fixed a Discord crash when toggling Theme Attributes by keeping grouping hooks in BetterDiscord-owned components and cancelling pending patch lookups on disable.
 - Added Windows/Linux recovery when Discord reports a completed host update, retaining the existing quit fallback and the separate macOS recovery flow.
@@ -22,6 +24,33 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
+
+### 1.14.2
+
+This upstream release summary includes features already integrated by the fork
+before this version bump, as well as the new Webpack options, plugin lifecycle,
+and CSS performance changes.
+
+### Added
+- Notification `render` API, ContextMenu types, Modal component, and exposed Checkbox component.
+- Native window settings: rounded corners, macOS first-click acceptance, vibrancy and visual-effect state, and Windows background material where supported.
+- Webpack `withKey`, `map`, and `mapDeclarations` options.
+- A performance builtin that removes the targeted slow Discord CSS selector.
+
+### Removed
+- Host calls to plugin `load`, `getName`, `getVersion`, `getAuthor`, and `getDescription` methods. Use supported lifecycle methods and metadata headers.
+- Recovery and Addon Store opt-outs; these remain available as core features.
+- The obsolete In App Traffic Lights setting.
+
+### Changed
+- Notifications no longer require an ID.
+- `getWithKey` and `getMangled`/`getMangledProxy` are deprecated in favor of the new Webpack options; existing helpers remain implemented.
+- Shared plugin mutation observation is acquired only when needed; `observer` and `onSwitch` remain supported but deprecated.
+
+### Fixed
+- Core settings `enableWith` updates and the Number input minimum.
+- Windows/Linux reinjection improvements. This fork retains its separate macOS recovery and identity-matched OpenAsar handoff; upstream's OpenAsar incompatibility note does not describe this fork's retained implementation.
+- Style removal, ContextMenu patching, and slow internal CSS selectors.
 
 ### 1.14.1
 

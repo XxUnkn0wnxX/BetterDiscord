@@ -141,6 +141,26 @@ upstream builtin byte-for-byte; registry wiring is reviewed. Scoped ESLint,
 TypeScript and CRLF-aware whitespace checks pass. DOM/CSSOM objects in this
 harness are simulated; it does not measure native Chromium rendering or speed.
 
+### 1.14.2 metadata and release notes
+
+Adopt the root package version `1.14.2` and upstream's release summary while
+retaining the fork highlights/history and corrected single-`?` video URL. The
+summary includes earlier integrated notifications, components, native settings,
+settings removals, and reinjection changes; they are not new implementations in
+this 20-commit range. Release notes explicitly identify legacy plugin lifecycle
+removal and the retained deprecated helpers/callbacks.
+
+Upstream's OpenAsar-breaking reinjection note is contextualized with this fork's
+unchanged macOS recovery/identity-matched handoff. No injection, recovery,
+preload, Electron main, native-window, updater, dependency/lockfile, local
+wrapper, build-script, or workflow changes are incoming in this range. Keep
+the Bun 1.1.20 pin, dormant core updater checks, active plugin/theme updater,
+and fork rolling `develop-latest` release policy. Protected CI/Crowdin workflow
+files are not merged or rewritten.
+
+Full integration, declaration, release-build and manual runtime evidence is
+recorded separately after all four groups complete.
+
 ## Previously integrated range through 7d6772f3
 
 The previous reviewed adaptation range is `9fc106e8..7d6772f3` on 2026-10-08,
