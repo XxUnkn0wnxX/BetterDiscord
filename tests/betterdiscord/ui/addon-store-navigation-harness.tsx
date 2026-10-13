@@ -60,6 +60,8 @@ mock.module(import.meta.resolve("../../../src/betterdiscord/ui/settings/addonsto
 
 const {default: DOMManager} = await import("@modules/dommanager");
 const domAddedCalls: string[] = [];
+const domAddedWaiters: Array<{selector: string; promise: Promise<Element>;}> = [];
+const domAddedCleanups: Array<() => void> = [];
 const actualOnAdded = DOMManager.onAdded.bind(DOMManager);
 DOMManager.onAdded = (selector, callback) => {
     domAddedCalls.push(selector);
@@ -67,7 +69,39 @@ DOMManager.onAdded = (selector, callback) => {
     const testSelector = selector === ":where(.bd-store-card, .bd-addon-title > :nth-child(3))"
         ? ".bd-store-card, .bd-addon-title > :nth-child(3)"
         : selector;
-    return actualOnAdded(testSelector, callback);
+    let resolveCompletion!: (element: Element) => void;
+    let rejectCompletion!: (error: unknown) => void;
+    let callbackSettled = false;
+    const completion = new Promise<Element>((resolve, reject) => {
+        resolveCompletion = resolve;
+        rejectCompletion = reject;
+    });
+    void completion.catch(() => undefined);
+    const wrappedCallback = (element: Element) => {
+        try {
+            const result = callback(element);
+            callbackSettled = true;
+            resolveCompletion(element);
+            return result;
+        }
+        catch (error) {
+            callbackSettled = true;
+            rejectCompletion(error);
+            throw error;
+        }
+    };
+    const cleanup = actualOnAdded(testSelector, wrappedCallback);
+    domAddedCleanups.push(() => {
+        cleanup?.();
+        if (!callbackSettled) {
+            callbackSettled = true;
+            rejectCompletion(new Error("DOMManager.onAdded observer ended before its callback ran."));
+        }
+    });
+    if (selector === ":where(.bd-store-card, .bd-addon-title > :nth-child(3))") {
+        domAddedWaiters.push({selector, promise: completion});
+    }
+    return cleanup;
 };
 const {addonContext, AddonHeader} = await import("@ui/settings/addonshared");
 const {default: AddonPage} = await import("@ui/settings/addonpage");
@@ -137,6 +171,8 @@ let root: Root;
 beforeEach(() => {
     navigationOrder = [];
     domAddedCalls.length = 0;
+    domAddedWaiters.length = 0;
+    domAddedCleanups.length = 0;
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -144,6 +180,8 @@ beforeEach(() => {
 afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    for (const cleanup of domAddedCleanups) cleanup();
+    domAddedCleanups.length = 0;
 });
 
 function renderMenu(manager: any, action: (...args: any[]) => void) {
@@ -234,8 +272,9 @@ describe("Addon Store navigation", () => {
         await act(async () => {
             setup.openButton().click();
         });
-        await act(async () => new Promise(resolve => setTimeout(resolve, 0)));
-        await act(async () => Promise.resolve());
+        const storeCardAdded = domAddedWaiters.find(waiter => waiter.selector === ":where(.bd-store-card, .bd-addon-title > :nth-child(3))");
+        expect(storeCardAdded).toBeDefined();
+        await act(async () => storeCardAdded!.promise);
 
         expect(navigationOrder).toEqual(["close", "open"]);
         expect(events).toEqual(["betterdiscord_plugins_panel:plugins"]);

@@ -141,6 +141,14 @@ optional helper examples and tested-runtime status in
 require a focused older-client audit even when existing plugins do not use them;
 unchanged helpers can reuse prior evidence.
 
+The first Linux CI follow-up exposed a scheduling race in the existing delayed
+Store-navigation harness: a fixed timer/microtask drain could reach its assertion
+before the real MutationObserver callback. The test now awaits that callback's
+completion, propagates callback errors and disconnects pending observers during
+cleanup. It retains the selector, navigation/order/receiver and visible Store
+assertions. This is test synchronization only; production Store behavior and
+all compatibility code remain unchanged.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through
