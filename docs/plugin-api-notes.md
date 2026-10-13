@@ -8,7 +8,7 @@ number guess.
 | API | Availability in this checkout | What it is for |
 | --- | --- | --- |
 | `BdApi.Utils.loadEntry` | Present on `develop`; this fork includes an internal compatibility fallback for older runtimes. | Load entry modules referenced by a discovered lazy Webpack loader. |
-| `BdApi.Webpack.Filters.byDestructure` | Present on `upstream-development` at the reviewed cutoff, but not yet on `develop`. Older Electron/client behavior is not yet qualified. | Find exported functions whose source contains a matching destructuring assignment. |
+| `BdApi.Webpack.Filters.byDestructure` | Present on `develop` from the 1.14.3 adaptation. Focused source/API checks pass; native pinned-client matching remains a runtime check. | Find exported functions whose source contains a matching destructuring assignment. |
 
 ## `BdApi.Webpack.Filters.byDestructure`
 
@@ -39,10 +39,11 @@ check that the returned export has the behavior your plugin needs.
 
 The implementation uses ordinary JavaScript string and array operations; it
 does not depend on `Map.prototype.getOrInsertComputed` or browser/Electron
-APIs. That source inspection alone does not establish compatibility with this
-fork's older Electron and Discord targets. Treat availability and runtime
-behavior as pending until the filter is integrated and checked on the
-supported clients.
+APIs. Its operations are already available to the fork's older Electron targets;
+no new engine fallback is needed. Focused checks exercise the upstream matching
+semantics and public API on pinned Bun 1.1.20. They do not prove a particular
+Discord bundle contains a matching function: verify the source shape on the
+client your plugin targets, and handle an absent match.
 
 ## `BdApi.Utils.loadEntry`
 

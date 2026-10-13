@@ -122,6 +122,34 @@ export function byStoreName(name: string): Webpack.ExportedOnlyFilter {
     });
 }
 
+export function byDestructure(...properties: string[]): Webpack.ExportedOnlyFilter {
+    return assign(module => {
+        if (typeof module !== "function") return false;
+
+        const str = String(module);
+        let end = str.indexOf("}=");
+
+        while (end !== -1) {
+            const start = str.lastIndexOf("{", end);
+
+            if (start !== -1) {
+                const names = str
+                    .substring(start + 1, end)
+                    .split(",")
+                    .map(p => p.split(":")[0].split("=")[0].trim());
+
+                if (properties.every(p => names.includes(p))) return true;
+            }
+
+            end = str.indexOf("}=", end + 2);
+        }
+
+        return false;
+    }, {
+        properties
+    });
+}
+
 export function combine(...filters: Webpack.ExportedOnlyFilter[]): Webpack.ExportedOnlyFilter;
 export function combine(...filters: Array<Webpack.ExportedOnlyFilter | Webpack.ModuleFilter>): Webpack.ModuleFilter;
 export function combine(...filters: Webpack.ModuleFilter[]): Webpack.ModuleFilter {

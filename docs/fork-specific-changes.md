@@ -5,6 +5,40 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
+## Adaptation through 1.14.3 (in progress)
+
+The reviewed range is `133bc83b..3eafabae`, pinned to upstream
+`3eafabae8c4ccc28aeb2ff97239f757ee87cbe17` after the fresh implementation fetch
+on 2026-10-14 (Melbourne). The starting fork commit is `855648f7`.
+Custom reinjection/recovery and OpenAsar handoff remain unchanged. Upstream's
+competing macOS migrator/helper implementation and its shell-build plumbing are
+excluded from this adaptation. Reviewed ancestry and final validation are
+recorded when all groups are complete.
+
+### Webpack destructuring filter
+
+Adopt upstream `BdApi.Webpack.Filters.byDestructure(...properties)` with its
+source-text matching semantics and filter metadata. It checks function source
+for destructuring assignments with the literal `}=` boundary; it is not a parser
+for arbitrary whitespace, nested syntax or destructured function parameters.
+Aliases and defaults are matched by property name, and all requested properties
+must occur in the same discovered group. Empty input follows upstream behavior.
+
+The implementation uses ordinary String/Array operations and the existing filter
+metadata helper, all already supported by the fork's older Electron targets.
+It introduces no newer Map/Promise method, DOM/Electron API or prototype patch.
+`loadEntry` retains its independent capability-based computed-insert fallback.
+Existing mapped/declaration/owner-key, lazy and deprecated lookup behavior is
+unchanged. No plugin migration is required for this optional addition; see
+[Plugin API notes](plugin-api-notes.md) for examples.
+
+The isolated options harness exercises direct filter behavior and real public
+`getModule` discovery, including aliases/defaults, multiple groups, missing
+properties, nonfunctions, metadata, empty input and source-format limitations.
+Pinned Bun 1.1.20 checks, scoped lint and TypeScript pass. This verifies source
+and API behavior; native selection of an intended Discord export remains a
+client-specific runtime check.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through

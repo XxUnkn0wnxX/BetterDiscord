@@ -29,6 +29,12 @@ const noMatch = () => false;
 const target = () => "webpack-option-target";
 const mapper = {target: (value: unknown) => value === target};
 
+function sourceFunction(source: string) {
+    const fn = () => undefined;
+    Object.defineProperty(fn, "toString", {value: () => source});
+    return fn;
+}
+
 function add(id: string, exports: any, declarations: Record<string, unknown> = {}) {
     const module: Webpack.Module = {id, exports, declarations, loaded: true};
     moduleCache[id] = module;
@@ -125,6 +131,41 @@ describe("Webpack options", () => {
             expect((api.getModule<any>(filter, {map: mapper, mapDeclarations: true, cacheId: null}) as any).target).toBe(target);
             expect(api.getModule<any>(filter, {searchExports: true, defaultExport: false, withKey: true, cacheId: null})).toEqual([exports, key]);
         }
+    });
+
+    test("filters functions by properties in destructured declarations", () => {
+        const aliased = sourceFunction("function loader(){({channelId:c,guildId:g}={});}");
+        const filter = Filters.byDestructure("channelId", "guildId");
+
+        expect(filter(aliased)).toBe(true);
+        expect(filter(sourceFunction("function loader(){const {channelId='0',guildId:g=null}=context;}"))).toBe(true);
+        expect(filter({channelId: "channel", guildId: "guild"})).toBe(false);
+        expect(filter("function ({channelId, guildId} = value) {}" as any)).toBe(false);
+        expect(filter(null as any)).toBe(false);
+        expect((filter as any)[Symbol.for("BetterDiscord.Filter")]).toEqual({properties: ["channelId", "guildId"]});
+
+        const separated = sourceFunction("function loader(){({channelId:c}=channel);({guildId:g}=guild);}");
+        expect(filter(separated)).toBe(false);
+
+        const laterGroup = sourceFunction("function loader(){({channelId:c}=channel);({channelId:id,guildId:g}=context);}");
+        expect(filter(laterGroup)).toBe(true);
+
+        const spacedMarker = sourceFunction("function loader(){({channelId,guildId} \n= context);}");
+        expect(filter(spacedMarker)).toBe(false);
+        expect(filter(sourceFunction("function loader({channelId,guildId}){}"))).toBe(false);
+        expect(Filters.byDestructure()(aliased)).toBe(true);
+        expect(Filters.byDestructure()(sourceFunction("function loader(){}"))).toBe(false);
+    });
+
+    test("exposes byDestructure through the public Webpack API search", () => {
+        const matching = sourceFunction("function matching(){({channelId:c,guildId:g}={});}");
+        const miss = sourceFunction("function miss(){({channelId:c}={});}");
+        const exports: Record<string, any> = {"default": matching, miss};
+        exports.__esModule = true;
+        add("1", exports);
+
+        const result = api.getModule(api.Filters.byDestructure("channelId", "guildId"), {searchExports: true});
+        expect(result).toBe(matching);
     });
 
     test("uses firstId, cached matches and scanning for shared single and bulk matching", () => {
