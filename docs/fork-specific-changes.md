@@ -5,15 +5,18 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
-## Adaptation through 1.14.3 (in progress)
+## Adaptation through 1.14.3
 
 The reviewed range is `133bc83b..3eafabae`, pinned to upstream
 `3eafabae8c4ccc28aeb2ff97239f757ee87cbe17` after the fresh implementation fetch
 on 2026-10-14 (Melbourne). The starting fork commit is `855648f7`.
 Custom reinjection/recovery and OpenAsar handoff remain unchanged. Upstream's
 competing macOS migrator/helper implementation and its shell-build plumbing are
-excluded from this adaptation. Reviewed ancestry and final validation are
-recorded when all groups are complete.
+excluded from this adaptation. All 15 incoming commits have reviewed
+dispositions, including skipped implementation and history-only merge commits.
+The final source-neutral merge records this exact target as its second parent;
+its only first-parent tree change is this fork-contract record. It imports no
+additional upstream source or newer staging head.
 
 ### Webpack destructuring filter
 
@@ -97,6 +100,34 @@ upstream's competing implementation. Preserve accumulated fork history and the
 corrected video URL. The renderer recovery setting-check/import removal is
 already covered, so `builtins/developer/recovery.tsx` remains byte-for-byte
 unchanged with its distinct owner and idempotent initialization.
+
+### Integration verification and runtime boundary
+
+The complete Bun 1.1.20 suite passes **550 tests, 24 existing platform skips,
+0 failures**, with 1663 assertions across 78 files. The skips are the existing
+Darwin 20/Bun Intl crash guard. Full ESLint, TypeScript and CRLF-aware whitespace
+checks pass. Generated plugin declarations pass a strict consumer check with
+library checking enabled for `Filters.byDestructure`, `getModule` and
+`Utils.loadEntry`; the declaration bundler's existing `node:https` external
+dependency warning does not prevent that check from passing.
+
+The final tracked-file and deleted-line audit confirms that all custom
+reinjection/main-process code, scripts, local wrappers, workflows, other preload
+files, Settings/Store/editor paths, addon-state/updater behavior, guarded lookup
+helpers and renderer recovery match the starting fork. The incoming range has
+no workflow changes. Focused checks also cover Store context-menu navigation,
+editor autofocus and modal lifecycle callers to protect previous adaptations.
+
+Release preparation uses `./local-build.zsh dist -mrts 45` after the final commit,
+with all eight packed/unpacked checksum inputs and embedded commit metadata
+verified in the local review record. Native release reinjection remains a
+separate user-owned check: test modal typing/selection, keyboard navigation and
+return focus, account-switch transparency/vibrancy/opaque appearance, normal
+startup, Store shortcuts and addon enable/disable/reload. Static and simulated
+runtime checks do not prove client-specific export discovery or native focus.
+No newer Discord host-update cycle is required or claimed for pinned Big Sur
+clients, and this sync does not qualify the retained recovery code for future
+hosts. Publication remains a separate authorization.
 
 ## Adaptation through 1.14.2
 
