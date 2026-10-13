@@ -584,6 +584,15 @@ Theme Attributes runtime regression described below):
 
 ## Merge policy
 
+Older-runtime compatibility is the priority, not preservation of every historical
+BetterDiscord implementation or plugin contract. Follow upstream API and
+lifecycle changes, including deliberate removals, while adapting internal runtime
+assumptions when required by supported older clients. The removed host-called
+plugin `load()` hook is an accepted contract change; it is unrelated to the
+supported `BdApi.Utils.loadEntry` helper. Keep workarounds only for demonstrated
+compatibility needs, with clear replacement criteria. Optional upstream helpers
+and examples belong in [Plugin API notes](plugin-api-notes.md).
+
 - Prefer upstream behavior and ancestry by default.
 - A local textual difference is not automatically protected.
 - If upstream does not touch a protected area, take the upstream change normally.
@@ -650,6 +659,23 @@ Primary files:
 - `src/electron/main/macosrecovery.ts`
 - `src/electron/main/macoshandoff.ts`
 - `local-build.zsh`, `local-inject.zsh`, and `local-uninject.zsh`
+
+**Big Sur maintenance boundary**
+
+Big Sur validation uses pinned older Discord builds, where newer Discord host
+updates are no longer available for end-to-end recovery testing. Preserve the
+existing custom reinjection, recovery, and OpenAsar handoff implementation during
+upstream synchronization, including its helper ownership, restart policy,
+wrappers, and recovery build configuration. Upstream reinjection work may inform
+a future review, but must not introduce a competing helper or replace the working
+implementation as part of a routine sync.
+
+Revisit this boundary when a newer supported macOS and Discord environment is
+available to validate real host updates. Any replacement needs a separate review
+and runtime evidence for update recovery, normal quits staying closed, matching
+OpenAsar handoffs, rollback, and client-channel isolation before the existing
+implementation is retired. This defers reworking reinjection; it does not claim
+compatibility with untested future Discord updater behavior.
 
 Key commits:
 

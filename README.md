@@ -31,8 +31,9 @@ downloads.
 
 ## :sparkles: How this fork differs
 
-- **:package: Wrapper injection:** Uses an application-ASAR wrapper with macOS update recovery and an
-  identity-matched OpenAsar handoff instead of desktop-core-only injection.
+- **:package: Custom reinjection:** Retains this fork's application-ASAR wrapper, macOS update recovery,
+  and identity-matched OpenAsar handoff. Routine upstream syncs keep this implementation intact;
+  newer reinjection designs can be revisited when real host updates can be tested on a supported newer system.
 - **:hammer_and_wrench: Local workflow:** Provides Zsh wrappers for release/dev injection, safe uninject, and
   Stable, PTB, or Canary selection.
 - **:no_entry_sign: Core updates:** Keeps BetterDiscord core update checks disabled while plugin and theme
@@ -43,6 +44,8 @@ downloads.
   library; disabled plugins stay disabled.
 - **:hourglass_flowing_sand: Legacy runtime compatibility:** Keeps upstream plugin-facing behavior while adapting internal runtime
   assumptions for older macOS and pinned Discord/Electron builds when a small, capability-based backport is practical.
+- **:arrows_counterclockwise: Upstream plugin contracts:** Follows upstream API and lifecycle changes, including removal of obsolete
+  hooks. Older-Electron support does not mean retaining every historical plugin API or BetterDiscord implementation.
 - **:paintbrush: Runtime hardening:** Retains fork-specific Settings, Custom CSS, editor, Addon Store, and Discord
   runtime compatibility fixes around reviewed upstream changes.
 
@@ -52,6 +55,10 @@ downloads.
 > identifies the referenced non-worker chunks, loads them, and returns the entry
 > exports. Plugins should handle `null`, an empty array, or a rejection when the
 > source no longer matches or Discord's runtime changes.
+
+See [Plugin API notes](docs/plugin-api-notes.md) for optional helpers, examples,
+availability, and older-runtime considerations. The legacy plugin `load()` hook
+removed upstream is separate from the supported `BdApi.Utils.loadEntry` helper.
 
 See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
 upstream-versus-fork inventory and the rules used for future merges.
@@ -120,6 +127,7 @@ This preserves a nested OpenAsar payload when one was already installed.
 
 - [Manual macOS build and injection](docs/manual-install.md)
 - [Fork-specific changes and upstream policy](docs/fork-specific-changes.md)
+- [Optional plugin APIs and examples](docs/plugin-api-notes.md)
 - [Contributing to this fork](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 - [Apache License 2.0](LICENSE.md)
