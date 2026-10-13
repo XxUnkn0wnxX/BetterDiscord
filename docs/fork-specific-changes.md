@@ -39,6 +39,38 @@ Pinned Bun 1.1.20 checks, scoped lint and TypeScript pass. This verifies source
 and API behavior; native selection of an intended Discord export remains a
 client-specific runtime check.
 
+### Modal input and focus scope
+
+Prefer upstream's `FocusRingScope` and `containerRef` on the existing animated
+modal div. Use the same source/export filters through a nonfatal mapped lookup,
+and validate the scope before rendering; upstream's fatal proxy and unchecked
+missing mapped export would otherwise break all affected dialogs when a pinned
+Discord build lacks that capability. Resolve on each new modal and retain the
+selected component identity for its mounted lifetime so later module availability
+cannot remount an input while it is being edited.
+
+Only when the scope is unavailable, retain the existing `FocusLock` lookup and
+`disableTrack` behavior; if neither wrapper exists, retain Fragment without
+wrapper-specific props. This is a replaceable compatibility fallback, not a new
+public contract. Remove it when supported pinned clients demonstrably provide
+equivalent upstream scope/input/keyboard behavior. The upstream path does not
+perform the legacy lookup. No Electron version gate or global discovery change
+is introduced.
+
+Existing classes, children/context, animation/reduced-motion behavior, empty
+size/style constants, action and checkbox callbacks, install close ownership,
+addon-unload lifecycle and editor autofocus remain intact. Add only upstream's
+`react-focus-rings` type dependency and its narrow lock additions; production
+runtime components still come from Discord, not a bundled second library.
+
+The isolated real-root harness runs the package's actual scope implementation
+with production factory filtering, module matching and export mapping. Its five
+cases cover scope preference, container/ref cleanup, missing/partial exports,
+legacy/Fragment degradation, input/context/identity stability and animations.
+Root and existing modal/action/install/settings-caller wrappers pass seven tests;
+scoped ESLint and TypeScript pass. Native keyboard navigation, selection and
+return focus remain part of the user-owned release injection handoff.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through

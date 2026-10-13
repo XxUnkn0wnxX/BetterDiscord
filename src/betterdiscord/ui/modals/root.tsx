@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import React, {type PropsWithChildren} from "react";
 import DiscordModules from "@modules/discordmodules";
-import {getByKeys, getModule} from "@webpack";
+import {Filters, getByKeys, getModule} from "@webpack";
 
 
 // TODO: rewrite these types properly
@@ -21,11 +21,26 @@ export const ModalStyles = Object.freeze({
 });
 
 
-const FocusLock: any = getModule(m => m?.render?.toString().includes("impressionProperties") && m?.render?.toString().includes(".Provider"), {
-    searchExports: true,
-    firstId: 305866,
-    cacheId: "core-modalroot-focuslock"
-}) ?? React.Fragment;
+function getFocusWrapper() {
+    const focusRings = getModule<typeof import("react-focus-rings")>(Filters.bySource("focus-rings-ring"), {
+        cacheId: "core-react-focus-rings",
+        map: {
+            FocusRing: Filters.byStrings("FocusRing was given a focusTarget"),
+            FocusRingScope: Filters.byStrings(".current),", ".Provider,{value:", ".current.setThemeOptions"),
+            FocusRingManager: x => typeof x === "object"
+        }
+    });
+    const FocusRingScope = focusRings?.FocusRingScope;
+    if (typeof FocusRingScope === "function") return {Component: FocusRingScope, kind: "scope" as const};
+
+    // Replaceable older-client fallback when the upstream scope is unavailable.
+    const FocusLock: any = getModule(m => m?.render?.toString().includes("impressionProperties") && m?.render?.toString().includes(".Provider"), {
+        searchExports: true,
+        firstId: 305866,
+        cacheId: "core-modalroot-focuslock"
+    });
+    return {Component: FocusLock ?? React.Fragment, kind: FocusLock ? "legacy" as const : "fragment" as const};
+}
 
 type RootProps = PropsWithChildren<{
     className?: string;
@@ -35,6 +50,10 @@ type RootProps = PropsWithChildren<{
 }>;
 
 export default function ModalRoot({className, transitionState, children, size = ModalSizes.DYNAMIC, style = ModalStyles.CUSTOM}: RootProps) {
+    const ref = React.useRef<HTMLDivElement>(null);
+    // Retry discovery for each new modal, without remounting an open modal's children.
+    const [{Component: FocusWrapper, kind}] = React.useState(getFocusWrapper);
+    const focusProps = kind === "scope" ? {containerRef: ref} : kind === "legacy" ? {disableTrack: true} : {};
     const visible = transitionState == 0 || transitionState == 1; // 300 ms
 
     const preferences: any = React.useContext(DiscordModules.AccessibilityContext ?? {});
@@ -50,14 +69,15 @@ export default function ModalRoot({className, transitionState, children, size = 
         }
     });
 
-    return <FocusLock disableTrack={true}>
+    return <FocusWrapper {...focusProps}>
         <DiscordModules.ReactSpring.animated.div
+            ref={ref}
             className={clsx("bd-modal-root", size, className, style)}
             style={springStyles}
         >
             {children}
         </DiscordModules.ReactSpring.animated.div>
-    </FocusLock>;
+    </FocusWrapper>;
 }
 
 ModalRoot.Sizes = ModalSizes;
