@@ -49,16 +49,8 @@ downloads.
 - **:paintbrush: Runtime hardening:** Retains fork-specific Settings, Custom CSS, editor, Addon Store, and Discord
   runtime compatibility fixes around reviewed upstream changes.
 
-> **Plugin API reminder:** `BdApi.Utils.loadEntry` is opt-in. BetterDiscord does
-> not scan for or load lazy entries automatically. A plugin calls it with a
-> Discord lazy-loader function (or its source string) when needed; BetterDiscord
-> identifies the referenced non-worker chunks, loads them, and returns the entry
-> exports. Plugins should handle `null`, an empty array, or a rejection when the
-> source no longer matches or Discord's runtime changes.
-
 See [Plugin API notes](docs/plugin-api-notes.md) for optional helpers, examples,
-availability, and older-runtime considerations. The legacy plugin `load()` hook
-removed upstream is separate from the supported `BdApi.Utils.loadEntry` helper.
+availability, and older-runtime considerations.
 
 See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
 upstream-versus-fork inventory and the rules used for future merges.

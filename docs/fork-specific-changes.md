@@ -129,6 +129,18 @@ No newer Discord host-update cycle is required or claimed for pinned Big Sur
 clients, and this sync does not qualify the retained recovery code for future
 hosts. Publication remains a separate authorization.
 
+Native follow-up on the `91b26615` release: startup, modal inputs, Store
+navigation and editor checks were reported passing. Account-switch appearance
+was explicitly left untested. The temporary `byDestructure` audit passed twice
+on Stable with Electron 37.6.0 / Chromium 138.0.7204.251: all seven contract
+checks, three verified real export matches and zero lookup errors per run.
+The existing `loadEntry` implementation and its older-runtime fallback remain
+byte-identical to the pre-sync fork; prior validation is retained. Keep the
+optional helper examples and tested-runtime status in
+[Plugin API notes](plugin-api-notes.md). New optional upstream APIs/features
+require a focused older-client audit even when existing plugins do not use them;
+unchanged helpers can reuse prior evidence.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through
