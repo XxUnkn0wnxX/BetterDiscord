@@ -2,13 +2,14 @@
 
 This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
 
-## Fork (1.14.2)
+## Fork (1.14.3)
 
-This fork now reports BetterDiscord `1.14.2` after integrating the upstream
+This fork now reports BetterDiscord `1.14.3` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
 
+- Reviewed and adapted upstream development through [`3eafabae`](https://github.com/BetterDiscord/BetterDiscord/commit/3eafabae8c4ccc28aeb2ff97239f757ee87cbe17): added the optional destructuring filter, adopted the modal input and account-switch transparency fixes, and retained this fork's custom reinjection and OpenAsar handoff unchanged.
 - Reviewed and adapted upstream development through [`133bc83b`](https://github.com/BetterDiscord/BetterDiscord/commit/133bc83b6bae998a321615a77e15b94956265d12), preserving older-Electron compatibility and required fork behavior while following upstream plugin contracts.
 - Adopted upstream Webpack mapping/owner-key options and the supported plugin lifecycle. Headers determine metadata; the host no longer calls legacy `load()` or metadata getters. Plugins that initialize only in `load()` need to move that work into supported startup code.
 - Adopted upstream's targeted CSS performance fix and on-demand shared plugin observer. Deprecated Webpack helpers and plugin observer/navigation callbacks remain supported.
@@ -24,6 +25,20 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
+
+### 1.14.3
+
+### Added
+- `BdApi.Webpack.Filters.byDestructure` for finding functions by properties in destructuring assignments. See [Plugin API notes](docs/plugin-api-notes.md) for examples and source-format limitations.
+
+### Fixed
+- Modal input handling uses upstream's focus scope where available, with a capability-based fallback for pinned older Discord builds.
+- Account switching preserves the transparent background used by transparency and native window effects.
+- Upstream's recovery-page correction is already present in this fork; its existing patch ownership and one-time initialization remain intact.
+
+### Retained fork behavior
+- Retains this fork's custom macOS reinjection, recovery, and identity-matched OpenAsar handoff. Upstream's new reinjection implementation is not imported.
+- Keeps older-Electron compatibility, the private `loadEntry` fallback, and the Bun 1.1.20 toolchain. Reinjection can be reconsidered once a newer system supports real host-update testing.
 
 ### 1.14.2
 

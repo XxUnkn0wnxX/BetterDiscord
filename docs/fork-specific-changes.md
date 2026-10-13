@@ -88,6 +88,16 @@ checks pass 22 tests on Bun 1.1.20; scoped ESLint and TypeScript pass. Actual
 account-switch transparency, vibrancy and opaque-window appearance require the
 native release handoff.
 
+### Release metadata and already-covered recovery
+
+Report version 1.14.3 and adapt both changelogs to the actual adopted behavior.
+Their reinjection text states that this fork retains its custom macOS
+reinjection, recovery and OpenAsar handoff; it does not advertise adoption of
+upstream's competing implementation. Preserve accumulated fork history and the
+corrected video URL. The renderer recovery setting-check/import removal is
+already covered, so `builtins/developer/recovery.tsx` remains byte-for-byte
+unchanged with its distinct owner and idempotent initialization.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through

@@ -8,58 +8,39 @@ export default {
     // https://youtu.be/BZq1eb9d0HI?si=67V2eArlF4atnGnz
     video: "https://www.youtube.com/embed/Qv1HUqqUgkg?si=67V2eArlF4atnGnz&vq=hd720p&hd=1&rel=0&showinfo=0&mute=0&loop=1&autohide=1",
     // banner: "https://i.imgur.com/wuh5yMK.png",
-    blurb: "Upstream 1.14.2 changes with this fork's older-runtime compatibility and recovery support.",
+    blurb: "Upstream 1.14.3 fixes with older-runtime support and this fork's custom reinjection retained.",
     changes: [
         {
-            type: "added",
-            title: "New Settings",
-            items: [
-                "Rounded Corners – Control rounded corners on frameless windows where supported",
-                "Accept First Mouse Click – Allow clicking through to an inactive macOS window",
-                "Vibrancy and Visual Effect State – Control macOS window materials and their active appearance",
-                "Background Material – Set the system-drawn Windows background material where supported"
-            ]
-        },
-        {
-            type: "progress",
-            title: "Removed Settings",
-            items: [
-                "Recovery and Addon Store remain available as core features, without opt-out settings",
-                "The obsolete In App Traffic Lights setting has been removed"
-            ]
-        },
-        {
-            type: "added",
-            title: "Performance",
-            items: [
-                "Removed the targeted slow Discord CSS selector",
-                "Shared plugin mutation observation now runs only while needed"
-            ]
-        },
-        {
             type: "fixed",
-            title: "Recovery and Compatibility",
+            title: "Modal Inputs and Transparency",
             items: [
-                "Includes upstream Windows/Linux reinjection improvements",
-                "Preserves this fork's macOS recovery and OpenAsar handoff support",
-                "Retains older-Electron compatibility and Theme Attributes toggle safety"
+                "Uses upstream's modal focus scope where available, with a compatibility fallback for older Discord builds",
+                "Preserves transparent window backgrounds when switching accounts"
             ]
         },
         {
             type: "improved",
-            title: "Disabled Plugins Stay Disabled",
+            title: "Custom Reinjection Retained",
             items: [
-                "Plugins never run unless enabled"
+                "Retains this fork's custom macOS reinjection, recovery, and OpenAsar handoff",
+                "Keeps the existing wrappers and recovery behavior for pinned older Discord builds"
+            ]
+        },
+        {
+            type: "improved",
+            title: "Fork Compatibility",
+            items: [
+                "The upstream recovery-page correction is already included in this fork",
+                "Preserves Store context-menu navigation, editor focus, and disabled-plugin behavior"
             ]
         },
         {
             type: "added",
             title: "For Developers",
             items: [
-                "Webpack now supports withKey, map, and mapDeclarations options; deprecated lookup helpers remain available",
-                "BetterDiscord no longer calls plugin load() or metadata getters. Move initialization into supported startup code and provide metadata in headers",
-                "Plugin observer() and onSwitch() remain supported but are deprecated",
-                "Includes upstream plugin types, notification render support, and Modal/Checkbox components"
+                "Adds BdApi.Webpack.Filters.byDestructure for matching functions by destructured property names",
+                "BdApi.Utils.loadEntry retains its older-runtime compatibility fallback",
+                "Optional helper examples and limitations are documented in docs/plugin-api-notes.md"
             ]
         }
     ]
