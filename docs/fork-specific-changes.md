@@ -71,6 +71,23 @@ Root and existing modal/action/install/settings-caller wrappers pass seven tests
 scoped ESLint and TypeScript pass. Native keyboard navigation, selection and
 return focus remain part of the user-owned release injection handoff.
 
+### Account-switch transparency
+
+Adopt upstream's preload proxy for the exact
+`DISCORD_SETTINGS_UPDATE_BACKGROUND_COLOR` IPC channel. It changes that channel's
+color argument to `#00000000` before Discord's original preload executes, while
+preserving receiver, extra arguments, return values and errors. Other channels
+remain unchanged. This is an Electron preload fix; it changes no reinjection,
+recovery, native-window capability checks, secure window preferences, original
+preload ownership, accent lifecycle or editor-close behavior.
+
+The source-backed inert-preload tests execute the production initializer and
+verify the narrow rewrite, original IPC errors, early-renderer/registration
+ordering and process-kill restoration. They and the existing native-window
+checks pass 22 tests on Bun 1.1.20; scoped ESLint and TypeScript pass. Actual
+account-switch transparency, vibrancy and opaque-window appearance require the
+native release handoff.
+
 ## Adaptation through 1.14.2
 
 The current reviewed range is `7d6772f3..133bc83b` on 2026-10-09, through
