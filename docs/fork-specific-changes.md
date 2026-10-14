@@ -90,9 +90,13 @@ ESLint (excluding ignored local diagnostics), TypeScript and a production ASAR
 build with `-mrts 45` also pass. All eight packed/unpacked release inputs match
 their checksums. DOM identity assertions use primitive comparisons to avoid
 that Bun version recursively traversing cyclic HappyDOM/React objects.
-The focus-lock fixture is simulated evidence; a fresh native release injection
-must still verify the production fix with plugin settings and the temporary
-control audit before publication.
+The focus-lock fixture is simulated evidence. A subsequent Stable release
+reinjection on the pinned client passed the user-owned plugin-settings checks;
+the fresh control audit recorded working text and public SearchInput callbacks
+with valid value shapes. Its single redirect observation occurred during modal
+teardown, with settled focus returning outside the modal. The temporary audit
+was unlinked after confirmation; preserve the same native checks for future
+focus-management changes.
 
 ### Account-switch transparency
 
