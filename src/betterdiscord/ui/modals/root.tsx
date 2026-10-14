@@ -30,16 +30,24 @@ function getFocusWrapper() {
             FocusRingManager: x => typeof x === "object"
         }
     });
-    const FocusRingScope = focusRings?.FocusRingScope;
-    if (typeof FocusRingScope === "function") return {Component: FocusRingScope, kind: "scope" as const};
-
-    // Replaceable older-client fallback when the upstream scope is unavailable.
-    const FocusLock: any = getModule(m => m?.render?.toString().includes("impressionProperties") && m?.render?.toString().includes(".Provider"), {
-        searchExports: true,
-        firstId: 305866,
-        cacheId: "core-modalroot-focuslock"
+    const FocusRingScope = typeof focusRings?.FocusRingScope === "function" ? focusRings.FocusRingScope : React.Fragment;
+    // A ring scope only draws focus outlines. The native manager must also
+    // register this modal above the underlying Settings focus lock.
+    const focusManager = getModule<{FocusLock?: React.ComponentType<PropsWithChildren<{containerRef: React.RefObject<HTMLDivElement | null>}>>}>(Filters.bySource("containerElementRef", "disableReturnRef"), {
+        cacheId: "core-modalroot-focus-manager",
+        map: {FocusLock: Filters.byStrings(".containerRef", "disableReturn:", "children")}
     });
-    return {Component: FocusLock ?? React.Fragment, kind: FocusLock ? "legacy" as const : "fragment" as const};
+    if (typeof focusManager?.FocusLock === "function") return {FocusRingScope, Component: focusManager.FocusLock, kind: "manager" as const};
+
+    // Older clients may expose the dialog as a function or a real forwardRef.
+    const matchesDialog = Filters.byStrings("impressionProperties", ".Provider");
+    const FocusLock = getModule<React.ElementType>(m => typeof m === "function" ? matchesDialog(m)
+        : m?.$$typeof === Symbol.for("react.forward_ref") && typeof m.render === "function" && matchesDialog(m.render), {
+        searchExports: true,
+        cacheId: "core-modalroot-dialog"
+    });
+    // The native dialog supplies its own ring scope and focus management.
+    return {FocusRingScope: FocusLock ? React.Fragment : FocusRingScope, Component: FocusLock ?? React.Fragment, kind: FocusLock ? "dialog" as const : "fragment" as const};
 }
 
 type RootProps = PropsWithChildren<{
@@ -52,8 +60,8 @@ type RootProps = PropsWithChildren<{
 export default function ModalRoot({className, transitionState, children, size = ModalSizes.DYNAMIC, style = ModalStyles.CUSTOM}: RootProps) {
     const ref = React.useRef<HTMLDivElement>(null);
     // Retry discovery for each new modal, without remounting an open modal's children.
-    const [{Component: FocusWrapper, kind}] = React.useState(getFocusWrapper);
-    const focusProps = kind === "scope" ? {containerRef: ref} : kind === "legacy" ? {disableTrack: true} : {};
+    const [{Component: FocusWrapper, FocusRingScope, kind}] = React.useState(getFocusWrapper);
+    const focusProps = kind === "manager" ? {containerRef: ref} : kind === "dialog" ? {disableTrack: true} : {};
     const visible = transitionState == 0 || transitionState == 1; // 300 ms
 
     const preferences: any = React.useContext(DiscordModules.AccessibilityContext ?? {});
@@ -69,14 +77,17 @@ export default function ModalRoot({className, transitionState, children, size = 
         }
     });
 
+    const modal = <DiscordModules.ReactSpring.animated.div
+        ref={ref}
+        tabIndex={-1}
+        className={clsx("bd-modal-root", size, className, style)}
+        style={springStyles}
+    >
+        {children}
+    </DiscordModules.ReactSpring.animated.div>;
+
     return <FocusWrapper {...focusProps}>
-        <DiscordModules.ReactSpring.animated.div
-            ref={ref}
-            className={clsx("bd-modal-root", size, className, style)}
-            style={springStyles}
-        >
-            {children}
-        </DiscordModules.ReactSpring.animated.div>
+        {FocusRingScope === React.Fragment ? modal : <FocusRingScope containerRef={ref}>{modal}</FocusRingScope>}
     </FocusWrapper>;
 }
 

@@ -44,21 +44,33 @@ client-specific runtime check.
 
 ### Modal input and focus scope
 
-Prefer upstream's `FocusRingScope` and `containerRef` on the existing animated
-modal div. Use the same source/export filters through a nonfatal mapped lookup,
-and validate the scope before rendering; upstream's fatal proxy and unchecked
-missing mapped export would otherwise break all affected dialogs when a pinned
-Discord build lacks that capability. Resolve on each new modal and retain the
-selected component identity for its mounted lifetime so later module availability
-cannot remount an input while it is being edited.
+Keep upstream's `FocusRingScope` for visual focus rings, and independently
+register the modal with Discord's native focus manager. A native follow-up on
+the pinned Electron 37.6.0 client showed that a settings input gained focus and
+then lost it to the background Plugins search within milliseconds. The original
+scope-only adaptation did not register a modal focus owner; a visual ring scope
+does not replace the underlying Settings focus lock.
 
-Only when the scope is unavailable, retain the existing `FocusLock` lookup and
-`disableTrack` behavior; if neither wrapper exists, retain Fragment without
-wrapper-specific props. This is a replaceable compatibility fallback, not a new
-public contract. Remove it when supported pinned clients demonstrably provide
-equivalent upstream scope/input/keyboard behavior. The upstream path does not
-perform the legacy lookup. No Electron version gate or global discovery change
-is introduced.
+Prefer Discord's children-only focus-management component, discovered through
+the `containerElementRef` / `disableReturnRef` factory and the component's
+`containerRef`, `disableReturn` and children contract. Validate its mapped export
+before rendering. Share the existing animated container ref with the visual
+scope, give that container `tabIndex={-1}` for programmatic focus, and preserve
+the native manager's default return-focus behavior and cleanup. Use nonfatal
+lookups and select both identities once per modal mount so later module
+availability cannot remount an input during editing.
+
+When that manager is unavailable, use the native dialog fallback with
+`disableTrack`; recognize both callable functions and genuine React forward-ref
+objects with callable `render`. Native evidence showed that the former
+render-only lookup missed a plain-function dialog. The dialog already supplies
+its own visual scope: do not mount a second focus manager or redundant ring
+scope around it. If no manager is available, retain visual-scope or Fragment
+degradation without unsupported props; that path is not proof of working focus
+containment. These are replaceable internal compatibility paths, not new public
+APIs. No Electron version gate, global focus patch, or hardcoded native module ID
+is introduced. Retire a fallback only after the replacement demonstrably
+preserves typing, keyboard navigation and return focus on supported clients.
 
 Existing classes, children/context, animation/reduced-motion behavior, empty
 size/style constants, action and checkbox callbacks, install close ownership,
@@ -66,13 +78,21 @@ addon-unload lifecycle and editor autofocus remain intact. Add only upstream's
 `react-focus-rings` type dependency and its narrow lock additions; production
 runtime components still come from Discord, not a bundled second library.
 
-The isolated real-root harness runs the package's actual scope implementation
-with production factory filtering, module matching and export mapping. Its five
-cases cover scope preference, container/ref cleanup, missing/partial exports,
-legacy/Fragment degradation, input/context/identity stability and animations.
-Root and existing modal/action/install/settings-caller wrappers pass seven tests;
-scoped ESLint and TypeScript pass. Native keyboard navigation, selection and
-return focus remain part of the user-owned release injection handoff.
+The real-root harness runs the package's actual visual scope with production
+factory filtering and export mapping, plus a representative competing Settings
+focus lock. Its regression failed against the scope-only implementation. Eight
+cases cover typing through the actual active element after queued redirects,
+unchanged background search, close/return focus, repeated-open cleanup, an empty
+focusable container, both dialog shapes, missing/partial exports, stable input
+identity/context and animations. On Big Sur with Bun 1.1.20, the full suite passes
+with 550 passed, 24 existing Intl capability skips and no failures; repository
+ESLint (excluding ignored local diagnostics), TypeScript and a production ASAR
+build with `-mrts 45` also pass. All eight packed/unpacked release inputs match
+their checksums. DOM identity assertions use primitive comparisons to avoid
+that Bun version recursively traversing cyclic HappyDOM/React objects.
+The focus-lock fixture is simulated evidence; a fresh native release injection
+must still verify the production fix with plugin settings and the temporary
+control audit before publication.
 
 ### Account-switch transparency
 
@@ -1909,6 +1929,11 @@ required named export. This concrete adaptation is recorded in
   subscriptions, and notification actions. Inspect existing dialogs and new
   Modal notices/footers after injection; exercise green buttons with current
   and legacy-only CSS variables.
+- Modal focus ownership: exercise an input above an existing Settings focus
+  lock, settle queued redirects before typing through the active element, keep
+  background search unchanged, and verify close/reopen cleanup and empty-modal
+  focus. Preserve both plain-function and forward-ref dialog fallbacks. Native
+  plugin-settings typing and return focus require a release-injected check.
 - DOM IDs: verify style/script updates reuse one node and removal works with
   special IDs. Keep foreign same-ID host/theme/head elements intact, and test
   owned head-link reuse, relocation, removal, and stale identity cleanup.

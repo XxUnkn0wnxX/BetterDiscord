@@ -1,7 +1,7 @@
 import {expect, test} from "bun:test";
 import path from "node:path";
 
-test("ModalRoot prefers upstream focus scope and preserves older-client degradation", () => {
+test("ModalRoot layers native focus management with visual scopes and preserves older-client degradation", () => {
     const result = Bun.spawnSync({
         cmd: [process.execPath, "test", path.join(import.meta.dir, "modal-root-harness.tsx")],
         cwd: path.join(import.meta.dir, "../../.."),
