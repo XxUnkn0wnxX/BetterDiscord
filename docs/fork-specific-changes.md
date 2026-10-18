@@ -15,6 +15,14 @@ files. Its recovery screen, labels and scoped stylesheet are adopted with the
 internal adaptations below. No workflow, dependency, package version, Electron
 recovery, injection wrapper or OpenAsar handoff change is imported.
 
+The implementation is committed as `c7457cf6`. A source-neutral two-parent
+merge records the exact reviewed upstream target after that adaptation; its
+only first-parent tree change is this documentation. It imports no additional
+upstream source. Full local validation passes 550 tests with 24 existing Intl
+skips and no failures, plus ESLint, TypeScript and affected stylesheet lint.
+The release build follows the final commit using `dist -mrts 45`; native
+acceptance and publication remain separate from source integration.
+
 ### Reassessment of older fixes
 
 | Previous implementation | Current disposition | Evidence and remaining requirement |
