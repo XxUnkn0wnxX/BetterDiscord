@@ -11,7 +11,7 @@ test("renderer recovery initializes once and executes without DevTools or its le
     });
     const output = new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr);
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain("8 pass");
+    expect(output).toContain("11 pass");
 });
 
 test("recovery labels live outside the retired switch in every locale", () => {
@@ -23,7 +23,9 @@ test("recovery labels live outside the retired switch in every locale", () => {
             expect(current.Recovery).toEqual({
                 button: "Attempt Recovery",
                 suspect: "Suspected Addon",
-                report: "Report on Github",
+                report: "Report on GitHub",
+                reportForgejo: "Report on git.slowb.ro",
+                noReportRepo: "No report repo",
                 safeMode: "Relaunch in Safe Mode",
                 joinSupport: "Join Support Server!"
             });

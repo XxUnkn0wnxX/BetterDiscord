@@ -490,7 +490,9 @@
     "Recovery": {
         "button": "Attempt Recovery",
         "suspect": "Suspected Addon",
-        "report": "Report on Github",
+        "report": "Report on GitHub",
+        "reportForgejo": "Report on git.slowb.ro",
+        "noReportRepo": "No report repo",
         "safeMode": "Relaunch in Safe Mode",
         "joinSupport": "Join Support Server!"
     }

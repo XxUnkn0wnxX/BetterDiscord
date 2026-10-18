@@ -1,7 +1,8 @@
-import {expect, mock, test} from "bun:test";
+import {afterAll, expect, mock, test} from "bun:test";
 import React, {act} from "react";
 import {createRoot} from "react-dom/client";
 import {runInNewContext} from "node:vm";
+import {getRecoveryReportSource} from "../../../src/betterdiscord/utils/recoveryreport";
 
 Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true});
 const settingReads: string[] = [];
@@ -12,13 +13,18 @@ const notifications: any[] = [];
 const toasts: string[] = [];
 const actions: string[] = [];
 const translations: string[] = [];
+const opened: Array<{url: string; target: string; features: string;}> = [];
 let failRegistrationMethod: string | null = null;
 let failTransition = false;
 let resolvedAddonName = "Example";
+let resolvedAddonSource: string | null = "https://github.com/example/plugin";
+let isCanary = false;
 let nativeLayers: any = null;
 let tooltip: any = null;
 let clipboardPromise: Promise<void> = Promise.resolve();
 let clipboardText = "";
+let nativeClipboardPromise: Promise<void> = Promise.resolve();
+let nativeClipboardText = "";
 
 const context = React.createContext({reducedMotion: {enabled: false}});
 function Layer({children}: any) {return <div data-layer="native">{children}</div>;}
@@ -53,7 +59,7 @@ mock.module("@modules/discordmodules", () => ({"default": {
 mock.module("@common/i18n", () => ({t: (key: string) => {translations.push(key); return key;}}));
 mock.module("@stores/toasts", () => ({"default": {show: (message: string) => toasts.push(message)}}));
 mock.module("@modules/pluginmanager", () => ({"default": {
-    resolveAddon: () => ({name: resolvedAddonName, source: "https://github.com/example/plugin", invite: "https://discord.gg/example", version: "1.0.0"}),
+    resolveAddon: () => ({name: resolvedAddonName, source: resolvedAddonSource, invite: "https://discord.gg/example", version: "1.0.0"}),
     disableAddon: (id: string) => {disabled.push(id); actions.push(`disable:${id}`);},
     enableAddon: (id: string) => enabled.push(id),
     disableAllAddons: () => {actions.push("disable-all");},
@@ -65,7 +71,7 @@ mock.module("@ui/modals", () => ({"default": {
     showGuildJoinModal: async (invite: string) => {actions.push(`support:${invite}`);}
 }}));
 mock.module("@stores/notifications", () => ({"default": {show: (notification: any) => notifications.push(notification)}}));
-mock.module("@stores/config", () => ({"default": {isCanary: false}}));
+mock.module("@stores/config", () => ({"default": {get isCanary() {return isCanary;}}}));
 mock.module("@ui/logo", () => ({Logo: () => null}));
 mock.module("@structs/markdown", () => ({"default": {parseToReact: (text: string) => text}}));
 const FlexMock: any = ({children, ...props}: any) => <div {...props}>{children}</div>;
@@ -76,7 +82,7 @@ mock.module("lucide-react", () => ({
     ChevronDown: () => <span>down</span>,
     ChevronRightIcon: () => <span>right</span>,
     Copy: () => <span>copy</span>,
-    GithubIcon: (props: any) => <span {...props}>github</span>,
+    GithubIcon: (props: any) => <svg {...props} data-github-icon="true" aria-hidden="true"/>,
     MessageCircleWarningIcon: () => <span>suspect</span>,
     Server: (props: any) => <span {...props}>server</span>
 }));
@@ -87,6 +93,12 @@ mock.module("@ui/base/button", () => ({
 const {default: Recovery} = await import("../../../src/betterdiscord/builtins/developer/recovery");
 const {default: SettingsConfig} = await import("../../../src/betterdiscord/data/settings");
 const Events = (await import("../../../src/betterdiscord/modules/emitter")).default;
+const originalWindowOpen = window.open;
+window.open = ((url: string | URL, target?: string, features?: string) => {
+    opened.push({url: String(url), target: target ?? "", features: features ?? ""});
+    return null;
+}) as typeof window.open;
+afterAll(() => {window.open = originalWindowOpen;});
 
 function activePatches(method?: string) {
     return patches.filter(patch => patch.active && (!method || patch.method === method));
@@ -164,12 +176,20 @@ test("disables and notifies once when the crash is caught, with no render side e
 
 test("uses the manager-resolved add-on name when the crash filename differs", () => {
     resolvedAddonName = "Resolved Display Name";
+    isCanary = true;
     try {
         runPatch("componentDidCatch", boundary(), [{stack: "betterdiscord://plugins/Example.plugin.js"}]);
         expect(disabled.at(-1)).toBe("Resolved Display Name");
         expect(notifications.at(-1).content).toContain("Resolved Display Name v1.0.0");
+        expect(notifications.at(-1).actions).toHaveLength(1);
+        expect(notifications.at(-1).actions[0].dontClose).toBe(true);
+        notifications.at(-1).actions[0].onClick();
+        expect(enabled.at(-1)).toBe("Resolved Display Name");
     }
-    finally {resolvedAddonName = "Example";}
+    finally {
+        resolvedAddonName = "Example";
+        isCanary = false;
+    }
 });
 
 test("renders upstream recovery controls and reports failed/successful recovery outcomes", async () => {
@@ -178,7 +198,23 @@ test("renders upstream recovery controls and reports failed/successful recovery 
         expect(rendered.container.querySelector(".bd-recovery-container")).not.toBeNull();
         expect(rendered.container.querySelector(".bd-recovery-suspect")?.textContent).toContain("Example");
         expect(rendered.container.textContent).toContain("Recovery.button");
-        expect(rendered.container.querySelector(".bd-error-github")).toBeNull();
+
+        const details = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-toggle")!;
+        expect(details.getAttribute("aria-expanded")).toBe("false");
+        await act(async () => details.click());
+        expect(details.getAttribute("aria-expanded")).toBe("true");
+        expect(rendered.container.querySelector(".bd-recovery-details")?.textContent).toContain("example component stack");
+        await act(async () => details.click());
+        expect(details.getAttribute("aria-expanded")).toBe("false");
+        expect(rendered.container.querySelector(".bd-recovery-details")).toBeNull();
+
+        const originalReload = window.location.reload;
+        window.location.reload = () => {actions.push("reload");};
+        try {
+            await act(async () => [...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("Addons.reload"))!.click());
+            expect(actions.at(-1)).toBe("reload");
+        }
+        finally {window.location.reload = originalReload;}
 
         await act(async () => [...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("Recovery.button"))!.click());
         expect(rendered.instance.states).toEqual([{info: null, error: null}]);
@@ -249,15 +285,139 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
             expect(rejectedCopy.textContent).not.toContain("Copied");
         }
         finally {await rejected.cleanup();}
+
+        Object.defineProperty(window, "DiscordNative", {configurable: true, value: {clipboard: {copy: (text: string) => {nativeClipboardText = text; return nativeClipboardPromise;}}}});
+        const native = await renderRecovery();
+        try {
+            let resolveNativeCopy!: () => void;
+            nativeClipboardPromise = new Promise<void>(resolve => {resolveNativeCopy = resolve;});
+            const nativeCopy = native.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
+            await act(async () => {nativeCopy.click(); await Promise.resolve();});
+            expect(nativeClipboardText).toContain("Suspected addon: Example v1.0.0");
+            expect(nativeCopy.textContent).toContain("Copy");
+            await act(async () => {resolveNativeCopy(); await Promise.resolve();});
+            expect(nativeCopy.textContent).toContain("Copied");
+        }
+        finally {await native.cleanup();}
+
+        Object.defineProperty(window, "DiscordNative", {configurable: true, value: {clipboard: {copy: () => Promise.reject(new Error("native clipboard denied"))}}});
+        const nativeRejected = await renderRecovery();
+        try {
+            const nativeCopy = nativeRejected.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
+            await act(async () => {nativeCopy.click(); await Promise.resolve();});
+            expect(nativeCopy.textContent).toContain("Copy");
+            expect(nativeCopy.textContent).not.toContain("Copied");
+        }
+        finally {await nativeRejected.cleanup();}
     }
     finally {
         clipboardPromise = Promise.resolve();
+        nativeClipboardPromise = Promise.resolve();
         if (originalDiscordNative) Object.defineProperty(window, "DiscordNative", originalDiscordNative);
         else Reflect.deleteProperty(window, "DiscordNative");
         if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
         else Reflect.deleteProperty(navigator, "clipboard");
         await rendered.cleanup();
     }
+});
+
+test("accepts only the supported report hosts and canonicalizes their repository URLs", () => {
+    const positive: Array<[string, "github" | "forgejo", string]> = [
+        ["https://github.com/BetterDiscord/BetterDiscord", "github", "https://github.com/BetterDiscord/BetterDiscord"],
+        ["http://www.github.com/Owner/Repo.git/blob/main/file.js?raw=1#L4", "github", "https://github.com/Owner/Repo"],
+        ["git://github.com/Owner/Repo.git", "github", "https://github.com/Owner/Repo"],
+        ["https://raw.githubusercontent.com/XxUnkn0wnxX/MessageLoggerV2-Remake/refs/heads/main/MessageLoggerV2.plugin.js", "github", "https://github.com/XxUnkn0wnxX/MessageLoggerV2-Remake"],
+        ["https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/src/branch/main/MessageLoggerV2.plugin.js", "forgejo", "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake"],
+        ["git+https://git.slowb.ro/Owner/Repo.git/src/branch/main/file.js", "forgejo", "https://git.slowb.ro/Owner/Repo"]
+    ];
+    for (const [source, provider, repoUrl] of positive) expect(getRecoveryReportSource(source)).toEqual({provider, repoUrl});
+
+    const negative = [
+        "https://github.com.evil.example/owner/repo",
+        "https://user@github.com/owner/repo",
+        "https://@github.com/owner/repo",
+        "https://github.com:8443/owner/repo",
+        "git://github.com:443/owner/repo",
+        "file://github.com/owner/repo",
+        "javascript://github.com/owner/repo",
+        "https://github.com/owner",
+        "https://github.com/owner/.git",
+        "https://github.com/owner\\repo",
+        "https://github.com/ow\nner/repo",
+        "https://github.com/owner%2frepo/repo",
+        "https://github.com/owner/repo/../other",
+        "https://example.com/owner/repo"
+    ];
+    for (const source of negative) expect(getRecoveryReportSource(source), source).toBeNull();
+});
+
+test("GitHub and Forgejo report buttons open encoded issue forms on click only", async () => {
+    const sources = [
+        {source: "https://raw.githubusercontent.com/Owner/Repo/refs/heads/main/plugin.js", label: "Recovery.report", repo: "https://github.com/Owner/Repo", icon: "[data-github-icon='true']"},
+        {source: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/src/branch/main/plugin.js", label: "Recovery.reportForgejo", repo: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake", icon: "[data-forgejo-icon='true']"}
+    ];
+    const stack = "Error: bad [state]? & #value\n    at betterdiscord://plugins/Example.plugin.js";
+    const name = "Example & [Audit]?";
+    const originalName = resolvedAddonName;
+    resolvedAddonName = name;
+    try {
+        for (const native of [false, true]) {
+            nativeLayers = native ? {AppLayerProvider: Layer, AppLayerContainer: LayerContainer, accessibility: context} : null;
+            tooltip = native ? Tooltip : null;
+            for (const entry of sources) {
+                resolvedAddonSource = entry.source;
+                const beforeRender = opened.length;
+                const rendered = await renderRecovery(stack);
+                try {
+                    expect(opened).toHaveLength(beforeRender);
+                    const report = rendered.container.querySelector<HTMLButtonElement>(`.bd-recovery-report[aria-label='${entry.label}']`)!;
+                    expect(report.disabled).toBe(false);
+                    expect(report.type).toBe("button");
+                    expect(report.querySelector(entry.icon)).not.toBeNull();
+                    const before = opened.length;
+                    await act(async () => report.click());
+                    expect(opened).toHaveLength(before + 1);
+                    const openedReport = opened.at(-1)!;
+                    const url = new URL(openedReport.url);
+                    expect(`${url.origin}${url.pathname}`).toBe(`${entry.repo}/issues/new`);
+                    expect(url.searchParams.get("title")).toBe(`[Bug Report] Plugin Crash - ${name} v1.0.0`);
+                    expect(url.searchParams.get("body")).toBe("### Error Details\n```js\n" + stack + "\n```\n - Generated by BD Recovery Builtin.\n\n### Steps to Reproduce\n1.\n2.\n3.\n\n### Additional Context\n");
+                    expect(openedReport.target).toBe("_blank");
+                    expect(openedReport.features).toBe("noopener,noreferrer");
+                }
+                finally {await rendered.cleanup();}
+            }
+        }
+    }
+    finally {
+        nativeLayers = null;
+        tooltip = null;
+        resolvedAddonName = originalName;
+        resolvedAddonSource = "https://github.com/example/plugin";
+    }
+});
+
+test("missing, local, and invalid report sources show a disabled text button without an icon", async () => {
+    const sources: Array<string | null> = [null, "file:///tmp/Example.plugin.js", "https://github.com.attacker.invalid/owner/repo"];
+    const before = opened.length;
+    for (const source of sources) {
+        resolvedAddonSource = source;
+        const rendered = await renderRecovery();
+        try {
+            const report = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-report-disabled")!;
+            expect(report.textContent).toBe("Recovery.noReportRepo");
+            expect(report.disabled).toBe(true);
+            expect(report.querySelector("svg")).toBeNull();
+            await act(async () => report.click());
+            expect(opened).toHaveLength(before);
+        }
+        finally {await rendered.cleanup();}
+    }
+    resolvedAddonSource = "https://github.com/example/plugin";
+
+    const unknown = await renderRecovery("Error: no plugin source in this stack");
+    try {expect(unknown.container.querySelector(".bd-recovery-suspect")).toBeNull();}
+    finally {await unknown.cleanup();}
 });
 
 test("uses native layers when complete and keeps support actions labelled when exports are missing or partial", async () => {
@@ -267,6 +427,15 @@ test("uses native layers when complete and keeps support actions labelled when e
     try {
         expect(full.container.querySelector("[data-layer='native']")).not.toBeNull();
         expect(full.container.querySelector("[data-layer-container='native']")).not.toBeNull();
+        const nativeReport = full.container.querySelector<HTMLButtonElement>(".bd-recovery-report[aria-label='Recovery.report']")!;
+        expect(nativeReport.querySelector("[data-github-icon='true']")).not.toBeNull();
+        const before = opened.length;
+        await act(async () => nativeReport.click());
+        expect(opened).toHaveLength(before + 1);
+        expect(opened.at(-1)?.url).toStartWith("https://github.com/example/plugin/issues/new?");
+        const nativeSupport = full.container.querySelector<HTMLButtonElement>(".bd-recovery-support[aria-label='Recovery.joinSupport']")!;
+        await act(async () => nativeSupport.click());
+        expect(actions.at(-1)).toBe("support:https://discord.gg/example");
     }
     finally {await full.cleanup();}
 

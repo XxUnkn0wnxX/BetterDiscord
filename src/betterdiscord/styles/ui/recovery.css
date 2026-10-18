@@ -91,6 +91,30 @@
     cursor: pointer;
 }
 
+.bd-recovery-report,
+.bd-recovery-support {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    color: var(--interactive-text-default);
+    background: transparent;
+    border: 0;
+}
+
+.bd-recovery-report:not(:disabled):hover,
+.bd-recovery-support:hover {
+    color: var(--interactive-text-hover);
+}
+
+.bd-recovery-report-disabled {
+    padding: 0 4px;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: default;
+}
+
 .bd-recovery-link-fallback {
     display: inline-flex;
     align-items: center;
