@@ -96,30 +96,9 @@ export function getAddonInfo() {
     ].join("\n");
 }
 
-function escapeHtml(value: string) {
-    return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function getRecoveryAddonBlock(title: string, manager: AddonManager) {
-    const counts = getAddonCounts(manager);
-    const addons = escapeHtml(getAddonList(manager));
-    return [
-        "<details>",
-        `<summary>${title} (${counts.total} total, ${counts.enabled} enabled)</summary>`,
-        "",
-        addons || "No addons installed.",
-        "",
-        "</details>"
-    ].join("\n");
-}
-
 export default function getDebugInfo(options: {collapsible?: boolean;} = {}) {
     if (options.collapsible) {
-        return [
-            `<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\n\n${getDiscordInfo()}\n\n## BetterDiscord\n\n${getCoreInfo().trimEnd()}\n\n</details>`,
-            getRecoveryAddonBlock("Plugins", PluginManager),
-            getRecoveryAddonBlock("Themes", ThemeManager)
-        ].join("\n\n");
+        return `<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\n\n${getDiscordInfo()}\n\n## BetterDiscord\n\n${getCoreInfo().trimEnd()}\n\n</details>`;
     }
 
     return [

@@ -27,7 +27,7 @@ let nativeClipboardPromise: Promise<void> = Promise.resolve();
 let nativeClipboardText = "";
 let failDebugInfo = false;
 let debugInfoCalls = 0;
-const DEBUG_INFO = "<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\nStable 2042 (1234567)\n\n</details>\n\n<details>\n<summary>Plugins (2 total, 1 enabled)</summary>\n\n- Example Plugin (1.2.3) (Enabled)\n- Disabled Plugin (4.5.6)\n\n</details>\n\n<details>\n<summary>Themes (1 total, 0 enabled)</summary>\n\n- Example Theme (7.8.9)\n\n</details>";
+const DEBUG_INFO = "<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\nStable 2042 (1234567)\nHost 1.2.3 arm64 (47)\nmacOS 14.4 (14.4.1)\n\n## BetterDiscord\nStable 1.14.3 (abcdef1)\n\n</details>";
 
 const context = React.createContext({reducedMotion: {enabled: false}});
 function Layer({children}: any) {return <div data-layer="native">{children}</div>;}
@@ -284,6 +284,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
         await act(async () => {copy.click(); await Promise.resolve();});
         expect(clipboardText).toContain("Suspected addon: Example v1.0.0");
         expect(clipboardText).toContain(DEBUG_INFO);
+        expect(clipboardText).not.toMatch(/<summary>(?:Plugins|Themes)/);
         expect(clipboardText).toContain("example component stack");
         expect(debugInfoCalls).toBe(beforeRender + 1);
         expect(copy.textContent).toContain("Copy");
@@ -309,6 +310,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
             await act(async () => {nativeCopy.click(); await Promise.resolve();});
             expect(nativeClipboardText).toContain("Suspected addon: Example v1.0.0");
             expect(nativeClipboardText).toContain(DEBUG_INFO);
+            expect(nativeClipboardText).not.toMatch(/<summary>(?:Plugins|Themes)/);
             expect(nativeClipboardText).toContain("example component stack");
             expect(nativeCopy.textContent).toContain("Copy");
             await act(async () => {resolveNativeCopy(); await Promise.resolve();});
@@ -404,10 +406,8 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
                     expect(body).toContain(`### Error Details\n\`\`\`js\n${stack}\n\`\`\``);
                     expect(body).toContain("### Component Stack\n```\nexample component stack\n```");
                     expect(body).toContain("<summary>Discord &amp; BetterDiscord</summary>");
-                    expect(body).toContain("<summary>Plugins (2 total, 1 enabled)</summary>");
-                    expect(body).toContain("Example Plugin (1.2.3) (Enabled)");
-                    expect(body).toContain("<summary>Themes (1 total, 0 enabled)</summary>");
-                    expect(body).toContain("Example Theme (7.8.9)");
+                    expect(body).toContain(DEBUG_INFO);
+                    expect(body).not.toMatch(/<summary>(?:Plugins|Themes)/);
                     expect(body).toContain("### Steps to Reproduce\n1.\n2.\n3.");
                     expect(body).toContain("### Additional Context");
                     expect(openedReport.target).toBe("_blank");

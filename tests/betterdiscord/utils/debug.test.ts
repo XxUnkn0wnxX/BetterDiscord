@@ -58,32 +58,29 @@ describe("debug information", () => {
         }
     });
 
-    test("formats three collapsed recovery sections with counts and safely escaped addon names", () => {
+    test("keeps collapsed recovery debug information limited to the client and BetterDiscord", () => {
         const originalVersion = coreValues.version;
         const originalCommit = coreValues.commit;
-        const originalPluginName = pluginManager.addonList[0].name;
         const originalClipboard = Object.getOwnPropertyDescriptor(window, "DiscordNative");
         coreValues.version = "1.14.3";
         coreValues.commit = "abcdef1234567890";
-        pluginManager.addonList[0].name = "Logger </details><script>alert(1)</script>";
         Object.defineProperty(window, "DiscordNative", {configurable: true, value: {os: {release: "14.4.1"}}});
 
         try {
             const output = getDebugInfo({collapsible: true});
-            expect(output.match(/<details>/g)).toHaveLength(3);
-            expect(output.match(/<\/details>/g)).toHaveLength(3);
+            expect(output.match(/<details>/g)).toHaveLength(1);
+            expect(output.match(/<\/details>/g)).toHaveLength(1);
             expect(output).not.toContain("<details open");
             expect(output).toContain("<summary>Discord &amp; BetterDiscord</summary>");
             expect(output).toContain("## Discord Info\n\nStable 2042 (1234567)\nHost 1.2.3 arm64 (47)\nmacOS 14.4 (14.4.1)");
             expect(output).toContain("## BetterDiscord\n\nStable 1.14.3 (abcdef1)");
-            expect(output).toContain("<summary>Plugins (2 total, 1 enabled)</summary>");
-            expect(output).toContain("- Logger &lt;/details&gt;&lt;script&gt;alert(1)&lt;/script&gt; (1.2.3) (Enabled)");
-            expect(output).toContain("- Disabled Plugin (4.5.6)\n\n</details>");
-            expect(output).toContain("<summary>Themes (1 total, 0 enabled)</summary>");
-            expect(output).toContain("- Example Theme (7.8.9)");
+            expect(output).not.toContain("Plugins");
+            expect(output).not.toContain("Themes");
+            expect(output).not.toContain("Example Plugin");
+            expect(output).not.toContain("Disabled Plugin");
+            expect(output).not.toContain("Example Theme");
         }
         finally {
-            pluginManager.addonList[0].name = originalPluginName;
             if (originalVersion) coreValues.version = originalVersion;
             else delete coreValues.version;
             if (originalCommit) coreValues.commit = originalCommit;
