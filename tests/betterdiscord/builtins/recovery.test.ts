@@ -11,7 +11,7 @@ test("renderer recovery initializes once and executes without DevTools or its le
     });
     const output = new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr);
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain("11 pass");
+    expect(output).toContain("12 pass");
 });
 
 test("recovery labels live outside the retired switch in every locale", () => {

@@ -25,6 +25,9 @@ let clipboardPromise: Promise<void> = Promise.resolve();
 let clipboardText = "";
 let nativeClipboardPromise: Promise<void> = Promise.resolve();
 let nativeClipboardText = "";
+let failDebugInfo = false;
+let debugInfoCalls = 0;
+const DEBUG_INFO = "<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\nStable 2042 (1234567)\n\n</details>\n\n<details>\n<summary>Plugins (2 total, 1 enabled)</summary>\n\n- Example Plugin (1.2.3) (Enabled)\n- Disabled Plugin (4.5.6)\n\n</details>\n\n<details>\n<summary>Themes (1 total, 0 enabled)</summary>\n\n- Example Theme (7.8.9)\n\n</details>";
 
 const context = React.createContext({reducedMotion: {enabled: false}});
 function Layer({children}: any) {return <div data-layer="native">{children}</div>;}
@@ -55,6 +58,12 @@ mock.module("@modules/discordmodules", () => ({"default": {
     get LayerProvider() {return nativeLayers;},
     get AccessibilityContext() {return nativeLayers?.accessibility;},
     get Tooltip() {return tooltip;}
+}}));
+mock.module("@utils/debug", () => ({"default": (options: {collapsible?: boolean;}) => {
+    debugInfoCalls++;
+    if (!options.collapsible) throw new Error("Recovery must request collapsed debug output");
+    if (failDebugInfo) throw new Error("debug info unavailable");
+    return DEBUG_INFO;
 }}));
 mock.module("@common/i18n", () => ({t: (key: string) => {translations.push(key); return key;}}));
 mock.module("@stores/toasts", () => ({"default": {show: (message: string) => toasts.push(message)}}));
@@ -265,13 +274,18 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
     const originalDiscordNative = Object.getOwnPropertyDescriptor(window, "DiscordNative");
     Object.defineProperty(window, "DiscordNative", {configurable: true, value: null});
     Object.defineProperty(navigator, "clipboard", {configurable: true, value: {writeText: (text: string) => {clipboardText = text; return clipboardPromise;}}});
+    const beforeRender = debugInfoCalls;
     const rendered = await renderRecovery();
     try {
+        expect(debugInfoCalls).toBe(beforeRender);
         let resolveCopy!: () => void;
         clipboardPromise = new Promise<void>(resolve => {resolveCopy = resolve;});
         const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
         await act(async () => {copy.click(); await Promise.resolve();});
         expect(clipboardText).toContain("Suspected addon: Example v1.0.0");
+        expect(clipboardText).toContain(DEBUG_INFO);
+        expect(clipboardText).toContain("example component stack");
+        expect(debugInfoCalls).toBe(beforeRender + 1);
         expect(copy.textContent).toContain("Copy");
         await act(async () => {resolveCopy(); await Promise.resolve();});
         expect(copy.textContent).toContain("Copied");
@@ -294,6 +308,8 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
             const nativeCopy = native.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
             await act(async () => {nativeCopy.click(); await Promise.resolve();});
             expect(nativeClipboardText).toContain("Suspected addon: Example v1.0.0");
+            expect(nativeClipboardText).toContain(DEBUG_INFO);
+            expect(nativeClipboardText).toContain("example component stack");
             expect(nativeCopy.textContent).toContain("Copy");
             await act(async () => {resolveNativeCopy(); await Promise.resolve();});
             expect(nativeCopy.textContent).toContain("Copied");
@@ -367,9 +383,11 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
             for (const entry of sources) {
                 resolvedAddonSource = entry.source;
                 const beforeRender = opened.length;
+                const debugCallsBeforeRender = debugInfoCalls;
                 const rendered = await renderRecovery(stack);
                 try {
                     expect(opened).toHaveLength(beforeRender);
+                    expect(debugInfoCalls).toBe(debugCallsBeforeRender);
                     const report = rendered.container.querySelector<HTMLButtonElement>(`.bd-recovery-report[aria-label='${entry.label}']`)!;
                     expect(report.disabled).toBe(false);
                     expect(report.type).toBe("button");
@@ -377,11 +395,21 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
                     const before = opened.length;
                     await act(async () => report.click());
                     expect(opened).toHaveLength(before + 1);
+                    expect(debugInfoCalls).toBe(debugCallsBeforeRender + 1);
                     const openedReport = opened.at(-1)!;
                     const url = new URL(openedReport.url);
                     expect(`${url.origin}${url.pathname}`).toBe(`${entry.repo}/issues/new`);
                     expect(url.searchParams.get("title")).toBe(`[Bug Report] Plugin Crash - ${name} v1.0.0`);
-                    expect(url.searchParams.get("body")).toBe("### Error Details\n```js\n" + stack + "\n```\n - Generated by BD Recovery Builtin.\n\n### Steps to Reproduce\n1.\n2.\n3.\n\n### Additional Context\n");
+                    const body = url.searchParams.get("body")!;
+                    expect(body).toContain(`### Error Details\n\`\`\`js\n${stack}\n\`\`\``);
+                    expect(body).toContain("### Component Stack\n```\nexample component stack\n```");
+                    expect(body).toContain("<summary>Discord &amp; BetterDiscord</summary>");
+                    expect(body).toContain("<summary>Plugins (2 total, 1 enabled)</summary>");
+                    expect(body).toContain("Example Plugin (1.2.3) (Enabled)");
+                    expect(body).toContain("<summary>Themes (1 total, 0 enabled)</summary>");
+                    expect(body).toContain("Example Theme (7.8.9)");
+                    expect(body).toContain("### Steps to Reproduce\n1.\n2.\n3.");
+                    expect(body).toContain("### Additional Context");
                     expect(openedReport.target).toBe("_blank");
                     expect(openedReport.features).toBe("noopener,noreferrer");
                 }
@@ -394,6 +422,40 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
         tooltip = null;
         resolvedAddonName = originalName;
         resolvedAddonSource = "https://github.com/example/plugin";
+    }
+});
+
+test("copy and reports preserve the crash context when debug generation fails", async () => {
+    const originalDiscordNative = Object.getOwnPropertyDescriptor(window, "DiscordNative");
+    Object.defineProperty(window, "DiscordNative", {configurable: true, value: {clipboard: {copy: (text: string) => {nativeClipboardText = text;}}}});
+    resolvedAddonSource = "https://github.com/example/plugin";
+    failDebugInfo = true;
+    try {
+        const beforeRender = debugInfoCalls;
+        const rendered = await renderRecovery("Error: click detail crash\n    at betterdiscord://plugins/Example.plugin.js");
+        try {
+            expect(debugInfoCalls).toBe(beforeRender);
+            const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
+            await act(async () => copy.click());
+            expect(nativeClipboardText).toContain("Debug information unavailable.");
+            expect(nativeClipboardText).toContain("Error: click detail crash");
+            expect(nativeClipboardText).toContain("example component stack");
+            expect(debugInfoCalls).toBe(beforeRender + 1);
+
+            const report = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-report[aria-label='Recovery.report']")!;
+            await act(async () => report.click());
+            const body = new URL(opened.at(-1)!.url).searchParams.get("body")!;
+            expect(body).toContain("Debug information unavailable.");
+            expect(body).toContain("Error: click detail crash");
+            expect(body).toContain("example component stack");
+            expect(debugInfoCalls).toBe(beforeRender + 2);
+        }
+        finally {await rendered.cleanup();}
+    }
+    finally {
+        failDebugInfo = false;
+        if (originalDiscordNative) Object.defineProperty(window, "DiscordNative", originalDiscordNative);
+        else Reflect.deleteProperty(window, "DiscordNative");
     }
 });
 

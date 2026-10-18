@@ -30,6 +30,17 @@ unattributed crash keeps the existing absence of a suspected-addon row. URL
 acceptance proves supported syntax, not repository existence, tracker settings,
 authentication or browser-side form behavior.
 
+Recovery Copy and both report drafts include the same current debug information
+as Settings' click-to-copy helper. Keep three collapsed Markdown details blocks:
+Discord/BetterDiscord client, host, OS, version and commit information; plugin
+inventory with total/enabled counts, versions and enabled state; and the same
+inventory information for themes. Preserve the ordinary Settings/debug-command
+output format. Generate the extra information only when Copy/report is clicked,
+escape addon text so it cannot close the blocks, and retain crash/component
+stacks with a short unavailable notice if debug generation fails. This report
+context is part of the replaceable fork enhancement and requires equivalent
+upstream coverage before retiring it.
+
 Keep GitHub's bundled Lucide icon and use a bundled Forgejo logo for
 `git.slowb.ro`, which runs Forgejo. Both render locally without fetching an
 image. The Forgejo logo is by [Caesar Schinas](https://caesarschinas.com/),
@@ -54,8 +65,8 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Attempt Recovery | Orders cleanup/navigation, clears the boundary on success, and preserves it with a failure toast when a step fails. |
 | Relaunch in Safe Mode | Persists disabling all plugins before relaunch IPC. |
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
-| Copy | Includes addon/error details; native and browser clipboard success is awaited, while rejection does not claim success. |
-| GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft, decoded title/body and safe window options with native tooltips and the capability fallback. |
+| Copy | Includes addon/error/component details and the three debug blocks; native and browser clipboard success is awaited, while rejection does not claim success. Debug-generation failure retains crash details. |
+| GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft, decoded title/body including debug blocks and safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
 | No report repo | Missing, local-only and invalid sources produce a disabled text control with no icon and no opened page. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
 | Re-enable | Canary-only notification action enables the manager-resolved plugin name and keeps the warning open. |
