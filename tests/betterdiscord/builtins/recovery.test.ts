@@ -11,7 +11,7 @@ test("renderer recovery initializes once and executes without DevTools or its le
     });
     const output = new TextDecoder().decode(result.stdout) + new TextDecoder().decode(result.stderr);
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain("3 pass");
+    expect(output).toContain("8 pass");
 });
 
 test("recovery labels live outside the retired switch in every locale", () => {
@@ -21,9 +21,11 @@ test("recovery labels live outside the retired switch in every locale", () => {
         expect(current.Collections?.settings?.developer?.recovery, filename).toBeUndefined();
         if (filename === "en-us.json") {
             expect(current.Recovery).toEqual({
-                button: "Attempt to recover Discord",
+                button: "Attempt Recovery",
+                suspect: "Suspected Addon",
                 report: "Report on Github",
-                safeMode: "Relaunch in Safe Mode"
+                safeMode: "Relaunch in Safe Mode",
+                joinSupport: "Join Support Server!"
             });
         }
     }

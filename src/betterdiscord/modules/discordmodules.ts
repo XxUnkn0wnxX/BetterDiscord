@@ -9,7 +9,12 @@ interface Modules {
     SimpleMarkdown: SimpleMarkdown;
     Dispatcher: Dispatcher;
     Tooltip: DiscordTooltip;
-    AccessibilityContext: React.Context<{reducedMotion: {enabled: false;};}>;
+    AccessibilityContext: React.Context<{reducedMotion: {enabled: boolean;};}>;
+    LayerProvider: {
+        AppLayerContainer: React.ElementType<{children?: React.ReactNode;}>;
+        AppLayerProvider: React.ElementType<{children?: React.ReactNode;}>;
+        AppLayer: React.ElementType<{children?: React.ReactNode;}>;
+    };
     ChannelActions: {selectPrivateChannel(id: string): void; selectVoiceChannel(a: any, b: any): void;};
 }
 
@@ -47,6 +52,17 @@ const SyncModules = getBulkKeyed<Modules>({
         searchExports: true,
         firstId: 159691,
         cacheId: "core-AccessibilityContext"
+    },
+    LayerProvider: {
+        filter: Filters.bySource(`.Ay)("App")`),
+        firstId: 750506,
+        searchExports: true,
+        cacheId: "core-LayerProvider",
+        map: {
+            AppLayerContainer: m => m.displayName == "AppLayerContainer",
+            AppLayerProvider: m => m.displayName == "AppLayerProvider",
+            AppLayer: m => m.displayName == "AppLayer"
+        }
     },
     ChannelActions: {
         filter: Filters.byKeys(["selectPrivateChannel"]),

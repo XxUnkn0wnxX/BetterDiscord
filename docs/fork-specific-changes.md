@@ -5,6 +5,76 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
+## Recovery revamp through 3e70353a
+
+The reviewed range is `3eafabae..3e70353a`, pinned to upstream
+`3e70353a8ad2d0cdd4bc818b68a5511dfa895d43` after a fresh implementation fetch
+on 2026-10-19 (Melbourne). The starting fork commit is `5f179c7d`.
+The sole incoming commit, PR #2283, changes six renderer/module/style/locale
+files. Its recovery screen, labels and scoped stylesheet are adopted with the
+internal adaptations below. No workflow, dependency, package version, Electron
+recovery, injection wrapper or OpenAsar handoff change is imported.
+
+### Reassessment of older fixes
+
+| Previous implementation | Current disposition | Evidence and remaining requirement |
+| --- | --- | --- |
+| `ef858041` initialize-once protection | Partly superseded | Keep the early guard and distinct `Recovery` owner. Remove the explicit early `initialized = true`: the base initializer sets it synchronously because Recovery's inherited `settings/general/None` setting is absent. Two calls before either is awaited still install one catch hook, one render hook and one listener. Failed registration cleans up Recovery-owned hooks before retry. Recheck that base lifecycle assumption if initialization changes. |
+| `7bced466` notification-store migration | Fully covered by upstream at this call site | Upstream now uses the same `@stores/notifications` API. Its import order and per-crash notification replace the old call-site hunk. The separate fork notification-store identity and older-runtime safeguards remain unchanged. |
+| Old crash screen and render-time disable/notification | Superseded by the revamp | Retire the old layout, resize listener and recovery selectors from Custom CSS styles. Upstream's `componentDidCatch` hook owns disabling and notification; rendering only presents the controls/details. Repeated renders have no addon-state side effects. |
+| Successful-recovery check and ordered support opening | Still required | The incoming callbacks discard a false recovery result and start invite resolution concurrently with modal cleanup. Keep the existing failure toast/error screen on failure and start the support flow only after successful recovery. These are internal reliability adaptations, not new public APIs. |
+
+The retained patch name originated in older upstream code; it is not a new
+fork API. The textual merge conflicted in imports and the explicit initialized
+assignment, while the name and early guard already survived. A previous local
+implementation is not a permanent merge requirement: future updates must
+recheck its trigger, replacement and remaining behavior, including partial
+supersession.
+
+### Recovery behavior and compatibility
+
+Use upstream's Reload, Attempt Recovery and Safe Mode actions, suspected-addon
+row, expandable stack details, copy action and report/support links. Disable
+and re-enable by the manager-resolved addon name so filenames need not equal
+metadata IDs. Safe Mode continues to persist disabled plugin state before the
+existing relaunch IPC; it does not create a temporary mode or disable themes.
+Clipboard feedback waits for the native/browser copy result and catches
+asynchronous rejection. The details toggle and degraded support controls use
+labelled HTML buttons.
+
+Keep upstream's native layer discovery and display-name mapping. Validate the
+provider/container and accessibility context before using Discord tooltips;
+accept callable components and genuine callable forward-ref/memo shapes. If
+those exports are missing or partial, retain the recovery screen with labelled
+support buttons and HTML title hints. This is limited tooltip degradation,
+not proof of native tooltip parity. Do not replace native discovery with a
+speculative module ID, alternate public API or Electron version gate.
+
+Also correct a verified producer/consumer mismatch: the plugin manager labels
+evaluated plugin code `betterdiscord://betterdiscord/plugins/<filename>`, but
+the old and incoming recovery matcher accepted only the shorter
+`betterdiscord://plugins/<filename>` form. Match the actual producer while
+retaining the short alias and literal extension boundaries. The source harness
+uses a real engine-generated Error stack with the canonical plugin filename;
+native attribution remains a separate injected check.
+
+The isolated recovery harness covers once-only initialization and second-hook
+rollback/retry, catch versus render side effects, filename/name differences,
+canonical and historical stack URLs, successful/failed recovery, support
+ordering, disable-before-relaunch, clipboard fulfillment/rejection, and real
+React context/memo/forward-ref shapes plus missing/invalid capabilities. Full
+integration checks and release-build receipts are recorded in the local review
+checklist. Source tests do not establish native client compatibility.
+
+For native acceptance, use an explicitly clicked temporary audit plugin to
+raise a controlled child-render error beneath the mounted Discord boundary.
+Verify that the real catch lifecycle runs once, the audit plugin is attributed
+and disabled with one warning, details/copy work, and Attempt Recovery returns
+to a usable client. Inspect native tooltip discovery separately from fallback
+usability. The audit must stay idle at startup and remove its hooks when stopped;
+it is local diagnostic tooling, not a production feature. Native testing and
+publication remain pending until separately confirmed.
+
 ## Adaptation through 1.14.3
 
 The reviewed range is `133bc83b..3eafabae`, pinned to upstream
