@@ -27,7 +27,7 @@ let nativeClipboardPromise: Promise<void> = Promise.resolve();
 let nativeClipboardText = "";
 let failDebugInfo = false;
 let debugInfoCalls = 0;
-const DEBUG_INFO = "<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\nStable 2042 (1234567)\nHost 1.2.3 arm64 (47)\nmacOS 14.4 (14.4.1)\n\n## BetterDiscord\nStable 1.14.3 (abcdef1)\n\n</details>";
+const DEBUG_INFO = "<details>\n<summary>Client Info</summary>\n\n## Discord Info\nStable 2042 (1234567)\nHost 1.2.3 arm64 (47)\nmacOS 14.4 (14.4.1)\n\n## BetterDiscord\nStable 1.14.3 (abcdef1)\n\n</details>";
 
 const context = React.createContext({reducedMotion: {enabled: false}});
 function Layer({children}: any) {return <div data-layer="native">{children}</div>;}
@@ -405,7 +405,7 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
                     const body = url.searchParams.get("body")!;
                     expect(body).toContain(`### Error Details\n\`\`\`js\n${stack}\n\`\`\``);
                     expect(body).toContain("### Component Stack\n```\nexample component stack\n```");
-                    expect(body).toContain("<summary>Discord &amp; BetterDiscord</summary>");
+                    expect(body).toContain("<summary>Client Info</summary>");
                     expect(body).toContain(DEBUG_INFO);
                     expect(body).not.toMatch(/<summary>(?:Plugins|Themes)/);
                     expect(body).toContain("### Steps to Reproduce\n1.\n2.\n3.");

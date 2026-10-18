@@ -98,7 +98,7 @@ export function getAddonInfo() {
 
 export default function getDebugInfo(options: {collapsible?: boolean;} = {}) {
     if (options.collapsible) {
-        return `<details>\n<summary>Discord &amp; BetterDiscord</summary>\n\n## Discord Info\n\n${getDiscordInfo()}\n\n## BetterDiscord\n\n${getCoreInfo().trimEnd()}\n\n</details>`;
+        return `<details>\n<summary>Client Info</summary>\n\n## Discord Info\n\n${getDiscordInfo()}\n\n## BetterDiscord\n\n${getCoreInfo().trimEnd()}\n\n</details>`;
     }
 
     return [

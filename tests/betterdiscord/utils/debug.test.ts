@@ -71,7 +71,7 @@ describe("debug information", () => {
             expect(output.match(/<details>/g)).toHaveLength(1);
             expect(output.match(/<\/details>/g)).toHaveLength(1);
             expect(output).not.toContain("<details open");
-            expect(output).toContain("<summary>Discord &amp; BetterDiscord</summary>");
+            expect(output).toContain("<summary>Client Info</summary>");
             expect(output).toContain("## Discord Info\n\nStable 2042 (1234567)\nHost 1.2.3 arm64 (47)\nmacOS 14.4 (14.4.1)");
             expect(output).toContain("## BetterDiscord\n\nStable 1.14.3 (abcdef1)");
             expect(output).not.toContain("Plugins");

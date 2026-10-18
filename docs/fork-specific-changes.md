@@ -31,7 +31,8 @@ acceptance proves supported syntax, not repository existence, tracker settings,
 authentication or browser-side form behavior.
 
 Recovery Copy and both report drafts reuse the client and BetterDiscord details
-from Settings' click-to-copy helper in one collapsed Markdown block: Discord
+from Settings' click-to-copy helper in one collapsed Markdown block labelled
+**Client Info**: Discord
 client build/hash, host version/architecture, OS, and BetterDiscord channel,
 version and commit. Omit plugin/theme inventories from recovery output because
 their size caused a report request to be rejected. Preserve the ordinary full
