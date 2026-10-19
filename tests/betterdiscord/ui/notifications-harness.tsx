@@ -361,6 +361,20 @@ describe("notification store and UI", () => {
         expect(closeButton.isVisible()).toBe(false);
         expect(closeButtonCount).toBe(1);
 
+        const defaultActionOrder: string[] = [];
+        const defaultAction = await show({
+            id: "default-action",
+            title: "default action",
+            actions: [{label: "Re-enable", onClick: () => defaultActionOrder.push("enable")}],
+            onClose: () => defaultActionOrder.push("close")
+        });
+        await flush();
+        await act(async () => {
+            cardWithTitle("default action").querySelector<HTMLButtonElement>(".bd-notification-action")!.click();
+        });
+        expect(defaultActionOrder).toEqual(["enable", "close"]);
+        expect(defaultAction.isVisible()).toBe(false);
+
         let dontCloseActionCount = 0;
         const dontClose = await show({
             id: "dont-close",

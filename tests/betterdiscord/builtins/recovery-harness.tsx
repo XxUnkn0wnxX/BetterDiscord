@@ -125,7 +125,7 @@ function runPatch(method: string, instance: any, args: any[], result?: any) {
 
 function boundary(stack = "betterdiscord://betterdiscord/plugins/Example.plugin.js") {
     const states: any[] = [];
-    return {state: {error: {stack}, info: {componentStack: "example component stack"}}, setState: (value: any) => states.push(value), states};
+    return {state: {error: {stack}, info: {componentStack: "\n    example component stack"}}, setState: (value: any) => states.push(value), states};
 }
 
 function mutableAction() {
@@ -189,7 +189,7 @@ test("disables and notifies once when the crash is caught, with no render side e
     expect(notifications).toHaveLength(2);
 });
 
-test("uses the manager-resolved add-on name when the crash filename differs", () => {
+test("re-enables the manager-resolved add-on and allows the warning to dismiss", () => {
     resolvedAddonName = "Resolved Display Name";
     isCanary = true;
     try {
@@ -197,7 +197,7 @@ test("uses the manager-resolved add-on name when the crash filename differs", ()
         expect(disabled.at(-1)).toBe("Resolved Display Name");
         expect(notifications.at(-1).content).toContain("Resolved Display Name v1.0.0");
         expect(notifications.at(-1).actions).toHaveLength(1);
-        expect(notifications.at(-1).actions[0].dontClose).toBe(true);
+        expect(notifications.at(-1).actions[0].dontClose).toBeUndefined();
         notifications.at(-1).actions[0].onClick();
         expect(enabled.at(-1)).toBe("Resolved Display Name");
     }
@@ -288,7 +288,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
         clipboardPromise = new Promise<void>(resolve => {resolveCopy = resolve;});
         const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
         await act(async () => {copy.click(); await Promise.resolve();});
-        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error</summary>\n\n```\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```\nexample component stack\n```\n\n</details>");
+        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error</summary>\n\n```\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```\n    example component stack\n```\n\n</details>");
         expect(debugInfoCalls).toBe(beforeRender);
         expect(copy.textContent).toContain("Copy");
         await act(async () => {resolveCopy(); await Promise.resolve();});

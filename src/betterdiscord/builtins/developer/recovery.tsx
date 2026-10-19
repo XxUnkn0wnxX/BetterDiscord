@@ -83,10 +83,11 @@ function getRecoveryClientInfo() {
 
 function createRecoveryCopyText(instance: ErrorBoundary, pluginInfo: PluginInfo | null) {
     const {error, info} = (instance.state ?? {}) as any;
+    const componentStack = info?.componentStack?.replace(/^(?:[\t ]*\r?\n)+/, "");
     return [
         pluginInfo && `Suspected addon: **${pluginInfo.name} v${pluginInfo.version}**`,
         `<details>\n<summary>Error</summary>\n\n\`\`\`\n${error?.stack ?? String(error ?? "No stack available")}\n\`\`\`\n\n</details>`,
-        info?.componentStack && `<details>\n<summary>Component Stack</summary>\n\n\`\`\`\n${info.componentStack}\n\`\`\`\n\n</details>`
+        componentStack && `<details>\n<summary>Component Stack</summary>\n\n\`\`\`\n${componentStack}\n\`\`\`\n\n</details>`
     ].filter(Boolean).join("\n\n");
 }
 
@@ -282,7 +283,7 @@ export default new class Recovery extends Builtin {
                 icon: () => <Logo size={16} accent />,
                 duration: Infinity,
                 actions: [
-                    ...(config.isCanary ? [{label: "Re-enable", onClick: () => pluginmanager.enableAddon(pluginInfo.name), dontClose: true}] : [])
+                    ...(config.isCanary ? [{label: "Re-enable", onClick: () => pluginmanager.enableAddon(pluginInfo.name)}] : [])
                 ]
             });
         });

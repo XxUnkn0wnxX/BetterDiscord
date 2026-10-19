@@ -9,9 +9,10 @@ contracts below.
 
 This is an intentional, replaceable fork enhancement on top of upstream's
 `3e70353a` renderer recovery screen. Preserve it until an upstream change
-demonstrably covers the supported report targets, manual-report fallback and local
-icon rendering described here; reassess each part separately if coverage is
-only partial. It creates no plugin API or Electron recovery/injection change.
+demonstrably covers the supported report targets, manual-report fallback, local
+icon rendering and warning-action behavior described here. Reassess each part
+separately if coverage is only partial. It creates no plugin API or Electron
+recovery/injection change.
 
 ### Report targets and manual fallback
 
@@ -45,7 +46,8 @@ Settings/debug-command output. Generate the extra information only when a
 website or Manual report button is clicked. Keep upstream's recovery Copy
 contents, with the suspected addon name/version bold above separate Error and
 Component Stack details blocks, each containing its own plain fenced code block.
-Keep the full
+Remove leading blank lines from the copied component stack while preserving
+frame indentation; Manual report uses the same formatting. Keep the full
 on-screen details. Website report payloads retain upstream's normal error stack,
 attribution and reproduction placeholders, with only Client Info added. Omit
 component stacks from both website report-button payloads to reduce the issue
@@ -54,6 +56,10 @@ to clipboard and opens no URL.
 Use a short unavailable notice if debug generation fails. This report context
 is part of the replaceable fork enhancement and requires equivalent
 upstream coverage before retiring it.
+
+The Canary **Re-enable** warning action enables the manager-resolved plugin
+and then dismisses that notice through the shared notification action handler.
+Do not retain upstream's `dontClose` flag on this action.
 
 Keep GitHub's bundled Lucide icon and use a bundled Forgejo logo for
 `git.slowb.ro`, which runs Forgejo. Both render locally without fetching an
@@ -83,8 +89,8 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
 | Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content combines the full Copy sections with report title, Client Info and placeholders. Success feedback waits for fulfillment, failures do not claim success, and no page opens. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
-| Re-enable | Canary-only notification action enables the manager-resolved plugin name and keeps the warning open. |
-| Warning dismissal | Shared notification UI tests verify its close control and callback; recovery retains that shared component. |
+| Re-enable | Canary-only notification action enables the manager-resolved plugin name and allows the shared notification handler to dismiss the warning. |
+| Warning dismissal | Shared notification UI tests verify its close control and callback, and that a default action runs before dismissing the notice. |
 
 The isolated React harness also retains initialization retry/cleanup, canonical
 plugin stack attribution and missing/invalid native-layer coverage. Mocks prove
