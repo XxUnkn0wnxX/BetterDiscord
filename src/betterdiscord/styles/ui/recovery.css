@@ -112,7 +112,6 @@
     color: var(--interactive-text-default);
     font: inherit;
     font-size: 14px;
-    font-weight: 700;
     line-height: 20px;
     cursor: pointer;
 }
