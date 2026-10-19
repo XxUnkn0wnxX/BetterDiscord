@@ -24,8 +24,9 @@ constructing the target; reject unrelated or lookalike hosts. Reporting opens
 a draft only after a click and never submits an issue automatically.
 
 For an attributed plugin with no usable supported source, show an enabled,
-logo-free **Manual report** button. Copy a readable report title and the same
-body used by website drafts to the clipboard; await success before confirming
+logo-free **Manual report** button. Copy a readable report title, the same full
+Error/Component Stack sections used by recovery Copy, Client Info and report
+placeholders to the clipboard; await success before confirming
 it, and report clipboard failures without opening a page. This replaces the
 earlier disabled No report repo placeholder at the user's request. Do not guess
 a repository from other metadata or contact hosts to validate/render the screen. An
@@ -45,9 +46,11 @@ website or Manual report button is clicked. Keep upstream's recovery Copy
 contents, with the suspected addon name/version bold above separate Error and
 Component Stack details blocks, each containing its own plain fenced code block.
 Keep the full
-on-screen details. Report payloads retain upstream's normal error stack,
+on-screen details. Website report payloads retain upstream's normal error stack,
 attribution and reproduction placeholders, with only Client Info added. Omit
-component stacks from both report-button payloads to reduce the issue URL size.
+component stacks from both website report-button payloads to reduce the issue
+URL size. Manual report may include the full component stack because it copies
+to clipboard and opens no URL.
 Use a short unavailable notice if debug generation fails. This report context
 is part of the replaceable fork enhancement and requires equivalent
 upstream coverage before retiring it.
@@ -78,7 +81,7 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
 | Copy | Preserves upstream's error/component content in separate Error and Component Stack details blocks, each with a plain code fence, and bold suspected-addon name/version above them. No Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
 | GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
-| Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content matches the automatic report title/body, success feedback waits for fulfillment, failures do not claim success, and no page opens. |
+| Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content combines the full Copy sections with report title, Client Info and placeholders. Success feedback waits for fulfillment, failures do not claim success, and no page opens. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
 | Re-enable | Canary-only notification action enables the manager-resolved plugin name and keeps the warning open. |
 | Warning dismissal | Shared notification UI tests verify its close control and callback; recovery retains that shared component. |

@@ -467,7 +467,7 @@ test("copy stays independent of debug generation and reports preserve the error 
     }
 });
 
-test("missing, local, and invalid sources provide a manual report matching the automatic draft", async () => {
+test("manual reports reuse Copy's full details and retain Client Info without opening a page", async () => {
     const sources: Array<string | null> = [null, "file:///tmp/Example.plugin.js", "https://github.com.attacker.invalid/owner/repo"];
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
     const originalDiscordNative = Object.getOwnPropertyDescriptor(window, "DiscordNative");
@@ -480,12 +480,19 @@ test("missing, local, and invalid sources provide a manual report matching the a
         resolvedAddonSource = "https://github.com/example/plugin";
         const automatic = await renderRecovery(stack);
         try {
+            const copy = automatic.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
+            await act(async () => copy.click());
+            const fullDetails = clipboardText;
+            expect(fullDetails).toContain("<summary>Component Stack</summary>");
             const button = automatic.container.querySelector<HTMLButtonElement>(".bd-recovery-report[aria-label='Recovery.report']")!;
             await act(async () => button.click());
             const url = new URL(opened.at(-1)!.url);
-            expectedText = `# ${url.searchParams.get("title")}\n\n${url.searchParams.get("body")}`;
+            const websiteBody = url.searchParams.get("body")!;
+            expect(websiteBody).not.toContain("example component stack");
+            const websiteError = `### Error Details\n\`\`\`js\n${stack}\n\`\`\`\n`;
+            expectedText = `# ${url.searchParams.get("title")}\n\n${websiteBody.replace(websiteError, `${fullDetails}\n\n`)}`;
             expect(expectedText).toContain(DEBUG_INFO);
-            expect(expectedText).not.toContain("example component stack");
+            expect(expectedText).toContain("example component stack");
         }
         finally {await automatic.cleanup();}
 
@@ -568,7 +575,9 @@ test("manual report awaits browser/native clipboard success and reports copy fai
         const native = await renderRecovery();
         try {
             await act(async () => native.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
-            expect(nativeClipboardText).toContain("### Error Details");
+            expect(nativeClipboardText).toContain("<summary>Error</summary>");
+            expect(nativeClipboardText).toContain("<summary>Component Stack</summary>");
+            expect(nativeClipboardText).toContain(DEBUG_INFO);
             expect(successToasts.at(-1)).toBe("Recovery.manualReportCopied");
         }
         finally {await native.cleanup();}
@@ -579,6 +588,7 @@ test("manual report awaits browser/native clipboard success and reports copy fai
         try {
             await act(async () => nativeRejected.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
             expect(nativeClipboardText).toContain("Debug information unavailable.");
+            expect(nativeClipboardText).toContain("<summary>Component Stack</summary>");
             expect(errorToasts.at(-1)).toBe("Recovery.manualReportCopyFailed");
             expect(errorToasts).toHaveLength(originalErrorCount + 2);
             expect(successToasts).toHaveLength(originalSuccessCount + 2);
