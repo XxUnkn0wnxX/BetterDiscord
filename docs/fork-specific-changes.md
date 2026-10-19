@@ -21,6 +21,12 @@ plugin when its filename is absent from the error stack. The three incoming
 commits change only `recovery.tsx` and `patcher.ts`; no workflow, dependency,
 native recovery/injection or OpenAsar changes are imported.
 
+Implementation commit: `69f934e5`. The subsequent source-neutral two-parent
+merge records the exact reviewed target; its sole first-parent tree change is
+this contract record. Local validation passes 554 tests with 24 existing Intl
+skips, full ESLint and TypeScript on Bun 1.1.20. Native attribution and a new
+publication remain separate gates from this source integration.
+
 ### Bun and older-runtime compatibility adaptation
 
 Upstream selects the first suspect with `plugins.values().take(1).toArray()`.
