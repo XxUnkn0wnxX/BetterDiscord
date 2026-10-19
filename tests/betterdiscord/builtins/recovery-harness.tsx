@@ -288,7 +288,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
         clipboardPromise = new Promise<void>(resolve => {resolveCopy = resolve;});
         const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
         await act(async () => {copy.click(); await Promise.resolve();});
-        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error</summary>\n\n```js\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```js\n    example component stack\n```\n\n</details>");
+        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error Details</summary>\n\n```js\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```js\n    example component stack\n```\n\n</details>");
         expect(debugInfoCalls).toBe(beforeRender);
         expect(copy.textContent).toContain("Copy");
         await act(async () => {resolveCopy(); await Promise.resolve();});
@@ -443,7 +443,7 @@ test("copy stays independent of debug generation and reports preserve the error 
             await act(async () => copy.click());
             expect(nativeClipboardText).not.toContain("Debug information unavailable.");
             expect(nativeClipboardText).not.toContain("<summary>Client Info</summary>");
-            expect(nativeClipboardText).toContain("<summary>Error</summary>");
+            expect(nativeClipboardText).toContain("<summary>Error Details</summary>");
             expect(nativeClipboardText).toContain("<summary>Component Stack</summary>");
             expect(nativeClipboardText).toContain("Error: click detail crash");
             expect(nativeClipboardText).toContain("example component stack");
@@ -575,7 +575,7 @@ test("manual report awaits browser/native clipboard success and reports copy fai
         const native = await renderRecovery();
         try {
             await act(async () => native.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
-            expect(nativeClipboardText).toContain("<summary>Error</summary>");
+            expect(nativeClipboardText).toContain("<summary>Error Details</summary>");
             expect(nativeClipboardText).toContain("<summary>Component Stack</summary>");
             expect(nativeClipboardText).toContain(DEBUG_INFO);
             expect(successToasts.at(-1)).toBe("Recovery.manualReportCopied");

@@ -26,8 +26,8 @@ a draft only after a click and never submits an issue automatically.
 
 For an attributed plugin with no usable supported source, show an enabled,
 logo-free **Manual report** button. Copy a readable report title, the same full
-Error/Component Stack sections used by recovery Copy, Client Info and report
-placeholders to the clipboard; await success before confirming
+Error Details/Component Stack sections used by recovery Copy, Client Info and
+report placeholders to the clipboard; await success before confirming
 it, and report clipboard failures without opening a page. This replaces the
 earlier disabled No report repo placeholder at the user's request. Do not guess
 a repository from other metadata or contact hosts to validate/render the screen. An
@@ -44,8 +44,8 @@ their addition was reverted after the user reported an oversized request.
 Preserve the ordinary full
 Settings/debug-command output. Generate the extra information only when a
 website or Manual report button is clicked. Keep upstream's recovery Copy
-contents, with the suspected addon name/version bold above separate Error and
-Component Stack details blocks, each containing its own `js` fenced code block.
+contents, with the suspected addon name/version bold above separate Error Details
+and Component Stack details blocks, each containing its own `js` fenced code block.
 Remove leading blank lines from the copied component stack while preserving
 frame indentation; Manual report uses the same formatting. Keep the full
 on-screen details. Website report payloads retain upstream's normal error stack,
@@ -85,7 +85,7 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Attempt Recovery | Orders cleanup/navigation, clears the boundary on success, and preserves it with a failure toast when a step fails. |
 | Relaunch in Safe Mode | Persists disabling all plugins before relaunch IPC. |
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
-| Copy | Preserves upstream's error/component content in separate Error and Component Stack details blocks, each with a `js` code fence, and bold suspected-addon name/version above them. No Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
+| Copy | Preserves upstream's error/component content in separate Error Details and Component Stack details blocks, each with a `js` code fence, and bold suspected-addon name/version above them. No Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
 | GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
 | Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content combines the full Copy sections with report title, Client Info and placeholders. Success feedback waits for fulfillment, failures do not claim success, and no page opens. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
