@@ -19,15 +19,19 @@ control over individual build or injection steps.
 
 - A standard local macOS Discord install. Portable builds and the web app are
   not supported by this workflow.
-- Bun installed and available in `PATH`.
-  On macOS, the recommended path for this fork is:
+- Bun **1.1.20** installed and available in `PATH`. Confirm the version before
+  installing dependencies or building:
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-brew install bun
+bun --version
 ```
 
-  See the [Homebrew website](https://brew.sh/) and the [Homebrew install page](https://brew.sh/) if you need the full setup details first.
+  [package.json](../package.json) temporarily pins the package manager and engine to this
+  exact version. GitHub Actions reads the same package-manager pin, and the
+  build script rejects a different Bun version before building.
+  Revisit this host-compatibility pin after a newer Bun bundle is backported
+  for the older machine or the user/admin upgrades the machine; keep local and
+  Actions versions aligned as described in the [fork record](fork-specific-changes.md#temporary-bun-build-runtime-pin).
 - Project dependencies installed with:
 
 ```sh

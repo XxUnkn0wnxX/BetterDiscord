@@ -26,8 +26,11 @@ export interface Patch<M extends object, K extends StringKeys<M>> extends Generi
     originalFunction: M[K] extends (...a: any[]) => any ? M[K] : never;
 }
 
+const TEST_PLUGIN_REGEX = /betterdiscord:\/\/(?:betterdiscord\/)?plugins\/([^/\r\n]+?\.plugin\.js)(?=[:)\s]|$)/;
+
 export interface GenericChildPatch {
     caller: string;
+    pluginSource: string | null;
     type: "before" | "instead" | "after";
     id: number;
     callback: (...a: any[]) => any;
@@ -268,8 +271,17 @@ export default class Patcher {
         const patchId = `${displayName}.${functionName}`;
         const patch: Patch<M, K> = (this.patches.find(p => p.module == module && p.functionName == functionName) || this.makePatch(module, functionName, patchId)) as Patch<M, K>;
         if (!patch.proxyFunction) this.rePatch<M, K>(patch);
+        let pluginSource: string | null = null;
+        try {
+            const stack = new Error().stack;
+            if (typeof stack === "string") pluginSource = stack.match(TEST_PLUGIN_REGEX)?.[1] ?? null;
+        }
+        catch {
+            // Source attribution must never prevent patch registration.
+        }
         const child: GenericChildPatch = {
             caller,
+            pluginSource,
             type,
             id: patch.counter,
             callback,
@@ -291,6 +303,10 @@ export default class Patcher {
         patch.children.push(child);
         patch.counter++;
         return child.unpatch;
+    }
+
+    static getPatches(item: unknown) {
+        return this.patches.find(patch => patch.originalFunction === item || patch.proxyFunction === item);
     }
 
 }

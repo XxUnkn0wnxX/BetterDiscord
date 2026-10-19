@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, mock, test} from "bun:test";
 import Logger from "@common/logger";
+import {runInNewContext} from "node:vm";
 
 type PatcherModule = typeof import("@modules/patcher").default;
 
@@ -478,4 +479,48 @@ describe("Patcher", () => {
         expect(patcherModule.patches).toHaveLength(0);
         expect(module.test).toBe(originalFunction);
     });
+});
+
+
+test("records engine-generated canonical and legacy plugin filenames and resolves original/proxy in order", async () => {
+    const patcherModule = await getPatcher();
+    const target = {test: () => "original"};
+    const original = target.test;
+    const filenames = ["betterdiscord://betterdiscord/plugins/a.dotted.plugin.js", "betterdiscord://plugins/Legacy.plugin.js", "betterdiscord://plugins/Space Name.plugin.js", "betterdiscord://plugins/Invalid.plugin.js.extra"];
+    for (const filename of filenames) {
+        runInNewContext("register()", {register: () => patcherModule.before("arbitrary caller", target, "test", () => {})}, {filename});
+    }
+    patcherModule.after("ordinary caller", target, "test", () => {});
+    const record = patcherModule.getPatches(original)!;
+    expect(patcherModule.getPatches(target.test)).toBe(record);
+    expect(patcherModule.getPatches(() => {})).toBeUndefined();
+    expect(record.children.map(child => child.pluginSource)).toEqual(["a.dotted.plugin.js", "Legacy.plugin.js", "Space Name.plugin.js", null, null]);
+    expect(patcherModule.getPatchesByCaller("arbitrary caller")).toEqual(record.children.slice(0, filenames.length));
+    expect(record.children.map(child => child.id)).toEqual([0, 1, 2, 3, 4]);
+    expect(target.test()).toBe("original");
+});
+
+test("missing, throwing or nonstring source stacks cannot prevent registration", async () => {
+    const patcherModule = await getPatcher();
+    const NativeError = globalThis.Error;
+    try {
+        for (const mode of ["missing", "throwing", "nonstring"]) {
+            globalThis.Error = class extends NativeError {
+                constructor() {
+                    super();
+                    Object.defineProperty(this, "stack", {get() {
+                        if (mode === "throwing") throw new NativeError("unavailable stack");
+                        return mode === "nonstring" ? {} : undefined;
+                    }});
+                }
+            } as typeof Error;
+            const target = {test: () => "result"};
+            const unpatch = patcherModule.after("caller", target, "test", () => {});
+            expect(patcherModule.getPatches(target.test)?.children[0].pluginSource).toBeNull();
+            expect(target.test()).toBe("result");
+            unpatch?.();
+            unpatch?.();
+        }
+    }
+    finally {globalThis.Error = NativeError;}
 });

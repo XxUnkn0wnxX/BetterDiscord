@@ -8,8 +8,8 @@ import Toasts from "@stores/toasts";
 import pluginmanager from "@modules/pluginmanager";
 import IPC from "@modules/ipc";
 import Modals from "@ui/modals";
-import {getByPrototypes, getProxy} from "@webpack";
-import * as Webpack from "@webpack";
+import {Filters, getByPrototypes, getBySource, getProxy} from "@webpack";
+import Patcher from "@modules/patcher";
 import Notifications from "@stores/notifications";
 import config from "@stores/config";
 import {Logo} from "@ui/logo";
@@ -21,14 +21,35 @@ import ForgejoIcon from "@ui/forgejoicon";
 import {getRecoveryReportSource, type RecoveryReportSource} from "@utils/recoveryreport";
 import getDebugInfo from "@utils/debug";
 
-const TEST_PLUGIN_REGEX = /betterdiscord:\/\/(?:betterdiscord\/)?(plugins)\/(.*?)\.(\w+)\.js/;
-const transitionTo = getProxy<TransitionTo>(Webpack.Filters.byStrings("transitionTo - Transitioning to"), {searchExports: true, firstId: 976860, cacheId: "core-recovery-transitionTo"});
+const TEST_PLUGIN_REGEX = /betterdiscord:\/\/(?:betterdiscord\/)?plugins\/([^/\r\n]+?\.plugin\.js)(?=[:)\s]|$)/;
+const transitionTo = getProxy<TransitionTo>(Filters.byStrings("transitionTo - Transitioning to"), {searchExports: true, firstId: 976860, cacheId: "core-recovery-transitionTo"});
 
 interface PluginInfo {
     name: string;
     reportSource: RecoveryReportSource | null;
     invite: string | null;
     version: string;
+}
+
+interface CapturedTypes {
+    parentType: unknown;
+    ownType: unknown;
+}
+
+type RecoveryBoundary = React.PureComponent<undefined, ErrorBoundary["state"] & {
+    pluginInfo?: PluginInfo | null;
+    attributedError?: unknown;
+}>;
+
+const clearedRecoveryState = {info: null, error: null, pluginInfo: null, attributedError: null};
+
+function getStackPluginInfo(error: unknown): PluginInfo | null {
+    try {
+        const stack = (error as {stack?: unknown;} | null)?.stack;
+        const match = typeof stack === "string" ? TEST_PLUGIN_REGEX.exec(stack) : null;
+        return match ? getPluginInfo(match[1]) : null;
+    }
+    catch {return null;}
 }
 
 async function attemptRecovery() {
@@ -121,9 +142,9 @@ function getNativeRecoveryComponents() {
     return valid ? {AppLayerProvider: layers.AppLayerProvider, AppLayerContainer: layers.AppLayerContainer, AccessibilityProvider: accessibilityProvider} : null;
 }
 
-function ErrorButtons({instance}: {instance: ErrorBoundary;}) {
+function ErrorButtons({instance}: {instance: RecoveryBoundary;}) {
     const recover = React.useCallback(async () => {
-        if (await attemptRecovery()) instance.setState({info: null, error: null});
+        if (await attemptRecovery()) instance.setState(clearedRecoveryState);
         else Toasts.show(t("Toasts.recoveryFailed"));
     }, [instance]);
 
@@ -139,7 +160,7 @@ function ErrorButtons({instance}: {instance: ErrorBoundary;}) {
     </Flex>;
 }
 
-function ErrorDetails({instance, pluginInfo, stack}: {instance: ErrorBoundary; pluginInfo: PluginInfo | null; stack: React.ReactNode | null;}) {
+function ErrorDetails({instance, pluginInfo, stack}: {instance: RecoveryBoundary; pluginInfo: PluginInfo | null; stack: React.ReactNode | null;}) {
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
     const timeout = React.useRef<number>(0);
@@ -170,7 +191,7 @@ function ErrorDetails({instance, pluginInfo, stack}: {instance: ErrorBoundary; p
 
     const recover = React.useCallback(async () => {
         if (await attemptRecovery()) {
-            instance.setState({info: null, error: null});
+            instance.setState(clearedRecoveryState);
             return true;
         }
         Toasts.show(t("Toasts.recoveryFailed"));
@@ -256,6 +277,7 @@ export default new class Recovery extends Builtin {
         if (this.initialized) return;
         try {
             this.patchErrorBoundry();
+            this.patchReactReconcilerCapturedStacks();
         }
         catch (error) {
             this.unpatchAll();
@@ -264,28 +286,92 @@ export default new class Recovery extends Builtin {
         return super.initialize();
     }
 
+    private capturedTypes = new WeakMap<object, CapturedTypes>();
+    private primitiveCapture: {value: unknown; types: CapturedTypes;} | null = null;
+
+    patchReactReconcilerCapturedStacks() {
+        // This lookup is optional on older Discord clients. Required boundary hooks
+        // remain installed if discovery or registration is unavailable.
+        try {
+            const target = getBySource<unknown>([".errorRecoveryDisabledLanes|="], {
+                declarationFilter: Filters.byStrings("value:", ".set"),
+                withKey: true
+            });
+            if (!Array.isArray(target) || target.length !== 2) return;
+            const [declarations, key] = target;
+            if (!declarations || (typeof declarations !== "object" && typeof declarations !== "function")
+                || typeof key !== "string" || typeof declarations[key] !== "function") return;
+
+            this.after(declarations, key, (_, __, result: unknown) => {
+                try {
+                    if (!result || typeof result !== "object" || !("value" in result) || !("source" in result)) return;
+                    const {value, source} = result;
+                    if (!source || typeof source !== "object") return;
+                    const fiber = source as {elementType?: unknown; return?: {elementType?: unknown;} | null;};
+                    const types = {parentType: fiber.return?.elementType, ownType: fiber.elementType};
+                    if (value !== null && (typeof value === "object" || typeof value === "function")) this.capturedTypes.set(value, types);
+                    else this.primitiveCapture = {value, types};
+                }
+                catch {
+                    // Malformed captures must not change React's return value.
+                }
+            });
+        }
+        catch {
+            // Optional discovery must not roll back the required hooks.
+        }
+    }
+
+    private consumeCapturedTypes(error: unknown): CapturedTypes | undefined {
+        if (error !== null && (typeof error === "object" || typeof error === "function")) {
+            const types = this.capturedTypes.get(error);
+            this.capturedTypes.delete(error);
+            return types;
+        }
+        if (this.primitiveCapture && Object.is(this.primitiveCapture.value, error)) {
+            const {types} = this.primitiveCapture;
+            this.primitiveCapture = null;
+            return types;
+        }
+    }
+
+    private getPatchedPluginInfo(type: unknown): PluginInfo | null {
+        if (type === undefined || type === null) return null;
+        const patch = Patcher.getPatches(type);
+        if (!patch) return null;
+        // Preserve registration order without requiring newer iterator helpers.
+        for (const child of patch.children) {
+            const pluginInfo = getPluginInfo(child.pluginSource || child.caller);
+            if (pluginInfo) return pluginInfo;
+        }
+        return null;
+    }
+
     patchErrorBoundry() {
         const mod = getByPrototypes<typeof React.PureComponent>(["_handleSubmitReport"], {firstId: 670735, cacheId: "core-recovery-ErrorBoundary"});
 
-        this.after(mod?.prototype, "componentDidCatch", (_instance, [error]) => {
-            const stack = error?.stack;
-            const match = typeof stack === "string" ? TEST_PLUGIN_REGEX.exec(stack) : null;
-            if (!match?.[2]) return;
+        this.after(mod?.prototype, "componentDidCatch", (instance, [error]) => {
+            const types = this.consumeCapturedTypes(error);
+            let pluginInfo: PluginInfo | null = null;
+            try {
+                pluginInfo = getStackPluginInfo(error) ?? this.getPatchedPluginInfo(types?.parentType) ?? this.getPatchedPluginInfo(types?.ownType);
+                if (!pluginInfo) return;
 
-            const pluginInfo = getPluginInfo(`${match[2]}.plugin.js`);
-            if (!pluginInfo) return;
-
-            pluginmanager.disableAddon(pluginInfo.name);
-            Notifications.show({
-                title: "BetterDiscord Recovery",
-                content: `Suspected plugin causing the crashes: ${pluginInfo.name} v${pluginInfo.version}`,
-                type: "warning",
-                icon: () => <Logo size={16} accent />,
-                duration: Infinity,
-                actions: [
-                    ...(config.isCanary ? [{label: "Re-enable", onClick: () => pluginmanager.enableAddon(pluginInfo.name)}] : [])
-                ]
-            });
+                pluginmanager.disableAddon(pluginInfo.name);
+                Notifications.show({
+                    title: "BetterDiscord Recovery",
+                    content: `Suspected plugin causing the crashes: ${pluginInfo.name} v${pluginInfo.version}`,
+                    type: "warning",
+                    icon: () => <Logo size={16} accent />,
+                    duration: Infinity,
+                    actions: [
+                        ...(config.isCanary ? [{label: "Re-enable", onClick: () => pluginmanager.enableAddon(pluginInfo!.name)}] : [])
+                    ]
+                });
+            }
+            finally {
+                (instance as RecoveryBoundary).setState({pluginInfo, attributedError: error});
+            }
         });
 
         this.after(mod?.prototype, "render", (instance, _, retValue) => {
@@ -295,12 +381,12 @@ export default new class Recovery extends Builtin {
             // Discord's error boundary owns its built-in actions; replace only their children.
             action.props.children = [];
 
-            const errorInstance = instance as ErrorBoundary;
+            const errorInstance = instance as RecoveryBoundary;
             const errorStack = errorInstance.state;
             const parsedError = errorStack ? SimpleMarkdownExt.parseToReact(`\`\`\`${errorStack.error?.stack}\n\n${errorStack.info?.componentStack}\`\`\``) : null;
-            const stack = errorStack?.error?.stack;
-            const match = typeof stack === "string" ? TEST_PLUGIN_REGEX.exec(stack) : null;
-            const pluginInfo = match?.[2] ? getPluginInfo(`${match[2]}.plugin.js`) : null;
+            const pluginInfo = errorStack && Object.is(errorStack.attributedError, errorStack.error)
+                ? errorStack.pluginInfo ?? null
+                : getStackPluginInfo(errorStack?.error);
 
             action.props.children.push(<ErrorButtons key="bd-recovery-buttons" instance={errorInstance}/>);
             retValue.props.action = [action, <ErrorDetails key="bd-recovery-details" stack={parsedError} pluginInfo={pluginInfo} instance={errorInstance}/>];

@@ -18,6 +18,11 @@ const translations: string[] = [];
 const opened: Array<{url: string; target: string; features: string;}> = [];
 let failRegistrationMethod: string | null = null;
 let failTransition = false;
+let failAddonResolution = false;
+let discovery: unknown;
+let failDiscovery = false;
+const capturedDeclaration = {capture: () => ({})};
+const componentPatches = new Map<unknown, {children: Array<{pluginSource: string | null; caller: string;}>}>();
 let resolvedAddonName = "Example";
 let resolvedAddonSource: string | null = "https://github.com/example/plugin";
 let isCanary = false;
@@ -48,9 +53,16 @@ mock.module("@modules/patcher", () => ({"default": {
         if (failRegistrationMethod === method) throw new Error(`registration failed: ${method}`);
         patches.push({owner, method, callback, active: true});
     },
+    getPatches: (type: unknown) => componentPatches.get(type),
     unpatchAll: (owner: string) => {for (const patch of patches) if (patch.owner === owner) patch.active = false;}
 }}));
 mock.module("@webpack", () => ({
+    getBySource: (sources: unknown, options: any) => {
+        expect(sources).toEqual([".errorRecoveryDisabledLanes|="]);
+        expect(options.withKey).toBe(true);
+        if (failDiscovery) throw new Error("discovery failed");
+        return discovery;
+    },
     getByPrototypes: () => class {render() {} componentDidCatch() {}},
     getProxy: () => (route: string) => {actions.push(`route:${route}`); if (failTransition) throw new Error("transition unavailable");},
     Filters: {byStrings: () => ({})}
@@ -74,7 +86,15 @@ mock.module("@stores/toasts", () => ({"default": {
     error: (message: string) => errorToasts.push(message)
 }}));
 mock.module("@modules/pluginmanager", () => ({"default": {
-    resolveAddon: () => ({name: resolvedAddonName, source: resolvedAddonSource, invite: "https://discord.gg/example", version: "1.0.0"}),
+    resolveAddon: (query: string) => {
+        if (failAddonResolution) throw new Error("resolver unavailable");
+        const inventory = [
+            {id: resolvedAddonName, name: resolvedAddonName, filename: "Example.plugin.js", source: resolvedAddonSource, invite: "https://discord.gg/example", version: "1.0.0"},
+            {id: "Parent Display", name: "Parent Display", filename: "parent.dotted.plugin.js", source: null, invite: null, version: "2.0.0"},
+            {id: "Own Display", name: "Own Display", filename: "Own.plugin.js", source: null, invite: null, version: "3.0.0"}
+        ];
+        return inventory.find(addon => addon.id === query || addon.filename === query);
+    },
     disableAddon: (id: string) => {disabled.push(id); actions.push(`disable:${id}`);},
     enableAddon: (id: string) => enabled.push(id),
     disableAllAddons: () => {actions.push("disable-all");},
@@ -125,7 +145,12 @@ function runPatch(method: string, instance: any, args: any[], result?: any) {
 
 function boundary(stack = "betterdiscord://betterdiscord/plugins/Example.plugin.js") {
     const states: any[] = [];
-    return {state: {error: {stack}, info: {componentStack: "\n    example component stack"}}, setState: (value: any) => states.push(value), states};
+    const instance = {
+        state: {error: {stack}, info: {componentStack: "\n    example component stack"}} as any,
+        setState: (value: any) => {states.push(value); Object.assign(instance.state, value);},
+        states
+    };
+    return instance;
 }
 
 function mutableAction() {
@@ -133,8 +158,7 @@ function mutableAction() {
     return {props: {action}};
 }
 
-async function renderRecovery(stack?: string) {
-    const instance = boundary(stack);
+async function renderRecovery(stack?: string, instance = boundary(stack)) {
     const returned: any = mutableAction();
     runPatch("render", instance, [], returned);
     const container = document.createElement("div");
@@ -147,10 +171,12 @@ async function renderRecovery(stack?: string) {
 test("retains initialize-once behavior and removes partial hooks before a retry", async () => {
     expect(SettingsConfig.find(category => category.id === "developer")!.settings.some(setting => setting.id === "recovery")).toBe(false);
     expect(SettingsConfig.find(category => category.id === Recovery.category)?.settings.some(setting => setting.id === Recovery.id) ?? false).toBe(false);
-    failRegistrationMethod = "render";
-    await expect(Recovery.initialize()).rejects.toThrow("registration failed: render");
-    expect(Recovery.initialized).toBe(false);
-    expect(activePatches()).toHaveLength(0);
+    for (const method of ["componentDidCatch", "render"]) {
+        failRegistrationMethod = method;
+        await expect(Recovery.initialize()).rejects.toThrow(`registration failed: ${method}`);
+        expect(Recovery.initialized).toBe(false);
+        expect(activePatches()).toHaveLength(0);
+    }
 
     failRegistrationMethod = null;
     const first = Recovery.initialize();
@@ -232,7 +258,7 @@ test("renders upstream recovery controls and reports failed/successful recovery 
         finally {window.location.reload = originalReload;}
 
         await act(async () => [...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("Recovery.button"))!.click());
-        expect(rendered.instance.states).toEqual([{info: null, error: null}]);
+        expect(rendered.instance.states).toEqual([{info: null, error: null, pluginInfo: null, attributedError: null}]);
         expect(actions.slice(-5)).toEqual(["LAYER_POP_ALL", "MODAL_POP_ALL", "CONTEXT_MENU_CLOSE", "close-all", "route:/channels/@me"]);
     }
     finally {await rendered.cleanup();}
@@ -261,7 +287,7 @@ test("failure toast preserves the boundary and support opens only after successf
     try {
         await act(async () => support.container.querySelector<HTMLButtonElement>(".bd-recovery-link-fallback[aria-label='Recovery.joinSupport']")!.click());
         expect(actions.slice(-6)).toEqual(["LAYER_POP_ALL", "MODAL_POP_ALL", "CONTEXT_MENU_CLOSE", "close-all", "route:/channels/@me", "support:https://discord.gg/example"]);
-        expect(support.instance.states).toEqual([{info: null, error: null}]);
+        expect(support.instance.states).toEqual([{info: null, error: null, pluginInfo: null, attributedError: null}]);
     }
     finally {await support.cleanup();}
 });
@@ -644,4 +670,189 @@ test("uses native layers when complete and keeps support actions labelled when e
     }
     nativeLayers = null;
     tooltip = null;
+});
+
+async function reinstallRecovery() {
+    Recovery.unpatchAll();
+    Events.removeAllListeners("setting-updated");
+    Recovery.initialized = false;
+    await Recovery.initialize();
+    expect(Events.listenerCount("setting-updated")).toBe(1);
+}
+
+function capture(value: unknown, parentType?: unknown, ownType?: unknown) {
+    runPatch("capture", {}, [], {value, source: {"return": {elementType: parentType}, "elementType": ownType}});
+}
+
+function catchError(error: unknown) {
+    const instance = boundary();
+    instance.state.error = error;
+    runPatch("componentDidCatch", instance, [error]);
+    return instance;
+}
+
+test("optional capture discovery and registration failures preserve required hooks", async () => {
+    const malformed = [undefined, null, {}, [], [null, "capture"], [{capture: 1}, "capture"], [capturedDeclaration, null], [capturedDeclaration, "capture", "extra"], [Object.defineProperty({}, "capture", {get() {throw new Error("getter failed");}}), "capture"]];
+    try {
+        for (const target of malformed) {
+            discovery = target;
+            await reinstallRecovery();
+            expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render"]);
+        }
+        failDiscovery = true;
+        await reinstallRecovery();
+        expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render"]);
+        failDiscovery = false;
+        discovery = [capturedDeclaration, "capture"];
+        failRegistrationMethod = "capture";
+        await reinstallRecovery();
+        expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render"]);
+    }
+    finally {
+        failDiscovery = false;
+        failRegistrationMethod = null;
+        discovery = [capturedDeclaration, "capture"];
+        await reinstallRecovery();
+    }
+    expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "capture"]);
+    const instance = catchError({stack: "betterdiscord://plugins/Example.plugin.js"});
+    expect(instance.state.pluginInfo.name).toBe("Example");
+});
+
+test("attribution chooses direct stack, then immediate parent, then own type in registration order", async () => {
+    const parent = () => {};
+    const own = () => {};
+    componentPatches.set(parent, {children: [
+        {pluginSource: "missing.plugin.js", caller: "unrelated"},
+        {pluginSource: "parent.dotted.plugin.js", caller: "arbitrary caller"},
+        {pluginSource: null, caller: "Own Display"}
+    ]});
+    componentPatches.set(own, {children: [{pluginSource: null, caller: "Own Display"}]});
+    const stackless = {};
+    capture(stackless, parent, own);
+    const inferred = catchError(stackless);
+    expect(inferred.state.pluginInfo.name).toBe("Parent Display");
+    expect(disabled.at(-1)).toBe("Parent Display");
+    expect(inferred.state.attributedError).toBe(stackless);
+    const rendered = await renderRecovery(undefined, inferred);
+    try {expect(rendered.container.querySelector(".bd-recovery-suspect")?.textContent).toContain("Parent Display");}
+    finally {await rendered.cleanup();}
+
+    const ownError = {};
+    capture(ownError, () => {}, own);
+    expect(catchError(ownError).state.pluginInfo.name).toBe("Own Display");
+    for (const prefix of ["betterdiscord://betterdiscord/plugins/", "betterdiscord://plugins/"]) {
+        const direct = {stack: `${prefix}Example.plugin.js:1:2`};
+        capture(direct, parent, own);
+        expect(catchError(direct).state.pluginInfo.name).toBe("Example");
+        expect(catchError({stack: `${prefix}parent.dotted.plugin.js:1:2`}).state.pluginInfo.name).toBe("Parent Display");
+        expect(catchError({stack: `${prefix}ExampleXpluginYjs`}).state.pluginInfo).toBeNull();
+        expect(catchError({stack: `${prefix}Example.plugin.js.extra`}).state.pluginInfo).toBeNull();
+    }
+    // A known caller must not replace a nonempty but unresolvable pluginSource.
+    componentPatches.set(parent, {children: [{pluginSource: "missing.plugin.js", caller: "Parent Display"}]});
+    const fallback = {};
+    capture(fallback, parent, own);
+    expect(catchError(fallback).state.pluginInfo.name).toBe("Own Display");
+});
+
+test("captures are tied to exact errors, survive interleaving and are consumed before resolver work", () => {
+    const parent = () => {};
+    const own = () => {};
+    componentPatches.set(parent, {children: [{pluginSource: "parent.dotted.plugin.js", caller: "caller"}]});
+    componentPatches.set(own, {children: [{pluginSource: null, caller: "Own Display"}]});
+    const errorA = {};
+    const errorB = {};
+    capture(errorA, parent);
+    capture(errorB, own);
+    expect(catchError({}).state.pluginInfo).toBeNull();
+    expect(catchError(errorA).state.pluginInfo.name).toBe("Parent Display");
+    expect(catchError(errorB).state.pluginInfo.name).toBe("Own Display");
+    expect(catchError(errorA).state.pluginInfo).toBeNull();
+    expect(catchError(errorB).state.pluginInfo).toBeNull();
+
+    capture(errorA, parent);
+    failAddonResolution = true;
+    try {expect(catchError(errorA).state.pluginInfo).toBeNull();}
+    finally {failAddonResolution = false;}
+    expect(catchError(errorA).state.pluginInfo).toBeNull();
+});
+
+test("primitive capture uses one bounded slot with exact Object.is matching", () => {
+    const component = () => {};
+    componentPatches.set(component, {children: [{pluginSource: null, caller: "Own Display"}]});
+    capture("first", component);
+    capture("second", component);
+    expect(catchError("first").state.pluginInfo).toBeNull();
+    expect(catchError("second").state.pluginInfo.name).toBe("Own Display");
+    expect(catchError("second").state.pluginInfo).toBeNull();
+    capture(-0, component);
+    expect(catchError(0).state.pluginInfo).toBeNull();
+    expect(catchError(-0).state.pluginInfo.name).toBe("Own Display");
+    capture(NaN, component);
+    expect(catchError(NaN).state.pluginInfo.name).toBe("Own Display");
+});
+
+test("malformed captures are ignored and capture callbacks never replace React results", () => {
+    const callback = activePatches("capture")[0].callback;
+    const malformed = [null, undefined, 1, {}, {value: {}}, {value: {}, source: null}, {value: {}, source: 1}, Object.defineProperty({value: {}}, "source", {get() {throw new Error("source getter");}})];
+    for (const result of malformed) expect(callback({}, [], result)).toBeUndefined();
+    const component = () => {};
+    componentPatches.set(component, {children: [{pluginSource: null, caller: "Own Display"}]});
+    const error = {};
+    const result = {value: error, source: {"elementType": component, "return": null}};
+    expect(callback({}, [], result)).toBeUndefined();
+    expect(catchError(error).state.pluginInfo.name).toBe("Own Display");
+    expect(catchError({}).state.pluginInfo).toBeNull();
+});
+
+test("stale boundary attribution cannot leak across errors and render stays side effect free", async () => {
+    const component = () => {};
+    componentPatches.set(component, {children: [{pluginSource: null, caller: "Parent Display"}]});
+    const error = {};
+    capture(error, component);
+    const instance = catchError(error);
+    instance.state.error = {stack: "betterdiscord://plugins/Example.plugin.js"};
+    const before = disabled.length;
+    const rendered = await renderRecovery(undefined, instance);
+    try {expect(rendered.container.querySelector(".bd-recovery-suspect")?.textContent).toContain("Example");}
+    finally {await rendered.cleanup();}
+    expect(disabled.length).toBe(before);
+    instance.state.error = {};
+    runPatch("componentDidCatch", instance, [instance.state.error]);
+    expect(instance.state.pluginInfo).toBeNull();
+    expect(instance.state.attributedError).toBe(instance.state.error);
+    const noMatch = await renderRecovery(undefined, instance);
+    try {expect(noMatch.container.querySelector(".bd-recovery-suspect")).toBeNull();}
+    finally {await noMatch.cleanup();}
+});
+
+test("successful recovery clears inferred attribution and failed recovery retains it", async () => {
+    const component = () => {};
+    componentPatches.set(component, {children: [{pluginSource: null, caller: "Own Display"}]});
+    const error = {};
+    capture(error, component);
+    const instance = catchError(error);
+    const initialAttribution = instance.state.pluginInfo;
+    const rendered = await renderRecovery(undefined, instance);
+    try {
+        failTransition = true;
+        await act(async () => [...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("Recovery.button"))!.click());
+        expect(instance.state.pluginInfo).toBe(initialAttribution);
+        expect(instance.state.error).toBe(error);
+        expect(instance.state.attributedError).toBe(error);
+        failTransition = false;
+        await act(async () => [...rendered.container.querySelectorAll("button")].find(button => button.textContent?.includes("Recovery.button"))!.click());
+        expect(instance.state).toMatchObject({error: null, info: null, pluginInfo: null, attributedError: null});
+    }
+    finally {failTransition = false; await rendered.cleanup();}
+
+    const supportError = {stack: "betterdiscord://plugins/Example.plugin.js"};
+    const supportInstance = catchError(supportError);
+    const support = await renderRecovery(undefined, supportInstance);
+    try {
+        await act(async () => support.container.querySelector<HTMLButtonElement>("[aria-label='Recovery.joinSupport']")!.click());
+        expect(supportInstance.state).toMatchObject({error: null, info: null, pluginInfo: null, attributedError: null});
+    }
+    finally {await support.cleanup();}
 });

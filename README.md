@@ -71,7 +71,8 @@ historical client build.
 Prerequisites:
 
 - macOS with Discord Stable, PTB, or Canary installed normally;
-- [Bun](https://bun.sh/) available in `PATH`;
+- [Bun](https://bun.sh/) **1.1.20**, the current temporary host-compatibility
+  pin in `package.json`, available in `PATH`;
 - Git and Zsh.
 
 ## :hammer_and_wrench: Build and inject

@@ -6,6 +6,11 @@ import pkg from "../package.json";
 import styleLoader from "bun-style-loader";
 import * as esbuild from "esbuild";
 
+const requiredBunVersion = /^bun@(\d+\.\d+\.\d+)$/.exec(pkg.packageManager)?.[1];
+if (!requiredBunVersion) throw new Error("package.json must pin an exact Bun version.");
+if (Bun.version !== requiredBunVersion) {
+    throw new Error(`This fork requires Bun ${requiredBunVersion}; found ${Bun.version}.`);
+}
 
 const fileURL = Bun.fileURLToPath(import.meta.url);
 const rootDir = path.join(path.dirname(fileURL), "..");

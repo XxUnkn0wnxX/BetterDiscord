@@ -5,6 +5,112 @@ upstream merges. It is not a list of every file that differs from upstream.
 Ordinary upstream changes should be accepted unless they overlap one of the
 contracts below.
 
+All Bun version pins described here are **temporary host-compatibility
+constraints**. Revisit them when a user/admin backports a usable newer Bun
+bundle to the older machine or upgrades to a newer machine. Historical Bun
+versions in validation records remain evidence of those checks, not permanent
+toolchain requirements.
+
+## Patch-assisted recovery through 7a1aaf50
+
+The reviewed upstream range is `3e70353a..7a1aaf50`, pinned to
+`7a1aaf50907132e13fc99c371aac751a3c85c8a0` after the 2026-10-19 00:58:27 UTC
+fetch. Starting fork commit: `11aed529`. PR #2285 adds plugin ownership to
+patch registrations and uses React's captured component to find a suspected
+plugin when its filename is absent from the error stack. The three incoming
+commits change only `recovery.tsx` and `patcher.ts`; no workflow, dependency,
+native recovery/injection or OpenAsar changes are imported.
+
+### Bun and older-runtime compatibility adaptation
+
+Upstream selects the first suspect with `plugins.values().take(1).toArray()`.
+Both iterator helpers are **unavailable in pinned Bun 1.1.20**, as confirmed
+by a direct runtime probe. This is a newer-JavaScript compatibility issue,
+rather than a Bun deprecation. The fork selects the first resolvable owner
+with an ordinary ordered loop, preserving the intended selection without
+iterator helpers, a polyfill or an Electron version gate. Pinned-Bun source
+tests exercise registration order and attribution. Native Discord/Electron
+discovery and the new stackless-error consumer remain separate live gates.
+
+Retain this internal adaptation while the pinned toolchain or a supported
+Discord runtime lacks the helpers. Reassess it if upstream uses a compatible
+first-element selection, or the user approves changing the runtime pin and
+the supported native clients demonstrate equivalent behavior. An upstream
+source change alone does not authorize a Bun upgrade.
+
+### Attribution and capture lifetime
+
+Keep upstream's additive `pluginSource` child-patch metadata and internal
+original/proxy function lookup. Capture source filenames best-effort from
+the actual canonical `betterdiscord://betterdiscord/plugins/` producer and
+the legacy short URL. Missing, throwing or malformed stack information leaves
+`pluginSource` null and must not prevent patch registration. Existing plugin
+Patcher calls stay valid; `getPatchesByCaller` exposes the additional metadata,
+while `getPatches` remains an internal method with no new public BdApi API.
+Preserve chained `instead` behavior, registration order and idempotent unpatch.
+
+Discover the upstream React captured-value function by source/declaration
+capability. Missing, malformed or throwing discovery/registration must leave
+the required catch/render hooks working. The capture callback preserves React's
+return value. It stores only the immediate parent/own component types, keyed
+by the exact object error in a WeakMap; a primitive throw uses one bounded
+exact-value slot. Consume each matching capture before addon lookup, disabling
+or notification, without consuming another error's capture. This protects
+interleaved renders and prevents replay without retaining fibers or adding
+timers. Upstream's single global last-component slot does not provide that
+correlation; retire this correction only when an equivalent upstream lifetime
+contract covers it.
+
+Prefer direct stack attribution, then the first resolvable parent patch owner,
+then the source component's patch owners if the parent has none. This preserves
+upstream's parent preference while covering a patched source beneath an
+unpatched parent; do not walk arbitrary ancestors or unwrap speculative shapes.
+Preserve upstream's `child.pluginSource || child.caller` preference. Attribution
+is still a suspected cause, not proof that a patch caused the exception.
+
+Store attribution and its error identity per boundary, including explicit null
+for an unattributed catch. Render stored attribution only for the matching
+current error, retaining side-effect-free stack lookup before catch state
+arrives or when the error changes. Successful recovery clears attribution with
+error/info; failed recovery preserves it. Source tests cover object-error
+interleaving, replay, primitive bounds, malformed captures, parent/own priority,
+state reset, lookup degradation and all existing recovery controls.
+
+### Reassessment of earlier fork fixes
+
+| Existing behavior | Disposition under PR #2285 |
+| --- | --- |
+| Canonical plugin URL attribution | Still required. Upstream's new filename regex handles only the legacy URL; adopt literal filename matching while retaining the actual producer prefix and dotted filenames. |
+| Render-time stack lookup | Partly superseded by per-boundary catch attribution. Keep it as a pure fallback for pre-catch rendering and a changed error; never disable addons or show notices during render. |
+| Initialize-once and rollback/retry | Still required. Optional reconciler discovery must not remove functioning boundary hooks; required-hook failure still rolls back Recovery-owned hooks before retry. |
+| Recovery success/failure, support ordering and clipboard settlement | Still required; the incoming change supplies no equivalent replacement for these edge cases. |
+| Report providers, Manual report, Client Info, formatted Copy and Re-enable dismissal | Still required. The incoming code does not supply these enhancements; retain them with their existing tests and replacement criteria. |
+| Patcher chaining and idempotent unpatch | Unchanged by the incoming metadata additions; preserve the existing implementation and regression coverage. |
+
+Native captured-function discovery, patchability and a real crash without a
+plugin filename require a focused authorized runtime test. Mock tests and
+local React source do not establish that pass. Keep the previously unlinked
+audit unlinked until the user authorizes installing it again.
+
+## Temporary Bun build runtime pin
+
+The fork temporarily pins **Bun 1.1.20** in both `packageManager` and `engines.bun` in
+`package.json`. `scripts/build.ts` reads that package-manager pin and rejects
+a different version before build work, covering direct and wrapper build/watch
+entry points. CI retains `bun-version-file: package.json`; its successful
+`39183025616` run explicitly obtained and used Bun 1.1.20 for installation and
+tests. Keep Actions and local builds on the same pin while this host constraint
+applies. This is not a permanent Bun requirement: when a user/admin backports
+a newer Bun bundle for the older machine or moves to a newer machine, update
+the exact manifest pins and documentation together, then verify local and
+Actions builds with the chosen version. The guard derives its requirement
+from the manifest and follows that deliberate pin update. Do not silently
+follow `latest`, a floating minimum or an unrelated upstream toolchain change.
+Reassess source compatibility adaptations separately against the still-supported
+Discord/Electron clients; a newer build tool alone does not prove their APIs.
+Dependency installation and native recovery behavior are unchanged by this
+build guard; installed macOS recovery does not invoke Bun.
+
 ## Recovery report enhancements
 
 This is an intentional, replaceable fork enhancement on top of upstream's
