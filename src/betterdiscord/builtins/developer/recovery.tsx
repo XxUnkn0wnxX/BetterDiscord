@@ -172,12 +172,11 @@ function ErrorDetails({instance, pluginInfo, stack}: {instance: ErrorBoundary; p
 
     const copy = React.useCallback(async () => {
         const {error, info} = (instance.state ?? {}) as any;
-        const details = [
-            pluginInfo && `Suspected addon: ${pluginInfo.name} v${pluginInfo.version}`,
-            error?.stack ?? String(error ?? "No stack available"),
-            info?.componentStack && `Component stack:${info.componentStack}`
+        const text = [
+            pluginInfo && `Suspected addon: **${pluginInfo.name} v${pluginInfo.version}**`,
+            `<details>\n<summary>Error</summary>\n\n\`\`\`\n${error?.stack ?? String(error ?? "No stack available")}\n\`\`\`\n\n</details>`,
+            info?.componentStack && `<details>\n<summary>Component Stack</summary>\n\n\`\`\`\n${info.componentStack}\n\`\`\`\n\n</details>`
         ].filter(Boolean).join("\n\n");
-        const text = `\`\`\`\n${details}\n\`\`\``;
 
         try {
             const nativeCopy = (window as any).DiscordNative?.clipboard?.copy;
