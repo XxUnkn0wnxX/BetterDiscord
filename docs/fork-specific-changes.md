@@ -25,7 +25,8 @@ constructing the target; reject unrelated or lookalike hosts. Reporting opens
 a draft only after a click and never submits an issue automatically.
 
 For an attributed plugin with no usable supported source, show an enabled,
-logo-free **Manual report** button. Copy a readable report title, the same full
+logo-free **Manual report** button with bold, readable text and comfortable
+button padding. Copy a readable report title, the same full
 Error Details/Component Stack sections used by recovery Copy, Client Info and
 report placeholders to the clipboard; await success before confirming
 it, and report clipboard failures without opening a page. This replaces the
