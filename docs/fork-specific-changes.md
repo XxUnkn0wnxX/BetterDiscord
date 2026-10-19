@@ -9,11 +9,11 @@ contracts below.
 
 This is an intentional, replaceable fork enhancement on top of upstream's
 `3e70353a` renderer recovery screen. Preserve it until an upstream change
-demonstrably covers the supported report targets, unavailable state and local
+demonstrably covers the supported report targets, manual-report fallback and local
 icon rendering described here; reassess each part separately if coverage is
 only partial. It creates no plugin API or Electron recovery/injection change.
 
-### Report targets and unavailable state
+### Report targets and manual fallback
 
 Read the suspected plugin's existing `@source` metadata. Accept well-formed
 GitHub repository/source-file URLs (including `raw.githubusercontent.com`) and
@@ -23,9 +23,12 @@ the original protocol, credentials, port and owner/repository path before
 constructing the target; reject unrelated or lookalike hosts. Reporting opens
 a draft only after a click and never submits an issue automatically.
 
-For an attributed plugin with no usable supported source, show a disabled
-**No report repo** label with no icon or report action. Do not guess a repository
-from other metadata or contact hosts to validate/render the screen. An
+For an attributed plugin with no usable supported source, show an enabled,
+logo-free **Manual report** button. Copy a readable report title and the same
+body used by website drafts to the clipboard; await success before confirming
+it, and report clipboard failures without opening a page. This replaces the
+earlier disabled No report repo placeholder at the user's request. Do not guess
+a repository from other metadata or contact hosts to validate/render the screen. An
 unattributed crash keeps the existing absence of a suspected-addon row. URL
 acceptance proves supported syntax, not repository existence, tracker settings,
 authentication or browser-side form behavior.
@@ -38,8 +41,9 @@ version and commit. Omit plugin/theme inventories to keep report URLs smaller;
 their addition was reverted after the user reported an oversized request.
 Preserve the ordinary full
 Settings/debug-command output. Generate the extra information only when a
-report button is clicked. Keep upstream's plain recovery Copy output, including
-its suspected addon, normal error stack and component stack, and keep the full
+website or Manual report button is clicked. Keep upstream's recovery Copy
+contents, including its suspected addon, normal error stack and component stack,
+wrapped in a fenced code block for GitHub/Discord pastes, and keep the full
 on-screen details. Report payloads retain upstream's normal error stack,
 attribution and reproduction placeholders, with only Client Info added. Omit
 component stacks from both report-button payloads to reduce the issue URL size.
@@ -71,9 +75,9 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Attempt Recovery | Orders cleanup/navigation, clears the boundary on success, and preserves it with a failure toast when a step fails. |
 | Relaunch in Safe Mode | Persists disabling all plugins before relaunch IPC. |
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
-| Copy | Preserves upstream's plain suspected-addon/error/component output without Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
+| Copy | Preserves upstream's suspected-addon/error/component content in a fenced code block, without Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
 | GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
-| No report repo | Missing, local-only and invalid sources produce a disabled text control with no icon and no opened page. |
+| Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content matches the automatic report title/body, success feedback waits for fulfillment, failures do not claim success, and no page opens. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
 | Re-enable | Canary-only notification action enables the manager-resolved plugin name and keeps the warning open. |
 | Warning dismissal | Shared notification UI tests verify its close control and callback; recovery retains that shared component. |
@@ -82,9 +86,10 @@ The isolated React harness also retains initialization retry/cleanup, canonical
 plugin stack attribution and missing/invalid native-layer coverage. Mocks prove
 source behavior, not native Discord compatibility or external issue-form
 prefill. Keep those live checks explicit. The local click-only RecoveryAudit
-is retained at the user's request, with the Logger-fork source for the Forgejo
-test and an alternate no-source backing file for the same runtime filename;
-do not install both variants or trigger a crash automatically.
+is retained at the user's request, with the active source taken from EmbedCopy's
+GitHub repository and alternate Forgejo/no-source backing files for the same
+runtime filename. The no-source fixture checks Manual report. Install only one
+variant and never trigger a crash automatically.
 
 ## Recovery revamp through 3e70353a
 

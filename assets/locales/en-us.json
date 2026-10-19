@@ -492,7 +492,9 @@
         "suspect": "Suspected Addon",
         "report": "Report on GitHub",
         "reportForgejo": "Report on git.slowb.ro",
-        "noReportRepo": "No report repo",
+        "manualReport": "Manual report",
+        "manualReportCopied": "Report copied to clipboard.",
+        "manualReportCopyFailed": "Could not copy report.",
         "safeMode": "Relaunch in Safe Mode",
         "joinSupport": "Join Support Server!"
     }

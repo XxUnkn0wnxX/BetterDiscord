@@ -11,6 +11,8 @@ const disabled: string[] = [];
 const enabled: string[] = [];
 const notifications: any[] = [];
 const toasts: string[] = [];
+const successToasts: string[] = [];
+const errorToasts: string[] = [];
 const actions: string[] = [];
 const translations: string[] = [];
 const opened: Array<{url: string; target: string; features: string;}> = [];
@@ -66,7 +68,11 @@ mock.module("@utils/debug", () => ({"default": (options: {collapsible?: boolean;
     return DEBUG_INFO;
 }}));
 mock.module("@common/i18n", () => ({t: (key: string) => {translations.push(key); return key;}}));
-mock.module("@stores/toasts", () => ({"default": {show: (message: string) => toasts.push(message)}}));
+mock.module("@stores/toasts", () => ({"default": {
+    show: (message: string) => toasts.push(message),
+    success: (message: string) => successToasts.push(message),
+    error: (message: string) => errorToasts.push(message)
+}}));
 mock.module("@modules/pluginmanager", () => ({"default": {
     resolveAddon: () => ({name: resolvedAddonName, source: resolvedAddonSource, invite: "https://discord.gg/example", version: "1.0.0"}),
     disableAddon: (id: string) => {disabled.push(id); actions.push(`disable:${id}`);},
@@ -282,7 +288,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
         clipboardPromise = new Promise<void>(resolve => {resolveCopy = resolve;});
         const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
         await act(async () => {copy.click(); await Promise.resolve();});
-        expect(clipboardText).toBe("Suspected addon: Example v1.0.0\n\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n\nComponent stack:example component stack");
+        expect(clipboardText).toBe("```\nSuspected addon: Example v1.0.0\n\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n\nComponent stack:example component stack\n```");
         expect(debugInfoCalls).toBe(beforeRender);
         expect(copy.textContent).toContain("Copy");
         await act(async () => {resolveCopy(); await Promise.resolve();});
@@ -459,27 +465,133 @@ test("copy stays independent of debug generation and reports preserve the error 
     }
 });
 
-test("missing, local, and invalid report sources show a disabled text button without an icon", async () => {
+test("missing, local, and invalid sources provide a manual report matching the automatic draft", async () => {
     const sources: Array<string | null> = [null, "file:///tmp/Example.plugin.js", "https://github.com.attacker.invalid/owner/repo"];
-    const before = opened.length;
-    for (const source of sources) {
-        resolvedAddonSource = source;
-        const rendered = await renderRecovery();
-        try {
-            const report = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-report-disabled")!;
-            expect(report.textContent).toBe("Recovery.noReportRepo");
-            expect(report.disabled).toBe(true);
-            expect(report.querySelector("svg")).toBeNull();
-            await act(async () => report.click());
-            expect(opened).toHaveLength(before);
-        }
-        finally {await rendered.cleanup();}
-    }
-    resolvedAddonSource = "https://github.com/example/plugin";
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const originalDiscordNative = Object.getOwnPropertyDescriptor(window, "DiscordNative");
+    Object.defineProperty(window, "DiscordNative", {configurable: true, value: null});
+    Object.defineProperty(navigator, "clipboard", {configurable: true, value: {writeText: (text: string) => {clipboardText = text;}}});
+    const stack = "Error: manual report crash\n    at betterdiscord://plugins/Example.plugin.js";
+    let expectedText = "";
 
-    const unknown = await renderRecovery("Error: no plugin source in this stack");
-    try {expect(unknown.container.querySelector(".bd-recovery-suspect")).toBeNull();}
-    finally {await unknown.cleanup();}
+    try {
+        resolvedAddonSource = "https://github.com/example/plugin";
+        const automatic = await renderRecovery(stack);
+        try {
+            const button = automatic.container.querySelector<HTMLButtonElement>(".bd-recovery-report[aria-label='Recovery.report']")!;
+            await act(async () => button.click());
+            const url = new URL(opened.at(-1)!.url);
+            expectedText = `# ${url.searchParams.get("title")}\n\n${url.searchParams.get("body")}`;
+            expect(expectedText).toContain(DEBUG_INFO);
+            expect(expectedText).not.toContain("example component stack");
+        }
+        finally {await automatic.cleanup();}
+
+        const beforeManual = opened.length;
+        for (const source of sources) {
+            resolvedAddonSource = source;
+            nativeLayers = source === null ? {AppLayerProvider: Layer, AppLayerContainer: LayerContainer, accessibility: context} : null;
+            tooltip = source === null ? Tooltip : null;
+            const rendered = await renderRecovery(stack);
+            try {
+                const report = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!;
+                expect(report.textContent).toBe("Recovery.manualReport");
+                expect(report.getAttribute("aria-label")).toBe("Recovery.manualReport");
+                expect(report.disabled).toBe(false);
+                expect(report.type).toBe("button");
+                expect(report.querySelector("svg")).toBeNull();
+                await act(async () => report.click());
+                expect(clipboardText).toBe(expectedText);
+                expect(opened).toHaveLength(beforeManual);
+            }
+            finally {await rendered.cleanup();}
+        }
+        resolvedAddonSource = "https://github.com/example/plugin";
+
+        const unknown = await renderRecovery("Error: no plugin source in this stack");
+        try {expect(unknown.container.querySelector(".bd-recovery-suspect")).toBeNull();}
+        finally {await unknown.cleanup();}
+    }
+    finally {
+        nativeLayers = null;
+        tooltip = null;
+        resolvedAddonSource = "https://github.com/example/plugin";
+        if (originalDiscordNative) Object.defineProperty(window, "DiscordNative", originalDiscordNative);
+        else Reflect.deleteProperty(window, "DiscordNative");
+        if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+        else Reflect.deleteProperty(navigator, "clipboard");
+    }
+});
+
+test("manual report awaits browser/native clipboard success and reports copy failures", async () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const originalDiscordNative = Object.getOwnPropertyDescriptor(window, "DiscordNative");
+    const originalSource = resolvedAddonSource;
+    const originalSuccessCount = successToasts.length;
+    const originalErrorCount = errorToasts.length;
+    resolvedAddonSource = "file:///tmp/Example.plugin.js";
+    const openedBefore = opened.length;
+    let resolveBrowserCopy!: () => void;
+    Object.defineProperty(window, "DiscordNative", {configurable: true, value: null});
+    Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {writeText: (text: string) => {
+            clipboardText = text;
+            return new Promise<void>(resolve => {resolveBrowserCopy = resolve;});
+        }}
+    });
+
+    try {
+        const browser = await renderRecovery();
+        try {
+            await act(async () => {browser.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click(); await Promise.resolve();});
+            expect(clipboardText).toContain("# [Bug Report] Plugin Crash - Example v1.0.0");
+            expect(successToasts).toHaveLength(originalSuccessCount);
+            await act(async () => {resolveBrowserCopy(); await Promise.resolve();});
+            expect(successToasts.at(-1)).toBe("Recovery.manualReportCopied");
+        }
+        finally {await browser.cleanup();}
+
+        Object.defineProperty(navigator, "clipboard", {configurable: true, value: {writeText: () => Promise.reject(new Error("browser clipboard denied"))}});
+        const browserRejected = await renderRecovery();
+        try {
+            await act(async () => browserRejected.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
+            expect(errorToasts.at(-1)).toBe("Recovery.manualReportCopyFailed");
+            expect(errorToasts).toHaveLength(originalErrorCount + 1);
+            expect(successToasts).toHaveLength(originalSuccessCount + 1);
+        }
+        finally {await browserRejected.cleanup();}
+
+        Object.defineProperty(window, "DiscordNative", {configurable: true, value: {clipboard: {copy: (text: string) => {nativeClipboardText = text; return Promise.resolve();}}}});
+        const native = await renderRecovery();
+        try {
+            await act(async () => native.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
+            expect(nativeClipboardText).toContain("### Error Details");
+            expect(successToasts.at(-1)).toBe("Recovery.manualReportCopied");
+        }
+        finally {await native.cleanup();}
+
+        Object.defineProperty(window, "DiscordNative", {configurable: true, value: {clipboard: {copy: (text: string) => {nativeClipboardText = text; return Promise.reject(new Error("native clipboard denied"));}}}});
+        failDebugInfo = true;
+        const nativeRejected = await renderRecovery("Error: fallback crash\n    at betterdiscord://plugins/Example.plugin.js");
+        try {
+            await act(async () => nativeRejected.container.querySelector<HTMLButtonElement>(".bd-recovery-report-manual")!.click());
+            expect(nativeClipboardText).toContain("Debug information unavailable.");
+            expect(errorToasts.at(-1)).toBe("Recovery.manualReportCopyFailed");
+            expect(errorToasts).toHaveLength(originalErrorCount + 2);
+            expect(successToasts).toHaveLength(originalSuccessCount + 2);
+        }
+        finally {await nativeRejected.cleanup();}
+        expect(opened).toHaveLength(openedBefore);
+    }
+    finally {
+        failDebugInfo = false;
+        resolvedAddonSource = originalSource;
+        if (originalDiscordNative) Object.defineProperty(window, "DiscordNative", originalDiscordNative);
+        else Reflect.deleteProperty(window, "DiscordNative");
+        if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+        else Reflect.deleteProperty(navigator, "clipboard");
+    }
 });
 
 test("uses native layers when complete and keeps support actions labelled when exports are missing or partial", async () => {
