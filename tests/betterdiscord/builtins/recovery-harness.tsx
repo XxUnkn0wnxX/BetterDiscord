@@ -288,7 +288,7 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
         clipboardPromise = new Promise<void>(resolve => {resolveCopy = resolve;});
         const copy = rendered.container.querySelector<HTMLButtonElement>(".bd-recovery-header button:not(.bd-recovery-toggle)")!;
         await act(async () => {copy.click(); await Promise.resolve();});
-        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error</summary>\n\n```\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```\n    example component stack\n```\n\n</details>");
+        expect(clipboardText).toBe("Suspected addon: **Example v1.0.0**\n\n<details>\n<summary>Error</summary>\n\n```js\nbetterdiscord://betterdiscord/plugins/Example.plugin.js\n```\n\n</details>\n\n<details>\n<summary>Component Stack</summary>\n\n```js\n    example component stack\n```\n\n</details>");
         expect(debugInfoCalls).toBe(beforeRender);
         expect(copy.textContent).toContain("Copy");
         await act(async () => {resolveCopy(); await Promise.resolve();});

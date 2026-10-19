@@ -86,8 +86,8 @@ function createRecoveryCopyText(instance: ErrorBoundary, pluginInfo: PluginInfo 
     const componentStack = info?.componentStack?.replace(/^(?:[\t ]*\r?\n)+/, "");
     return [
         pluginInfo && `Suspected addon: **${pluginInfo.name} v${pluginInfo.version}**`,
-        `<details>\n<summary>Error</summary>\n\n\`\`\`\n${error?.stack ?? String(error ?? "No stack available")}\n\`\`\`\n\n</details>`,
-        componentStack && `<details>\n<summary>Component Stack</summary>\n\n\`\`\`\n${componentStack}\n\`\`\`\n\n</details>`
+        `<details>\n<summary>Error</summary>\n\n\`\`\`js\n${error?.stack ?? String(error ?? "No stack available")}\n\`\`\`\n\n</details>`,
+        componentStack && `<details>\n<summary>Component Stack</summary>\n\n\`\`\`js\n${componentStack}\n\`\`\`\n\n</details>`
     ].filter(Boolean).join("\n\n");
 }
 
