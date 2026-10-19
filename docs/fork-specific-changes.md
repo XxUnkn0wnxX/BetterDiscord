@@ -93,10 +93,18 @@ state reset, lookup degradation and all existing recovery controls.
 | Report providers, Manual report, Client Info, formatted Copy and Re-enable dismissal | Still required. The incoming code does not supply these enhancements; retain them with their existing tests and replacement criteria. |
 | Patcher chaining and idempotent unpatch | Unchanged by the incoming metadata additions; preserve the existing implementation and regression coverage. |
 
-Native captured-function discovery, patchability and a real crash without a
-plugin filename require a focused authorized runtime test. Mock tests and
-local React source do not establish that pass. Keep the previously unlinked
-audit unlinked until the user authorizes installing it again.
+Native Stable verification passed on 2026-10-19 with release build `2f92a314`
+and the click-only RecoveryAudit v0.4.0. The patched React capture hook was
+available; a controlled error with plugin filenames removed was attributed to
+RecoveryAudit, disabled it and produced exactly one warning. Native patch-source
+metadata and the expected Manual report control were recorded, and the user
+confirmed Attempt Recovery returned to a usable client. A later audit restart
+reset its latest JSON report; the bounded console evidence and exact audit source
+were preserved separately before cleanup. This proves the tested Stable path,
+not every Discord build or PTB/Canary. Recheck discovery and a real consumer when
+the implementation or client capability changes; mocks alone do not establish
+native compatibility. The audit is unlinked after the accepted run, with its
+source, variants, reports and native evidence retained locally.
 
 ## Temporary Bun build runtime pin
 
