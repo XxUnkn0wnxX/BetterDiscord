@@ -30,16 +30,21 @@ unattributed crash keeps the existing absence of a suspected-addon row. URL
 acceptance proves supported syntax, not repository existence, tracker settings,
 authentication or browser-side form behavior.
 
-Recovery Copy and both report drafts reuse the client and BetterDiscord details
+Both report drafts reuse the client and BetterDiscord details
 from Settings' click-to-copy helper in one collapsed Markdown block labelled
 **Client Info**: Discord
 client build/hash, host version/architecture, OS, and BetterDiscord channel,
-version and commit. Omit plugin/theme inventories from recovery output because
-their size caused a report request to be rejected. Preserve the ordinary full
-Settings/debug-command output. Generate the extra information only when
-Copy/report is clicked, and retain crash/component stacks with a short
-unavailable notice if debug generation fails. This report
-context is part of the replaceable fork enhancement and requires equivalent
+version and commit. Omit plugin/theme inventories to keep report URLs smaller;
+their addition was reverted after the user reported an oversized request.
+Preserve the ordinary full
+Settings/debug-command output. Generate the extra information only when a
+report button is clicked. Keep upstream's plain recovery Copy output, including
+its suspected addon, normal error stack and component stack, and keep the full
+on-screen details. Report payloads retain upstream's normal error stack,
+attribution and reproduction placeholders, with only Client Info added. Omit
+component stacks from both report-button payloads to reduce the issue URL size.
+Use a short unavailable notice if debug generation fails. This report context
+is part of the replaceable fork enhancement and requires equivalent
 upstream coverage before retiring it.
 
 Keep GitHub's bundled Lucide icon and use a bundled Forgejo logo for
@@ -66,8 +71,8 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Attempt Recovery | Orders cleanup/navigation, clears the boundary on success, and preserves it with a failure toast when a step fails. |
 | Relaunch in Safe Mode | Persists disabling all plugins before relaunch IPC. |
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
-| Copy | Includes suspected addon/error/component details and one client/BetterDiscord debug block, without plugin/theme inventories; native and browser clipboard success is awaited, while rejection does not claim success. Debug-generation failure retains crash details. |
-| GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft, decoded title/body including client/BetterDiscord details without inventories and safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
+| Copy | Preserves upstream's plain suspected-addon/error/component output without Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
+| GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
 | No report repo | Missing, local-only and invalid sources produce a disabled text control with no icon and no opened page. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
 | Re-enable | Canary-only notification action enables the manager-resolved plugin name and keeps the warning open. |
