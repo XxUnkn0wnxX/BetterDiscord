@@ -34,22 +34,41 @@ Text and number inputs retain their existing blue focus border without the
 additional outline. Native feedback showed that drawing both produced a double
 indicator; the scoped exception leaves one visible border while number step
 buttons and controls without an existing focus border keep the new outline.
-The native-dialog rule keeps its container specificity low so this exception
-also wins within native plugin-settings dialogs.
-
 The addon-error header already owns a focus shadow; keep that single owner,
 reduce its shadow to 1 pixel and omit the fallback outline on that header.
-Discord's separate native focus-ring layer can overlap an outline on a different
-or enclosing target. Do not infer ownership from ring presence in a dialog or
-globally suppress/restyle native rings. Native overlap requires a bounded
-passive owner/style capture before a further scoped adaptation; normal Discord
-sidebar navigation remains outside this fix.
 
-Native plugin-settings dialogs containing BetterDiscord setting groups/items
-also receive coverage for their other focusable contents, including native
-footer buttons. The containing-dialog selector supports both HTML dialogs and
-ARIA dialog elements; it remains limited to dialogs hosting BetterDiscord
-settings, rather than all Discord dialogs.
+Native capture on Stable/Electron 37.6.0 distinguishes the two indicator owners.
+The 31-sample demo run has single blue Text/Number borders, 1-pixel fallback
+outlines/proxies and no native ring. The second run has ten native-ring samples
+with resolved context owners: native Search paints around its enclosing
+container, while sidebar items and a header button own their rings directly.
+Those native targets have no outline; Discord's separate ring supplies the
+4-pixel cyan shadow. The capture's loaded core commit is unverified; these are
+live owner/style observations, not an exact-revision runtime qualification.
+
+Remove the dialog-wide fallback outline so a native Search or sidebar control
+does not acquire a second indicator just because the dialog hosts BetterDiscord
+settings. Instead, retain Discord's native ring owner, geometry, radius,
+visibility and cleanup, changing only its shadow to a 1-pixel `--bd-brand` line
+inside native dialogs hosting actual BetterDiscord body content. Scope through
+`.bd-addon-controls`, `.bd-settings-group`, `.bd-addon-store-wrapper` or
+`.bd-custom-css-page-panel`, covering both observed dialog-level and nested
+navigation-scroller rings. Do not use retained title/portal markers as the
+boundary. Ordinary native dialogs and native panes without those body markers
+keep Discord's original styling; sidebar keyboard navigation is unchanged.
+
+Further native-ring adjustments require target-owner evidence. Unseen custom
+plugin-native component combinations need their own owner evidence before a
+further adjustment; never hide a ring based solely on a containing dialog.
+
+Scoped stylesheet lint and twelve synthetic DOM/CSS boundary checks pass,
+including both observed ring placements, ordinary native dialogs, retained-title
+markers and the final state after BetterDiscord body removal. The local DOM
+simulator caches nested `:has()` state after mutations, so before/after states
+are checked in fresh DOM instances; this is not native repaint evidence.
+Post-change Search/sidebar appearance remains a separate release-injected
+check. The captured diagnostic sources/reports are preserved locally, and
+temporary diagnostics are excluded from production source and builds.
 
 Retire or narrow this optional stylesheet when upstream provides equivalent
 visible keyboard-focus coverage, including the visible proxies for transparent

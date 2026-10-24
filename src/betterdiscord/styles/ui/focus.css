@@ -4,7 +4,6 @@
 .bd-settings-group :focus-visible,
 .bd-setting-item :focus-visible,
 .bd-modal-root :focus-visible,
-:where(dialog, [role="dialog"]):has(.bd-settings-group, .bd-setting-item) :focus-visible,
 .bd-switch input:focus-visible + .bd-switch-body,
 .bd-checkbox-input:focus-visible + .bd-checkbox-box,
 .bd-radio-option input:focus-visible + .bd-radio-indicator {
@@ -20,5 +19,13 @@
 }
 
 .bd-addon-error-header:focus-visible {
+    box-shadow: 0 0 0 1px var(--bd-brand);
+}
+
+/* Native settings controls keep their existing ring owner and geometry. */
+:where(dialog, [role="dialog"]):has(.bd-addon-controls) .focus-rings-ring,
+:where(dialog, [role="dialog"]):has(.bd-settings-group) .focus-rings-ring,
+:where(dialog, [role="dialog"]):has(.bd-addon-store-wrapper) .focus-rings-ring,
+:where(dialog, [role="dialog"]):has(.bd-custom-css-page-panel) .focus-rings-ring {
     box-shadow: 0 0 0 1px var(--bd-brand);
 }
