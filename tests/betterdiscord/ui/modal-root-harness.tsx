@@ -80,7 +80,7 @@ const legacyRender = (_props: PropsWithChildren<{disableTrack?: boolean}>, _ref:
     legacyProps.push(_props);
     const ref = React.useRef<HTMLDivElement>(null);
     useNativeFocusLock(ref);
-    return <div role="dialog" ref={ref} tabIndex={-1}><Scope containerRef={ref}>{_props.children}</Scope></div>;
+    return <div role="dialog" aria-modal={true} ref={ref} tabIndex={-1}><Scope containerRef={ref}>{_props.children}</Scope></div>;
 };
 const LegacyFocusLock = React.forwardRef(legacyRender);
 Object.defineProperty(legacyRender, "toString", {
@@ -226,6 +226,8 @@ test("combines native focus management and the actual ring scope while preservin
     </childContext.Provider>);
 
     const modal = container.querySelector<HTMLDivElement>(".bd-modal-root")!;
+    expect(container.querySelectorAll("[role='dialog']").length).toBe(1);
+    expect(modal.getAttribute("aria-modal")).toBe("true");
     expect(modal.className).toBe("bd-modal-root bd-modal-small custom-modal bd-modal-standard");
     expect(refs[0].current === modal, "The ring ref targets the animated container").toBe(true);
     expect(container.querySelector("[data-context]")?.textContent).toBe("Settings owner");
@@ -350,6 +352,9 @@ test("uses functional and forwardRef native dialogs when the manager factory or 
         expect(focusLocks.length).toBe(2);
         expect(new Set(refs.slice(before)).size).toBe(1); // Only the dialog's own scope; no extra outer scope.
         expect(refs[refs.length - 1].current?.getAttribute("role")).toBe("dialog");
+        expect(container.querySelectorAll("[role='dialog']").length).toBe(1);
+        expect(container.querySelectorAll("[aria-modal='true']").length).toBe(1);
+        expect(container.querySelector(".bd-modal-root")?.hasAttribute("aria-modal")).toBe(false);
         expect(legacyProps[legacyProps.length - 1].disableTrack).toBe(true);
         expect(Object.prototype.hasOwnProperty.call(legacyProps[legacyProps.length - 1], "containerRef")).toBe(false);
         act(() => root.render(element(false)));

@@ -79,6 +79,8 @@ export default function ModalRoot({className, transitionState, children, size = 
 
     const modal = <DiscordModules.ReactSpring.animated.div
         ref={ref}
+        role={kind === "dialog" ? undefined : "dialog"}
+        aria-modal={kind === "dialog" ? undefined : true}
         tabIndex={-1}
         className={clsx("bd-modal-root", size, className, style)}
         style={springStyles}

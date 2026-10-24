@@ -39,6 +39,52 @@ existing `node:https` external-dependency warning; the resulting strict consumer
 passes with Node/React ambient types and no Bun test globals. No new native API
 or runtime behavior is introduced by these type parameters.
 
+### Modal and floating-editor focus
+
+Upstream restores native modal focus management and removes its persistent
+global Monaco focus-skip patch. This fork already has equivalent native modal
+management and previously rejected that global patch. Keep the existing
+children-only native manager, which calls the same underlying hook as upstream
+on the captured supported client, rather than adding another discovery branch.
+Preserve per-mount discovery retry, stable owner/scope identity while editing,
+nonfatal mapped-export validation, default return focus, and callable/forward-ref
+dialog fallbacks. Add upstream's `role="dialog"` and `aria-modal` to the animated
+container only outside the native-dialog fallback: that dialog already owns
+its accessibility attributes and ring scope. Each path has one dialog landmark
+and one native focus owner. Fragment degradation remains an explicit missing-
+capability path, not proof of native focus containment.
+
+Adopt upstream's floating-editor focus layer in the shared `CodeEditor`.
+Only editors inside `.floating-window` participate. Discover the native
+LockStack nonfatally on each mount and validate its `locks`, `toggleLayer`,
+`add`, `remove` and `current` capabilities. Missing/partial exports leave the
+existing editor path intact; a new mount retries discovery. Pointer/focus
+interaction inside the floating window makes its owned layer current. Outside
+focus releases that layer; outside pointer interaction alone follows upstream
+behavior and does not release it. Reprioritization and teardown remove only the
+owned ID, preserving other editor/modal layers, and teardown removes listeners.
+
+The layer does not replace the separate bounded click suppression, synchronous
+Monaco selection shield, readiness-once autofocus, exact Settings-element-
+disconnect/animation-frame sequencing or disposed-loader protection. Keep all
+those guards and their cleanup. Custom CSS/plugin/theme, embedded, external,
+and programmatic entry points retain their existing callbacks, saving and
+Settings-close ordering. No hover refocus, polling or persistent global focus
+patch is introduced. The source change adds no plugin-facing API.
+
+Focused Bun 1.1.20 checks pass: 8 modal harness cases/112 assertions, 16 real
+CodeEditor cases/67 assertions, and all 5 wrapper/related editor and detached-open
+tests. They cover one dialog landmark, existing competing Settings locks,
+two-editor ownership, foreign modal preservation, outside focus, initial active
+focus, missing/partial capability retry and owned listener/layer cleanup.
+Scoped ESLint and project TypeScript pass. These simulated native-stack tests
+and the historical 2026-10-14 client-source capture do not establish a fresh
+native result. Release-injected Stable verification remains required for
+typing/selection/Tab/return focus, floating editor click/selection/`Cmd+F`,
+modal/editor switching, close/reopen and deferred/external entry points before
+claiming native acceptance. Retire no additional focus guard without equivalent
+source and supported-client evidence.
+
 ## Patch-assisted recovery through 7a1aaf50
 
 The reviewed upstream range is `3e70353a..7a1aaf50`, pinned to

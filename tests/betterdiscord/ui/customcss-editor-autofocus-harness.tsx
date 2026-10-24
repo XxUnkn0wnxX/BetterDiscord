@@ -1,4 +1,4 @@
-import {afterEach, beforeEach, describe, expect, mock, test} from "bun:test";
+import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from "bun:test";
 import React, {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
 
@@ -93,6 +93,43 @@ mock.module("@modules/patcher", () => ({
     }
 }));
 
+let lockStackCandidate: unknown;
+const lockLookups: Array<{fatal?: boolean; cacheId?: string}> = [];
+mock.module("@webpack", () => ({
+    getModule: (filter: (value: unknown) => boolean, options: {fatal?: boolean; cacheId?: string}) => {
+        lockLookups.push(options);
+        return lockStackCandidate && filter(lockStackCandidate) ? lockStackCandidate : undefined;
+    }
+}));
+
+type LockEntry = {uid: string; setEnabled(enabled: boolean): void; enabled: boolean};
+
+// Representative native stack behavior: only the top owner is enabled. The
+// real CodeEditor supplies its own lookup, event handlers and cleanup.
+function createLockStack() {
+    return {
+        locks: [] as LockEntry[],
+        toggleLayer(entry: LockEntry | undefined, enabled: boolean) {
+            if (!entry) return;
+            entry.setEnabled(enabled);
+            entry.enabled = enabled;
+        },
+        current(): LockEntry | undefined {return this.locks[this.locks.length - 1];},
+        add(uid: string, setEnabled: (enabled: boolean) => void) {
+            this.toggleLayer(this.current(), false);
+            const entry = {uid, setEnabled, enabled: false};
+            this.locks.push(entry);
+            this.toggleLayer(entry, true);
+        },
+        remove(uid: string) {
+            this.toggleLayer(this.locks.find(entry => entry.uid === uid), false);
+            const wasCurrent = this.current()?.uid === uid;
+            this.locks = this.locks.filter(entry => entry.uid !== uid);
+            if (wasCurrent) this.toggleLayer(this.current(), true);
+        }
+    };
+}
+
 const {"default": CodeEditor} = await import("@ui/customcss/editor");
 
 let container: HTMLDivElement;
@@ -102,6 +139,8 @@ beforeEach(() => {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
+    lockStackCandidate = undefined;
+    lockLookups.length = 0;
 
     monacoFocusCalls = 0;
     monacoCreateCalls = 0;
@@ -211,6 +250,7 @@ describe("CodeEditor", () => {
 
         expect(monacoCreateCalls).toBe(1);
         expect(monacoFocusCalls).toBe(0);
+        expect(lockLookups.length).toBe(0); // Embedded editors never claim a floating layer.
     });
 
     test("focuses and cleans up the fallback textarea without refocusing", async () => {
@@ -449,5 +489,114 @@ describe("CodeEditor", () => {
         expect(fallbackFocusCalls).toBe(0);
         expect(container.querySelector("textarea.bd-fallback-editor")).toBeNull();
         expect(requestAnimationFrames).toHaveLength(0);
+    });
+
+    test("floating editors transfer lock ownership without removing foreign modal layers", async () => {
+        const stack = createLockStack();
+        lockStackCandidate = stack;
+        let settingsEnabled = false;
+        stack.add("native-settings", enabled => {settingsEnabled = enabled;});
+        await act(async () => {
+            root.render(<>
+                <div className="floating-window"><CodeEditor value="first" controls={[]} onChange={() => {}} id="floating-first"/></div>
+                <div className="floating-window"><CodeEditor value="second" controls={[]} onChange={() => {}} id="floating-second"/></div>
+                <input aria-label="Foreign modal input"/>
+            </>);
+        });
+        const first = container.querySelector<HTMLElement>("#floating-first")!;
+        const second = container.querySelector<HTMLElement>("#floating-second")!;
+        const modalInput = container.querySelector<HTMLElement>("input")!;
+        const interact = (node: HTMLElement, type: string) => node.dispatchEvent(new Event(type, {bubbles: true}));
+        expect(lockLookups.length).toBe(2);
+        expect(lockLookups.every(options => options.fatal === false)).toBe(true);
+        expect(stack.current()?.uid).toBe("native-settings");
+
+        interact(first, "pointerdown");
+        const firstUid = stack.current()!.uid;
+        expect(firstUid.startsWith("bd-editor-window-")).toBe(true);
+        expect(settingsEnabled).toBe(false);
+        interact(first, "focusin");
+        expect(stack.locks.length).toBe(2); // Repeated interaction does not duplicate ownership.
+
+        interact(second, "pointerdown");
+        const secondUid = stack.current()!.uid;
+        expect(secondUid).not.toBe(firstUid);
+        interact(second, "focusin");
+        expect(stack.locks.map(entry => entry.uid)).toEqual(["native-settings", secondUid]);
+
+        // A native modal can become the newest lock above an active editor.
+        stack.add("native-modal", () => {});
+        expect(stack.current()?.uid).toBe("native-modal");
+        interact(modalInput, "focusin");
+        expect(stack.locks.map(entry => entry.uid)).toEqual(["native-settings", "native-modal"]);
+
+        // Pointer interaction can reprioritize this editor even while its layer
+        // remains below another native layer; it must remove only its own uid.
+        interact(first, "pointerdown");
+        stack.add("new-native-modal", () => {});
+        interact(first, "pointerdown");
+        expect(stack.current()?.uid).toBe(firstUid);
+        expect(stack.locks.filter(entry => entry.uid === firstUid).length).toBe(1);
+        expect(stack.locks.some(entry => entry.uid === "new-native-modal")).toBe(true);
+        interact(modalInput, "pointerdown");
+        expect(stack.current()?.uid).toBe(firstUid); // Outside pointer alone does not release focus ownership.
+        interact(modalInput, "focusin");
+        expect(stack.current()?.uid).toBe("new-native-modal");
+
+        await act(async () => root.render(null));
+        expect(stack.locks.map(entry => entry.uid)).toEqual(["native-settings", "native-modal", "new-native-modal"]);
+    });
+
+    test("floating focus layers initialize from current focus and release their listeners and owned lock", async () => {
+        const stack = createLockStack();
+        lockStackCandidate = stack;
+        stack.add("native-settings", () => {});
+        function FocusedWindow() {
+            const input = React.useRef<HTMLInputElement>(null);
+            React.useLayoutEffect(() => {input.current?.focus();}, []);
+            return <div className="floating-window"><input ref={input}/><CodeEditor value="focused" controls={[]} onChange={() => {}} id="floating-focused"/></div>;
+        }
+        const addListener = spyOn(document, "addEventListener");
+        const removeListener = spyOn(document, "removeEventListener");
+        try {
+            await act(async () => {
+                root.render(<FocusedWindow/>);
+            });
+            expect(stack.current()?.uid.startsWith("bd-editor-window-")).toBe(true);
+            const registrations = addListener.mock.calls.filter(([type, , options]) => (type === "pointerdown" || type === "focusin") && options === true);
+            expect(registrations.length).toBe(2);
+            await act(async () => root.render(null));
+            expect(stack.locks.map(entry => entry.uid)).toEqual(["native-settings"]);
+            for (const registration of registrations) {
+                expect(removeListener.mock.calls.some(call => call[0] === registration[0] && call[1] === registration[1] && call[2] === registration[2])).toBe(true);
+            }
+        }
+        finally {
+            addListener.mockRestore();
+            removeListener.mockRestore();
+        }
+    });
+
+    test("floating editors safely skip missing or incomplete focus-stack capabilities and retry on a new mount", async () => {
+        container.className = "floating-window";
+        const stack = createLockStack();
+        const missingCapabilities = [undefined, ...["locks", "toggleLayer", "add", "remove", "current"].map(key => ({...stack, [key]: undefined}))];
+        for (const [index, candidate] of missingCapabilities.entries()) {
+            lockStackCandidate = candidate;
+            await act(async () => {
+                root.render(<CodeEditor key={index} value="unsupported" controls={[]} onChange={() => {}} id="floating-unsupported"/>);
+            });
+            container.querySelector(".editor")!.dispatchEvent(new Event("pointerdown", {bubbles: true}));
+            expect(stack.locks.length).toBe(0);
+        }
+        expect(lockLookups.length).toBe(missingCapabilities.length);
+        lockStackCandidate = stack;
+        await act(async () => {
+            root.render(<CodeEditor key="available" value="supported" controls={[]} onChange={() => {}} id="floating-supported"/>);
+        });
+        container.querySelector(".editor")!.dispatchEvent(new Event("pointerdown", {bubbles: true}));
+        expect(stack.current()?.uid.startsWith("bd-editor-window-")).toBe(true);
+        await act(async () => root.render(null));
+        expect(stack.locks.length).toBe(0);
     });
 });
