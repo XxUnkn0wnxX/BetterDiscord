@@ -19,6 +19,13 @@ implementation fetch. Starting fork commit: `f7c69938`. The reviewed groups are
 adapted on `develop`; this section records their source integration separately
 from final ancestry, release preparation and native runtime acceptance.
 
+Implementation commits are `359efe55` (typed lookup), `67435077` (focus), and
+`0aef240f` (metadata). The following source-neutral two-parent merge records the
+exact reviewed target as its second parent. Its sole first-parent tree change
+is this fork-contract record; no further upstream source or newer staging head
+is imported. All eight incoming commits have reviewed dispositions, including
+the already-covered Monaco revert, ignore rule and ancestry-only merge commits.
+
 ### Typed module lookup
 
 Adopt upstream's `BdApi.Webpack.getById<T extends object>()` type parameter and
@@ -120,6 +127,14 @@ diagnostic stash and patch remain intact.
 Native release verification remains pending. No source/mock result is credited
 as live compatibility, and no injection/restart or publication is performed by
 this source integration.
+
+The final local release uses `./local-build.zsh dist -mrts 45` after the ancestry
+commit, with final-HEAD metadata and all eight packed/unpacked release inputs
+verified in the ignored upstream-review ledger. Verify the pinned target is an
+ancestor and its remaining commit count is zero; report any later upstream
+range separately. Reuse the established fork wrappers, full local gates and
+native focus handoff for future overlaps. Release injection and publication
+remain separate authorization boundaries.
 
 ## Patch-assisted recovery through 7a1aaf50
 
