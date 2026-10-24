@@ -30,6 +30,11 @@ on their adjacent visible body, box or radio marker. The browser's
 tabindex, callbacks, focus listeners or hover behavior is changed. Existing
 native Discord UI outside these BetterDiscord scopes is untouched.
 
+Text and number inputs retain their existing blue focus border without the
+additional outline. Native feedback showed that drawing both produced a double
+indicator; the scoped exception leaves one visible border while number step
+buttons and controls without an existing focus border keep the new outline.
+
 Native plugin-settings dialogs containing BetterDiscord setting groups/items
 also receive coverage for their other focusable contents, including native
 footer buttons. The containing-dialog selector supports both HTML dialogs and

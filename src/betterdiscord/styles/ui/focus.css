@@ -11,3 +11,9 @@
     outline: 2px solid var(--bd-brand);
     outline-offset: 2px;
 }
+
+/* These fields already use their border as the blue focus indicator. */
+.bd-text-input:focus-visible,
+.bd-number-input:focus-visible {
+    outline: none;
+}
