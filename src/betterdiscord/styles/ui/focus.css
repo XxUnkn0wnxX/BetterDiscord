@@ -4,16 +4,21 @@
 .bd-settings-group :focus-visible,
 .bd-setting-item :focus-visible,
 .bd-modal-root :focus-visible,
-:is(dialog, [role="dialog"]):has(.bd-settings-group, .bd-setting-item) :focus-visible,
+:where(dialog, [role="dialog"]):has(.bd-settings-group, .bd-setting-item) :focus-visible,
 .bd-switch input:focus-visible + .bd-switch-body,
 .bd-checkbox-input:focus-visible + .bd-checkbox-box,
 .bd-radio-option input:focus-visible + .bd-radio-indicator {
-    outline: 2px solid var(--bd-brand);
-    outline-offset: 2px;
+    outline: 1px solid var(--bd-brand);
+    outline-offset: 1px;
 }
 
 /* These fields already use their border as the blue focus indicator. */
 .bd-text-input:focus-visible,
-.bd-number-input:focus-visible {
+.bd-number-input:focus-visible,
+.bd-addon-error-header:focus-visible {
     outline: none;
+}
+
+.bd-addon-error-header:focus-visible {
+    box-shadow: 0 0 0 1px var(--bd-brand);
 }

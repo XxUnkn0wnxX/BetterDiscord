@@ -20,7 +20,7 @@ user requested a small blue indicator like the existing textbox focus border.
 This is a visibility enhancement, not a change to focus containment or order.
 
 `styles/ui/focus.css`, imported after the existing control styles, uses a
-2-pixel outline with a 2-pixel offset in the same `--bd-brand` colour as text
+1-pixel outline with a 1-pixel offset in the same `--bd-brand` colour as text
 fields. It covers keyboard-focus-visible BetterDiscord classed elements and
 focusable descendants of BetterDiscord settings groups/items and modal roots,
 including buttons, dropdowns, sliders, keybind/file/colour controls, position
@@ -34,6 +34,16 @@ Text and number inputs retain their existing blue focus border without the
 additional outline. Native feedback showed that drawing both produced a double
 indicator; the scoped exception leaves one visible border while number step
 buttons and controls without an existing focus border keep the new outline.
+The native-dialog rule keeps its container specificity low so this exception
+also wins within native plugin-settings dialogs.
+
+The addon-error header already owns a focus shadow; keep that single owner,
+reduce its shadow to 1 pixel and omit the fallback outline on that header.
+Discord's separate native focus-ring layer can overlap an outline on a different
+or enclosing target. Do not infer ownership from ring presence in a dialog or
+globally suppress/restyle native rings. Native overlap requires a bounded
+passive owner/style capture before a further scoped adaptation; normal Discord
+sidebar navigation remains outside this fix.
 
 Native plugin-settings dialogs containing BetterDiscord setting groups/items
 also receive coverage for their other focusable contents, including native
