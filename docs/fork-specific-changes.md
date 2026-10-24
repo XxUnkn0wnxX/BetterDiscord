@@ -11,6 +11,34 @@ bundle to the older machine or upgrades to a newer machine. Historical Bun
 versions in validation records remain evidence of those checks, not permanent
 toolchain requirements.
 
+## Adaptation through 1.14.4
+
+The reviewed upstream range is `7a1aaf50..47a3396f`, pinned to
+`47a3396f26aa76eb123654596c0f626a0fb4b04f` after the 2026-10-24 10:13:25 UTC
+implementation fetch. Starting fork commit: `f7c69938`. Adopt the reviewed
+groups on `develop`; this section records their source integration separately
+from final ancestry, release preparation and native runtime acceptance.
+
+### Typed module lookup
+
+Adopt upstream's `BdApi.Webpack.getById<T extends object>()` type parameter and
+forward it to the already-generic private helper. Preserve all existing
+argument validation, raw exports/module selection, missing-module result and
+fatal lookup behavior. This is an erased TypeScript change; it introduces no
+new runtime method, module selector, client capability or plugin migration.
+The existing guarded Webpack lookup, mapping and declaration behavior remains
+unchanged. See [Plugin API notes](plugin-api-notes.md) for a typed consumer.
+
+Focused verification on Bun 1.1.20 passes the isolated Webpack options suite,
+source declaration generation and a strict generated-declaration consumer with
+library checking enabled. The consumer covers typed and ordinary lookups, raw
+module shapes, missing/fatal options and rejection of primitive generic types;
+the old declarations reject its typed calls. Generated JavaScript is unchanged
+by the generic hunks. Scoped ESLint passes. The declaration bundler retains its
+existing `node:https` external-dependency warning; the resulting strict consumer
+passes with Node/React ambient types and no Bun test globals. No new native API
+or runtime behavior is introduced by these type parameters.
+
 ## Patch-assisted recovery through 7a1aaf50
 
 The reviewed upstream range is `3e70353a..7a1aaf50`, pinned to

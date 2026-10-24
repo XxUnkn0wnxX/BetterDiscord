@@ -9,6 +9,25 @@ number guess.
 | --- | --- | --- |
 | `BdApi.Utils.loadEntry` | Present on `develop`; this fork includes an internal compatibility fallback for older runtimes. | Load entry modules referenced by a discovered lazy Webpack loader. |
 | `BdApi.Webpack.Filters.byDestructure` | Present on `develop` from the 1.14.3 adaptation; live audit passed on Stable with Electron 37.6.0. | Find exported functions whose source contains a matching destructuring assignment. |
+| `BdApi.Webpack.getById<T>()` | Generic typing adopted from upstream 1.14.4; the existing runtime method is unchanged. | Describe the expected result of an ID lookup in TypeScript. |
+
+## Typed `BdApi.Webpack.getById`
+
+TypeScript plugins can supply the shape they expect from an existing module ID:
+
+```ts
+type ExpectedModule = {getValue(): string};
+const module = BdApi.Webpack.getById<ExpectedModule>(verifiedModuleId);
+if (module) console.log(module.getValue());
+```
+
+`verifiedModuleId` must come from inspection of the target Discord build; module
+IDs can change. The generic is erased and does not validate an export's shape
+or load a missing module. With `raw: true`, describe the raw module object
+instead of its exports. Missing lookups and invalid arguments retain the
+existing empty result; `fatal: true` retains the existing throwing behavior.
+This addition changes declarations only and needs no new native capability.
+Source/declaration checks and native runtime evidence remain separate.
 
 ## `BdApi.Webpack.Filters.byDestructure`
 
