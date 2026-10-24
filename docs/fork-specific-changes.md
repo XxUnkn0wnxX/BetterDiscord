@@ -30,6 +30,12 @@ on their adjacent visible body, box or radio marker. The browser's
 tabindex, callbacks, focus listeners or hover behavior is changed. Existing
 native Discord UI outside these BetterDiscord scopes is untouched.
 
+Native plugin-settings dialogs containing BetterDiscord setting groups/items
+also receive coverage for their other focusable contents, including native
+footer buttons. The containing-dialog selector supports both HTML dialogs and
+ARIA dialog elements; it remains limited to dialogs hosting BetterDiscord
+settings, rather than all Discord dialogs.
+
 Retire or narrow this optional stylesheet when upstream provides equivalent
 visible keyboard-focus coverage, including the visible proxies for transparent
 inputs and plugin-supplied controls within settings/modal content. Do not keep

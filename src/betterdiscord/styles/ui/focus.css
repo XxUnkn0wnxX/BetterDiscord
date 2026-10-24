@@ -4,6 +4,7 @@
 .bd-settings-group :focus-visible,
 .bd-setting-item :focus-visible,
 .bd-modal-root :focus-visible,
+:is(dialog, [role="dialog"]):has(.bd-settings-group, .bd-setting-item) :focus-visible,
 .bd-switch input:focus-visible + .bd-switch-body,
 .bd-checkbox-input:focus-visible + .bd-checkbox-box,
 .bd-radio-option input:focus-visible + .bd-radio-indicator {
