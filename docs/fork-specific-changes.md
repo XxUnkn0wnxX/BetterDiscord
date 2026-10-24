@@ -15,8 +15,8 @@ toolchain requirements.
 
 The reviewed upstream range is `7a1aaf50..47a3396f`, pinned to
 `47a3396f26aa76eb123654596c0f626a0fb4b04f` after the 2026-10-24 10:13:25 UTC
-implementation fetch. Starting fork commit: `f7c69938`. Adopt the reviewed
-groups on `develop`; this section records their source integration separately
+implementation fetch. Starting fork commit: `f7c69938`. The reviewed groups are
+adapted on `develop`; this section records their source integration separately
 from final ancestry, release preparation and native runtime acceptance.
 
 ### Typed module lookup
@@ -84,6 +84,42 @@ typing/selection/Tab/return focus, floating editor click/selection/`Cmd+F`,
 modal/editor switching, close/reopen and deferred/external entry points before
 claiming native acceptance. Retire no additional focus guard without equivalent
 source and supported-client evidence.
+
+### Release notes and preserved fork scope
+
+Report version 1.14.4 and adapt both changelogs to the actual adopted behavior.
+Keep accumulated fork history, the corrected video URL, manifest build commands
+and exact temporary Bun pin. The recovery-page release text summarizes the
+already-integrated revamp and patch-assisted attribution; this upstream range
+makes no new recovery-code change. Keep the fork's report targets, Manual report,
+exact-error correlation, compatible owner selection, recovery/retry/support
+ordering and clipboard settlement intact.
+
+No injection, macOS recovery, OpenAsar handoff, preload, native-window/accent,
+wrapper, updater, Store navigation or addon-state changes are imported. The
+upstream `.DS_Store` ignore is already covered by the fork's complete ignore
+file. Incoming workflow changes are absent; retain fork branches, rolling
+`develop-latest`, pinned Bun, 45-second workflow timeout and disabled type
+publication. The global Monaco skip-patch revert is history-only because the
+fork never adopted that persistent patch. The other three incoming merge
+commits add reviewed ancestry, not extra source behavior.
+
+### Accumulated source verification
+
+The Bun 1.1.20 full local suite passes **554 tests, 24 existing platform skips,
+0 failures**, with 1688 assertions across 78 files. The 24 skips remain the
+existing Darwin 20/Bun native Intl capability guard. Full repository ESLint
+and TypeScript pass with ignored local diagnostics excluded; source/deleted-line and
+whitespace audits pass. The accumulated tracked diff is confined to the three
+reviewed runtime/API files, version and changelogs, fork/API documentation and
+their two existing test harnesses. Protected recovery/injection/OpenAsar,
+wrappers/workflows, Store/updater/addon-state and remaining editor/navigation
+files match the starting fork byte-for-byte. The retained addon-search
+diagnostic stash and patch remain intact.
+
+Native release verification remains pending. No source/mock result is credited
+as live compatibility, and no injection/restart or publication is performed by
+this source integration.
 
 ## Patch-assisted recovery through 7a1aaf50
 

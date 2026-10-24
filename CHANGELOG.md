@@ -2,13 +2,14 @@
 
 This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
 
-## Fork (1.14.3)
+## Fork (1.14.4)
 
-This fork now reports BetterDiscord `1.14.3` after integrating the upstream
+This fork now reports BetterDiscord `1.14.4` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
 
+- Reviewed and adapted upstream development through [`47a3396f`](https://github.com/BetterDiscord/BetterDiscord/commit/47a3396f26aa76eb123654596c0f626a0fb4b04f): adopted floating-editor focus ownership and modal accessibility improvements while preserving older-client fallbacks, scoped Monaco guards, autofocus and Settings-close sequencing. Added generic typing for the existing module-ID lookup.
 - Reviewed and adapted upstream development through [`3eafabae`](https://github.com/BetterDiscord/BetterDiscord/commit/3eafabae8c4ccc28aeb2ff97239f757ee87cbe17): added the optional destructuring filter, adopted the modal input and account-switch transparency fixes, and retained this fork's custom reinjection and OpenAsar handoff unchanged.
 - Reviewed and adapted upstream development through [`133bc83b`](https://github.com/BetterDiscord/BetterDiscord/commit/133bc83b6bae998a321615a77e15b94956265d12), preserving older-Electron compatibility and required fork behavior while following upstream plugin contracts.
 - Adopted upstream Webpack mapping/owner-key options and the supported plugin lifecycle. Headers determine metadata; the host no longer calls legacy `load()` or metadata getters. Plugins that initialize only in `load()` need to move that work into supported startup code.
@@ -25,6 +26,22 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
+
+### 1.14.4
+
+### Added
+- `BdApi.Webpack.getById<T>()` accepts the expected module shape in TypeScript. Runtime lookup behavior is unchanged; see [Plugin API notes](docs/plugin-api-notes.md).
+
+### Changed
+- Upstream's revamped recovery screen and patch-assisted suspected-plugin detection are already included. This fork retains its extra report targets, Manual report, exact-error attribution and recovery safeguards.
+
+### Fixed
+- Modal accessibility exposes one dialog owner, including when the older-client native-dialog fallback is selected.
+- Floating Custom CSS, plugin and theme editors coordinate focus with Discord's native focus locks where available, retaining existing selection, one-shot autofocus and Settings-close behavior.
+
+### Retained fork behavior
+- Keeps custom macOS reinjection, recovery and OpenAsar handoff, Store navigation, external addon updates, disabled-plugin behavior and the temporary Bun 1.1.20 pin.
+- Source tests cover the new focus ownership; fresh release-injected native focus verification remains a separate gate.
 
 ### 1.14.3
 
