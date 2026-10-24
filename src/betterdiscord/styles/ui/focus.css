@@ -1,0 +1,12 @@
+/* Optional fork fix: keep keyboard focus visible on BetterDiscord controls. */
+[class^="bd-"]:focus-visible,
+[class*=" bd-"]:focus-visible,
+.bd-settings-group :focus-visible,
+.bd-setting-item :focus-visible,
+.bd-modal-root :focus-visible,
+.bd-switch input:focus-visible + .bd-switch-body,
+.bd-checkbox-input:focus-visible + .bd-checkbox-box,
+.bd-radio-option input:focus-visible + .bd-radio-indicator {
+    outline: 2px solid var(--bd-brand);
+    outline-offset: 2px;
+}

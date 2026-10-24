@@ -11,6 +11,33 @@ bundle to the older machine or upgrades to a newer machine. Historical Bun
 versions in validation records remain evidence of those checks, not permanent
 toolchain requirements.
 
+## Optional keyboard-focus indicator
+
+This is an optional, replaceable fork fix requested after native testing of the
+1.14.4 adaptation. Tab and Shift+Tab reached MessageLogger buttons and subsequent
+text fields correctly, but missing visual feedback made focus appear lost. The
+user requested a small blue indicator like the existing textbox focus border.
+This is a visibility enhancement, not a change to focus containment or order.
+
+`styles/ui/focus.css`, imported after the existing control styles, uses a
+2-pixel outline with a 2-pixel offset in the same `--bd-brand` colour as text
+fields. It covers keyboard-focus-visible BetterDiscord classed elements and
+focusable descendants of BetterDiscord settings groups/items and modal roots,
+including buttons, dropdowns, sliders, keybind/file/colour controls, position
+buttons and links. Transparent switch/checkbox/radio inputs draw the indicator
+on their adjacent visible body, box or radio marker. The browser's
+`:focus-visible` matching controls when the indicator appears; no JavaScript,
+tabindex, callbacks, focus listeners or hover behavior is changed. Existing
+native Discord UI outside these BetterDiscord scopes is untouched.
+
+Retire or narrow this optional stylesheet when upstream provides equivalent
+visible keyboard-focus coverage, including the visible proxies for transparent
+inputs and plugin-supplied controls within settings/modal content. Do not keep
+duplicate rings or change keyboard navigation to preserve this implementation.
+Native appearance is checked separately from CSS parsing/build validation. The
+temporary `KeyboardFocusDemo` plugin is local-only and exercises real public
+settings components with memory-only values and harmless button/link actions.
+
 ## Adaptation through 1.14.4
 
 The reviewed upstream range is `7a1aaf50..47a3396f`, pinned to
