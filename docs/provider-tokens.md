@@ -20,6 +20,18 @@ that allowance, and secondary limits still apply. See
 | GitLab.com alternative | Fine-grained personal access token | User / Read for validation, plus the relevant project read permissions below |
 | git.slowb.ro | Forgejo personal access token | Public only, `read:user` and `read:repository` |
 
+> [!WARNING]
+> **Keep token permissions minimal.** Prefer a dedicated BetterDiscord token
+> with only the permissions listed above. Extra read scopes can expose more
+> data; write or administrative scopes can allow changes or deletion if the
+> token is exposed. Addon updates do not need these extra permissions, so avoid
+> adding them just for BetterDiscord.
+
+The listed permissions are minimum requirements, not an exclusive allowlist.
+An existing token with additional permissions is accepted when the required
+read checks succeed, including tokens used for other applications. BetterDiscord's
+validation and addon update requests remain read-only.
+
 Public GitHub releases can be read without additional repository permissions.
 These update requests do not need write, administration, or pull-request
 permissions. See the

@@ -37,6 +37,8 @@ assert(options.maxResponseBytes === 64 * 1024 && options.timeout === 10_000, "Va
 assert(new Headers(options.headers).get("accept-encoding") === "identity", "Validation should request identity encoding.");
 
 assert((await validateProviderToken("gitlab", "opaque-fine-grained-dummy", new AbortController().signal)).status === "valid", "GitLab fine-grained tokens should use the same identity contract without a prefix gate.");
+respond = async () => Response.json(githubQuota, {headers: {"X-OAuth-Scopes": "repo, read:org, workflow"}});
+assert((await validateProviderToken("github", classic, new AbortController().signal)).status === "valid", "Successful required reads must remain valid when the provider reports additional read and write scopes.");
 respond = async () => new Response("", {status: 403, headers: {"WWW-Authenticate": "Bearer error=\"insufficient_scope\""}});
 const missingGitLab = await validateProviderToken("gitlab", gitlabToken, new AbortController().signal);
 assert(missingGitLab.status === "unavailable" && missingGitLab.missingPermission === "user-read", "A documented GitLab scope denial should identify required validation access.");

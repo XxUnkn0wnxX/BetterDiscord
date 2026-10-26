@@ -59,6 +59,10 @@ with its `login` response field. Only Forgejo setup adds the bounded
 ten-second deadline and existing response-size/TLS/redirect restrictions.
 GitLab's account probe does not establish every fine-grained project permission.
 Do not require additional token-introspection access just to inspect scopes.
+Required read permissions are a minimum, not an exclusive scope allowlist.
+Accept tokens with additional read, write or administrative permissions when
+the required probes succeed; do not reject broader tokens reused for other
+applications or add write requests to validation or addon updates.
 Confirmed setup scope failures use fixed local identifiers from GitLab's
 `insufficient_scope` authentication challenge or exact JSON error codes
 `insufficient_scope` / `insufficient_granular_scope`, or Forgejo's known
