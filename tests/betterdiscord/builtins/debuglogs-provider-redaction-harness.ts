@@ -206,7 +206,7 @@ try {
     const hardError = new Error("Unexpected token worker failure");
     hardError.stack = "Error: Unexpected token worker failure\n    at tokenWorker (fixture.js:1:1)";
     Logger.stacktrace("ProviderTokens", "Unexpected failure", hardError);
-    assert(consoleLines.at(-1)?.level === "error" && consoleLines.at(-1)?.args.includes(hardError), "Actual hard errors must retain their error object and stack.");
+    assert(consoleLines.at(-1)?.level === "error" && consoleLines.at(-1)?.args.includes(hardError) === true, "Actual hard errors must retain their error object and stack.");
     assert(writes.some(value => value.includes("[CONSOLE:ERROR]") && value.includes(hardError.stack!)), "Hard-error stack did not reach the saved debug log.");
 
     let finishOldEnable: (() => void) | undefined;
