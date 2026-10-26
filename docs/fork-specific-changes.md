@@ -13,6 +13,14 @@ toolchain requirements.
 
 ## Optional provider tokens for addon updates
 
+**Maintenance note for future agents:** Using a token is optional for the user;
+the token feature itself is required fork behavior. Preserve it and the custom
+external plugin/theme updater through upstream merges, including updates from
+sources outside the Addon Store. Adapt internals when necessary while retaining
+the behavior documented here. Do not remove or disable these features under the
+replaceable-recovery policy below; retiring them requires an explicit user
+instruction.
+
 The collapsed core **Access Tokens** category stores optional GitHub, GitLab.com
 and git.slowb.ro credentials in ordinary channel settings, with empty defaults.
 GitHub classic/fine-grained and GitLab legacy/fine-grained PATs share their
@@ -499,6 +507,17 @@ demonstrably covers the supported report targets, manual-report fallback, local
 icon rendering and warning-action behavior described here. Reassess each part
 separately if coverage is only partial. It creates no plugin API or Electron
 recovery/injection change.
+
+**Maintenance note for future agents:** These recovery enhancements are optional
+fork additions. When upstream introduces comparable manual reporting, report
+formatting or support for GitLab and `git.slowb.ro` alongside GitHub, notify the
+user during the upstream review. Explain which enhancements upstream replaces,
+which gaps remain and which fork changes can be retired before removing them.
+A comparable implementation is sufficient; identical markup or internals are
+not required. Retire only the parts whose behavior is covered and verified on
+supported clients, retaining any remaining provider, formatting or manual-report
+support. This replacement policy applies to the recovery enhancements, not the
+required provider-token feature or external addon updater.
 
 ### Report targets and manual fallback
 
