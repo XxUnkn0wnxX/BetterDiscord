@@ -29,8 +29,8 @@ Integration sections retain their original evidence and revision context.
 ## Optional provider tokens for addon updates
 
 **Maintenance note for future agents:** Using a token is optional for the user;
-the token feature itself is required fork behavior. Preserve it and the custom
-external plugin/theme updater through upstream merges, including updates from
+the managed-update token feature itself is required fork behavior. Preserve it
+and the custom external plugin/theme updater through upstream merges, including updates from
 sources outside the Addon Store. Adapt internals when necessary while retaining
 the behavior documented here. Do not remove or disable these features under the
 replaceable-recovery policy below; retiring them requires an explicit user
@@ -52,10 +52,13 @@ generation guards prevent a late validation from restoring a cleared token.
 See [token setup and coverage](provider-tokens.md).
 
 Preserve the common request policy and the private managed-update transport lane.
-Existing `BdApi.Net.fetch` calls receive fallback only for recognized update API
-shapes and git.slowb.ro addon raw routes; managed gist/snippet metadata has
-explicit private purpose. Meaningful
-caller credentials win, followed by the matching BD token, then anonymous.
+Saved credentials are selected only for the explicit private
+`managed-addon-update` purpose, including eligible gist/snippet metadata. The
+native header boundary independently rejects non-managed authorization snapshots.
+Public `BdApi.Net.fetch` receives no saved-token fallback, usage observer or
+reactive token maintenance, even for recognized update routes. Independent plugin
+self-updaters own their authentication. Within managed updates, meaningful caller
+credentials win, followed by the matching BD token, then anonymous.
 Generated headers require valid HTTPS/TLS, read methods, exact provider origins,
 and eligible original/current paths. Each redirect gets fresh headers; a token
 must not follow other raw/CDN, different-origin, or unrelated API redirects. GitHub's
@@ -88,8 +91,9 @@ scope-denial message prefix. Generic 403 responses do not prove missing scopes. 
 drafts with confirmed missing permissions stay unsaved and show a persistent
 BD warning with new-token guidance; stale results must not produce notices.
 
-A private renderer hook handles eligible HTTP 401 responses only when the failed
-final hop used the captured BD credential. Core registers its lifecycle after
+A private renderer hook handles eligible managed-update HTTP 401 responses only
+when the failed final hop used the captured BD credential. Public fetch responses
+cannot trigger this hook. Core registers its lifecycle after
 Settings initialization. Await one bounded, coalesced validity probe, checking
 both saved token and captured generation before and after it. Only confirmed
 invalidity clears a still-current token through the normal store. Caller-owned
@@ -109,9 +113,9 @@ saved log together:
 - Successful-use events occur once after the final authenticated response
   completes with HTTP 2xx or 304. Dispatch, headers, redirects to anonymous
   destinations, aborted/error bodies and size rejection do not count.
-- Info entries identify the initiating managed addon or actual plugin source
-  filename, a fixed provider hostname, token source and masked suffix. Unknown
-  callers stay unknown; a library frame identifies that library. HTTP success
+- Info entries identify the initiating managed addon, a fixed provider hostname,
+  token source and masked suffix. Unavailable attribution stays unknown. Public
+  plugin requests produce no token-use events. HTTP success
   does not establish successful addon validation or installation.
 - Actual setup/reactive probes log progress and all expected results at Info,
   including invalid, missing-permission and temporary outcomes. These remain
@@ -124,8 +128,10 @@ saved log together:
   full URLs, stacks, raw credentials or provider responses. Configured values
   and captured request errors remain redacted.
 
-Shared policy code has no store/logger/runtime imports; caller attribution and
-diagnostics add no public `BdApi.Net` options or changed bound-instance behavior.
+Shared policy code has no store/logger/runtime imports; diagnostics add no public
+`BdApi.Net` options or changed bound-instance behavior. Public requests preserve
+caller headers and recognized caller-secret error censorship without attaching
+a saved token or a usage observer.
 
 Managed updates keep anonymous origin state plus one authenticated bucket keyed
 by a SHA-256 credential fingerprint. Matching authenticated limits survive
@@ -166,7 +172,7 @@ correction, the affected UI harness passed again: it models a native ring that
 caches its class on focus and checks pending/settled transitions without blur.
 Full lint/types and scoped CSS checks pass. Dedicated Astra reviews passed the
 logging design and corrected focus behavior. Native color transitions and real
-plugin caller attribution remain user-owned checks.
+managed-addon attribution remain user-owned checks.
 
 ## Translation refresh through 1894f011
 

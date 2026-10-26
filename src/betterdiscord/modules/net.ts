@@ -95,7 +95,8 @@ async function fetchWithPurpose(input: string | URL | Request, init: NativeReque
     const providerGeneration = providerAuthorization ? getProviderTokenGeneration(providerAuthorization.provider) : undefined;
     const callerToken = providerTokenUseForHop(request.url, request.url, policy, purpose)?.token;
     const capturedTokens = providerAuthorization ? [providerAuthorization.token] : callerToken ? [callerToken] : [];
-    const report = captureProviderTokenReporter();
+    // Public calls retain caller-secret redaction without joining managed-token diagnostics.
+    const report = purpose === "managed-addon-update" ? captureProviderTokenReporter() : undefined;
     const operation: ProviderTokenOperation = {
         report,
         addon: sanitizeProviderAddonLabel(addon ?? (report && capturedTokens.length ? providerAddonFromStack(new Error().stack, capturedTokens) : undefined), capturedTokens)

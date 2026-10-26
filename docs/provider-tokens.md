@@ -1,7 +1,8 @@
 # Optional addon update tokens
 
 Add a GitHub, GitLab.com or git.slowb.ro token to authorize eligible plugin/theme
-update requests. Leave a provider's field empty to disable its token fallback.
+updates managed by BetterDiscord. Saved tokens serve these updates and their
+validation only. Leave a provider's field empty to disable its saved token.
 See the [updater guide](addon-updater.md) for source selection and installation.
 
 GitHub normally allows **60 anonymous requests/hour per IP**, or **5,000
@@ -136,9 +137,14 @@ Stable, PTB and Canary keep separate settings.
 
 ## Which requests use a token?
 
-**Priority:** request-supplied credentials → saved provider token → anonymous.
-Empty/scheme-only authorization allows fallback; a supplied nonempty credential
-is preserved even when invalid. BD does not inspect arbitrary plugin settings.
+**For BetterDiscord-managed updates:** request-supplied credentials → saved
+provider token → anonymous. Empty/scheme-only authorization allows fallback; a
+supplied nonempty credential is preserved even when invalid.
+
+Public `BdApi.Net.fetch` calls never receive saved tokens or join their usage
+reporting and reactive validation. Independent plugin self-updaters supply their
+own credentials and handle their own authentication. BD does not inspect plugin
+settings or intercept custom Node/browser networking.
 
 | Provider | Eligible HTTPS reads |
 | --- | --- |
@@ -146,10 +152,9 @@ is preserved even when invalid. BD does not inspect arbitrary plugin settings.
 | GitLab.com | Recognized release/addon-file routes under `/api/v4`; managed snippet metadata |
 | git.slowb.ro | Recognized `/api/v1` repository routes and addon files under `/raw/branch/`, `/raw/tag/` or `/raw/commit/` |
 
-- Covers managed updates and recognized self-update calls through `BdApi.Net.fetch`, including SHC's GitHub release checks and MessageLogger's Slowbro raw file.
+- Covers eligible metadata and addon-file requests made by BetterDiscord's managed plugin/theme updater.
 - Drops generated authorization on redirects to another origin or unrelated path.
 - Does not authorize unrelated API calls, other raw/CDN hosts, self-hosted GitLab or GitHub Enterprise.
-- Custom Node/browser networking does not inherit this fallback.
 
 ## Debug logs
 
@@ -159,12 +164,12 @@ With **Developer Settings → Debug Logs** enabled, console and `debug.log` reco
 | --- | --- | --- |
 | Validation starts/passes | Info | Provider, setup/reactive trigger and masked token |
 | Validation fails | Info | Fixed invalid, permission or temporary-failure reason |
-| Authenticated request completes successfully | Info | Calling addon, main provider hostname, token source and masked suffix |
+| Managed authenticated request completes successfully | Info | Managed addon, main provider hostname, token source and masked suffix |
 
 - Show only the final four token characters; short values are fully masked.
 - Routine outcomes stay on one line; actual exceptions retain normal error logging and stacks.
 - Successful-use means an HTTP 2xx/304 response completed, not that an addon was installed.
-- Attribution uses the managed addon or actual plugin source frame. A calling library identifies the library; unavailable attribution is **unknown addon**.
+- Managed requests identify the initiating addon; unavailable attribution is **unknown addon**. Public plugin requests produce no token-use entry.
 - No full request URLs, response bodies or raw credentials in these entries.
 - Anonymous requests, cache hits and disabled logging produce no token-use entry.
 - Cancelled validation results and requests from an earlier debug session remain silent.
@@ -179,7 +184,7 @@ With **Developer Settings → Debug Logs** enabled, console and `debug.log` reco
 | Valid token, update fails | Check repository access, source URL and any addon-supplied credential taking priority. |
 | Rate-limit pause | Wait for the provider reset/backoff; normal updater cooldowns still apply. |
 
-If an eligible request using BD's saved token returns **401**:
+If an eligible managed update using BD's saved token returns **401**:
 
 1. BD rechecks the credential; concurrent failures share one check.
 2. A confirmed invalid token is cleared only if it is still the current saved value.
@@ -188,6 +193,7 @@ If an eligible request using BD's saved token returns **401**:
 Successful requests need no extra probe. Permission, rate-limit and temporary
 failures retain the saved token; addon-owned credentials stay under addon
 control. The failed request is not automatically retried. Later requests without
-their own credential become anonymous after removal.
+their own credential become anonymous after removal. A public `BdApi.Net.fetch`
+401 never validates or clears a saved token.
 
 [Documentation index](README.md) · [Plugin and theme updater](addon-updater.md)

@@ -118,18 +118,22 @@ const text = () => consoleLines.map(line => DebugLogs.sanitize(...line.args)).jo
 const originalCheckFilesize = DebugLogs.checkFilesize;
 try {
     configureProviderTokens({github: longToken, gitlab: shortToken});
-    await api.fetch(release);
+    await fetchAddonUpdate(release);
     assert(!hasProviderTokenUseReporter() && !lineCount(), "Debug-disabled request logged token use.");
     loggingEnabled = true;
     await DebugLogs.enabled();
     assert(hasProviderTokenUseReporter(), "Debug reporter did not register after capture setup.");
+    await api.fetch(release);
+    await api.fetch(release, {headers: {Authorization: "token dummy-public-token-7890"}});
+    await api.fetch(gitlab, {headers: {"PRIVATE-TOKEN": "dummy-public-token-2468"}});
+    assert(lineCount() === 0 && events.length === 0, "Public requests emitted managed token-use diagnostics.");
     await fetchAddonUpdate(release, undefined, "Managed.plugin.js");
     assert(lineCount() === 1 && text().includes("Managed.plugin.js: github.com update request succeeded (HTTP 204) using BetterDiscord token ****3456."), "Completed managed request did not log its truthful caller/host/status and masked token.");
     assert(consoleLines[0].level === "info" && writes.some(value => value.includes("[CONSOLE:INFO]") && value.includes("Managed.plugin.js: github.com")), "Info success did not reach the actual debug writer.");
-    await api.fetch(release, {headers: {Authorization: "token dummy-supplied-token-7890"}});
+    await fetchAddonUpdate(release, {headers: {Authorization: "token dummy-supplied-token-7890"}});
     assert(lineCount() === 2 && text().includes("unknown addon: github.com") && text().includes("a supplied token ****7890."), "Caller credential success did not log safely with an honest unknown caller.");
-    await api.fetch(gitlab);
-    await api.fetch(`${gitlab}?access_token=dummy-query-token-2468`);
+    await fetchAddonUpdate(gitlab);
+    await fetchAddonUpdate(`${gitlab}?access_token=dummy-query-token-2468`);
     assert(lineCount() === 4 && text().includes("gitlab.com") && text().includes("BetterDiscord token ****.") && text().includes("a supplied token ****2468."), "Short/query credentials were not masked correctly.");
     const supplied = "dummy-gist-token-4567";
     await fetchAddonUpdate("https://api.github.com/gists/abc123", {headers: {Authorization: `Bearer ${supplied}`}}, `Caller-${supplied}.plugin.js`);
@@ -139,9 +143,9 @@ try {
 
     configureProviderTokens({});
     const anonymousBaseline = lineCount();
-    await api.fetch(release);
+    await fetchAddonUpdate(release);
     await api.fetch("https://api.github.com/rate_limit", {headers: {Authorization: "Bearer dummy-validation-1234"}});
-    await api.fetch(release, {headers: {Authorization: "Basic unsupported"}});
+    await fetchAddonUpdate(release, {headers: {Authorization: "Basic unsupported"}});
     assert(lineCount() === anonymousBaseline, "Anonymous, ordinary validation API or unsupported credentials produced an update success line.");
 
     configureProviderTokens({github: longToken});
@@ -188,18 +192,18 @@ try {
 
     const baseline = lineCount();
     holdCompletion = true;
-    await api.fetch(release);
+    await fetchAddonUpdate(release);
     loggingEnabled = false; await DebugLogs.disabled();
     loggingEnabled = true; await DebugLogs.enabled();
     pendingCompletions.splice(0).forEach(complete => complete());
     assert(lineCount() === baseline, "An old request logged into the re-enabled logging session.");
     loggingEnabled = false; await DebugLogs.disabled();
-    await api.fetch(release);
+    await fetchAddonUpdate(release);
     loggingEnabled = true; await DebugLogs.enabled();
     pendingCompletions.splice(0).forEach(complete => complete());
     assert(lineCount() === baseline, "A request started with logging disabled logged after enable.");
     holdCompletion = false;
-    await api.fetch(release);
+    await fetchAddonUpdate(release);
     assert(lineCount() === baseline + 1, "The current logging session failed to report a completed request.");
 
     assert(consoleLines.every(line => line.level === "info" && !line.args.some(arg => arg instanceof Error)), "Routine token diagnostics must be plain Info messages without error objects.");

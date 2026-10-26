@@ -100,8 +100,10 @@ separate from the success/failure notification setting.
 ## Optional authentication
 
 [GitHub, GitLab.com and git.slowb.ro tokens](provider-tokens.md) can authorize
-eligible update requests. Tokens are restricted to supported provider routes.
-Plugin self-updaters retain their own checking and installation logic.
+eligible requests made by BetterDiscord's managed plugin/theme updater. Saved
+tokens are restricted to supported provider routes and their validation. Public
+`BdApi.Net.fetch` calls do not inherit them. Independent plugin self-updaters
+handle their own credentials, checking and installation logic.
 
 ## Maintainer references
 

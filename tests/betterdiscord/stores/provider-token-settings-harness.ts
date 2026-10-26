@@ -26,10 +26,10 @@ const slowbroUrl = "https://git.slowb.ro/owner/repo/raw/branch/main/Test.plugin.
 const assert = (condition: boolean, message: string) => {if (!condition) throw new Error(message);};
 assertAuthBeforeWrite = () => {
     if (process.env.PROVIDER_TOKEN_SETTINGS_SCENARIO === "saved") {
-        assert(selectProviderAuthorization(githubUrl)?.token === "gh-saved-dummy-token", "Saved token must be synchronized before initial settings persistence.");
+        assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-saved-dummy-token", "Saved token must be synchronized before initial settings persistence.");
     }
     else {
-        assert(selectProviderAuthorization(githubUrl) === undefined, "Empty defaults must be synchronized before initial settings persistence.");
+        assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update") === undefined, "Empty defaults must be synchronized before initial settings persistence.");
     }
 };
 Settings.initialize();
@@ -37,46 +37,49 @@ assertAuthBeforeWrite = undefined;
 
 assert(Settings.getSetting("settings", "accessTokens", "github")?.value === "", "GitHub token default should be empty.");
 if (process.env.PROVIDER_TOKEN_SETTINGS_SCENARIO === "saved") {
-    assert(selectProviderAuthorization(githubUrl)?.token === "gh-saved-dummy-token", "Saved token should be active immediately after settings load.");
+    assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-saved-dummy-token", "Saved token should be active immediately after settings load.");
 }
 else {
-    assert(selectProviderAuthorization(githubUrl) === undefined, "Missing token must disable provider authorization.");
+    assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update") === undefined, "Missing token must disable provider authorization.");
 }
 let authorizedDuringSubscriber = false;
 Settings.on("settings", "accessTokens", "github", () => {
-    authorizedDuringSubscriber = selectProviderAuthorization(githubUrl)?.token === "gh-dummy-token-123456";
+    authorizedDuringSubscriber = selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-dummy-token-123456";
 });
 Settings.set("settings", "accessTokens", "github", "gh-dummy-token-123456");
 assert(authorizedDuringSubscriber, "Provider token must be active before setting subscribers run.");
-assert(selectProviderAuthorization(gitlabUrl) === undefined, "Changing GitHub must not authorize GitLab.");
+assert(selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update") === undefined, "Changing GitHub must not authorize GitLab.");
 Settings.set("settings", "accessTokens", "gitlab", "gl-dummy-token-abcdef");
-assert(selectProviderAuthorization(githubUrl)?.token === "gh-dummy-token-123456", "Changing GitLab must preserve GitHub.");
-assert(selectProviderAuthorization(gitlabUrl)?.token === "gl-dummy-token-abcdef", "GitLab token should authorize its provider.");
+assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-dummy-token-123456", "Changing GitLab must preserve GitHub.");
+assert(selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update")?.token === "gl-dummy-token-abcdef", "GitLab token should authorize its provider.");
 assert(persisted.settings.accessTokens.github === "gh-dummy-token-123456", "GitHub token should persist in settings.");
 assert(Settings.getSetting("settings", "accessTokens", "slowbro")?.value === "", "Slowbro should have an empty optional default.");
 Settings.set("settings", "accessTokens", "slowbro", "forgejo-dummy-token-7890");
-assert(selectProviderAuthorization(slowbroUrl)?.token === "forgejo-dummy-token-7890", "Saving Slowbro should synchronize its raw update requests.");
+assert(selectProviderAuthorization(slowbroUrl, {}, "managed-addon-update")?.token === "forgejo-dummy-token-7890", "Saving Slowbro should synchronize its raw update requests.");
 assert(persisted.settings.accessTokens.slowbro === "forgejo-dummy-token-7890", "Slowbro token should persist with channel settings.");
-assert(selectProviderAuthorization(githubUrl)?.token === "gh-dummy-token-123456" && selectProviderAuthorization(gitlabUrl)?.token === "gl-dummy-token-abcdef", "Changing Slowbro must preserve the other providers.");
+for (const url of [githubUrl, gitlabUrl, slowbroUrl]) {
+    assert(selectProviderAuthorization(url) === undefined && selectProviderAuthorization(url, {}, "recognized-self-update") === undefined, "Saving tokens must not authorize public/default requests.");
+}
+assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-dummy-token-123456" && selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update")?.token === "gl-dummy-token-abcdef", "Changing Slowbro must preserve the other providers.");
 Settings.set("settings", "accessTokens", "github", "");
-assert(selectProviderAuthorization(githubUrl) === undefined, "Clearing a token must disable provider authorization.");
+assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update") === undefined, "Clearing a token must disable provider authorization.");
 Settings.set("settings", "accessTokens", "gitlab", "");
 let resetNotifications = 0;
 const onProviderTokensReset = () => {resetNotifications++;};
 Events.on("provider-tokens-reset", onProviderTokensReset);
 Settings.resetCollection("settings");
 Events.off("provider-tokens-reset", onProviderTokensReset);
-assert(selectProviderAuthorization(gitlabUrl) === undefined, "Reset should clear token authorization.");
+assert(selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update") === undefined, "Reset should clear token authorization.");
 assert(persisted.settings.accessTokens.gitlab === "", "Reset should persist empty token defaults.");
-assert(selectProviderAuthorization(slowbroUrl) === undefined && persisted.settings.accessTokens.slowbro === "", "Reset should persist Slowbro's empty default and disable authentication.");
+assert(selectProviderAuthorization(slowbroUrl, {}, "managed-addon-update") === undefined && persisted.settings.accessTokens.slowbro === "", "Reset should persist Slowbro's empty default and disable authentication.");
 assert(resetNotifications === 1, "Settings reset should notify dirty drafts even when committed token values already match defaults.");
 
 persisted.settings = {accessTokens: {github: "gh-reloaded-token-123", gitlab: "gl-reloaded-token-456"}};
 assertAuthBeforeWrite = () => {
-    assert(selectProviderAuthorization(githubUrl)?.token === "gh-reloaded-token-123", "Direct reload must synchronize GitHub before writing settings.");
-    assert(selectProviderAuthorization(gitlabUrl)?.token === "gl-reloaded-token-456", "Direct reload must synchronize GitLab before writing settings.");
+    assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-reloaded-token-123", "Direct reload must synchronize GitHub before writing settings.");
+    assert(selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update")?.token === "gl-reloaded-token-456", "Direct reload must synchronize GitLab before writing settings.");
 };
 Settings.loadCollection("settings");
 assertAuthBeforeWrite = undefined;
-assert(selectProviderAuthorization(githubUrl)?.token === "gh-reloaded-token-123", "Direct reload should activate new GitHub value.");
-assert(selectProviderAuthorization(gitlabUrl)?.token === "gl-reloaded-token-456", "Direct reload should activate new GitLab value.");
+assert(selectProviderAuthorization(githubUrl, {}, "managed-addon-update")?.token === "gh-reloaded-token-123", "Direct reload should activate new GitHub value.");
+assert(selectProviderAuthorization(gitlabUrl, {}, "managed-addon-update")?.token === "gl-reloaded-token-456", "Direct reload should activate new GitLab value.");

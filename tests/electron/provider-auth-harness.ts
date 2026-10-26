@@ -51,8 +51,8 @@ function driedRequest(): DriedRequest {
         timeout: 500,
         maxRedirects: 3,
         rejectUnauthorized: true,
-        providerAuthorization: selectProviderAuthorization(origin),
-        providerTokenUsage: {purpose: "recognized-self-update", addon: "Actual.plugin.js", report: event => usageEvents.push(event)}
+        providerAuthorization: selectProviderAuthorization(origin, {}, "managed-addon-update"),
+        providerTokenUsage: {purpose: "managed-addon-update", addon: "Actual.plugin.js", report: event => usageEvents.push(event)}
     };
 }
 function check(condition: unknown, message: string): asserts condition {
@@ -71,6 +71,18 @@ async function rejected(promise: Promise<unknown>) {
 
 try {
     configureProviderTokens({github: token});
+    calls.length = 0;
+    steps = [{}];
+    const nonManaged = await nativeFetch({
+        ...driedRequest(),
+        providerAuthorization: {provider: "github", token, purpose: "recognized-self-update"},
+        providerTokenUsage: undefined
+    });
+    check(calls.length === 1 && !calls[0].headers.Authorization, "Native header construction accepted a non-managed authorization snapshot");
+    response.emit("end");
+    check(usageEvents.length === 0, "A non-managed request entered token diagnostics");
+    await nonManaged.body?.cancel();
+    calls.length = 0;
     const first = driedRequest();
     steps = [{location: "/repos/o/r/releases/latest"}, {}];
     const same = await nativeFetch(first);
@@ -89,7 +101,7 @@ try {
         ...driedRequest(),
         url: gitlabUrl,
         headers: {Authorization: "Bearer "},
-        providerAuthorization: selectProviderAuthorization(gitlabUrl, {headers: {Authorization: "Bearer "}})
+        providerAuthorization: selectProviderAuthorization(gitlabUrl, {headers: {Authorization: "Bearer "}}, "managed-addon-update")
     });
     check(calls[0].headers["PRIVATE-TOKEN"] === token && !calls[0].headers.Authorization, "native GitLab fallback retained a competing empty header");
     await gitlabResult.body?.cancel();
@@ -99,7 +111,7 @@ try {
     usageEvents.length = 0;
     steps = [{}];
     const slowbroResult = await nativeFetch({
-        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl)
+        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl, {}, "managed-addon-update")
     });
     check(calls[0].headers.Authorization === `token ${token}`, "Actual Forgejo raw transport did not send the PAT scheme");
     check(usageEvents.length === 0, "Forgejo headers were mistaken for completion");
@@ -109,7 +121,7 @@ try {
     calls.length = 0;
     steps = [{location: "https://codeberg.org/owner/repo/raw/branch/main/Test.plugin.js"}, {}];
     const slowbroRedirect = await nativeFetch({
-        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl)
+        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl, {}, "managed-addon-update")
     });
     check(calls.length === 2 && !calls[1].headers.Authorization, "Slowbro token escaped to another Forgejo host");
     await slowbroRedirect.body?.cancel();
@@ -187,7 +199,7 @@ try {
     const throwingReporter = await nativeFetch({
         ...driedRequest(),
         providerTokenUsage: {
-            purpose: "recognized-self-update",
+            purpose: "managed-addon-update",
             report() {throw new Error("reporter unavailable");}
         }
     });
@@ -217,7 +229,7 @@ try {
 
     const callerToken = "dummy-native-caller-9087";
     steps = [{}];
-    const callerResponse = await nativeFetch({...driedRequest(), headers: {Authorization: `Bearer ${callerToken}`}, providerAuthorization: undefined});
+    const callerResponse = await nativeFetch({...driedRequest(), headers: {Authorization: `Bearer ${callerToken}`}, providerAuthorization: undefined, providerTokenUsage: undefined});
     check(callerResponse.body, "missing caller-auth response body");
     const callerRead = callerResponse.body.read();
     response!.emit("error", new Error(`caller stream error ${callerToken}`));

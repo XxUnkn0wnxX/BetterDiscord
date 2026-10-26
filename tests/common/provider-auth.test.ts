@@ -7,6 +7,24 @@ const release = "https://api.github.com/repos/owner/addon/releases/tags/Nightly-
 afterEach(() => {configureProviderTokens({}); setProviderTokenUseReporter();});
 
 describe("private provider authorization policy", () => {
+    test("requires explicit managed purpose at selection and native header boundaries", () => {
+        const slowbro = "dummy-slowbro-secret-4321";
+        configureProviderTokens({github, gitlab, slowbro});
+        for (const [provider, url] of [
+            ["github", release],
+            ["gitlab", "https://gitlab.com/api/v4/projects/1/releases"],
+            ["slowbro", "https://git.slowb.ro/api/v1/repos/o/r/releases/latest"]
+        ] as const) {
+            expect(selectProviderAuthorization(url)).toBeUndefined();
+            expect(selectProviderAuthorization(url, {}, "recognized-self-update")).toBeUndefined();
+            const managed = selectProviderAuthorization(url, {}, "managed-addon-update")!;
+            expect(managed.provider).toBe(provider);
+            const callerHeaders = {Accept: "application/json", Authorization: "Bearer "};
+            expect(providerHeadersForHop(url, url, {headers: callerHeaders}, {...managed, purpose: "recognized-self-update"})).toEqual(callerHeaders);
+            expect(providerHeadersForHop(url, url, {}, {...managed, purpose: undefined} as unknown as typeof managed)).toEqual({});
+        }
+    });
+
     test("captures one reporter session and keeps addon labels bounded and secret-free", () => {
         const oldEvents: ProviderTokenDiagnostic[] = [];
         const newEvents: ProviderTokenDiagnostic[] = [];
@@ -40,7 +58,7 @@ describe("private provider authorization policy", () => {
             "https://git.slowb.ro/api/v1/repos/o/r/releases/1/assets/2",
             "https://git.slowb.ro/api/v1/repos/o/r/raw/Test.theme.css",
             "https://git.slowb.ro/api/v1/repos/o/r/contents/Test.plugin.js"]) {
-            const snapshot = selectProviderAuthorization(url)!;
+            const snapshot = selectProviderAuthorization(url, {}, "managed-addon-update")!;
             expect(snapshot.provider).toBe("slowbro");
             const headers = providerHeadersForHop(url, url, {}, snapshot);
             expect(headers).toEqual({Authorization: `token ${slowbro}`});
@@ -50,19 +68,19 @@ describe("private provider authorization policy", () => {
             raw.replace("/raw/", "/src/"), raw.replace("MessageLoggerV2.plugin.js", "README.md"),
             "https://git.slowb.ro/api/v1/user", "https://git.slowb.ro/api/v1/repos/o/r/issues",
             raw.replace("https:", "http:"), raw.replace("git.slowb.ro", "git.slowb.ro:444")]) {
-            expect(selectProviderAuthorization(url), url).toBeUndefined();
-            expect(providerHeadersForHop(raw, url, {}, selectProviderAuthorization(raw)), url).toEqual({});
+            expect(selectProviderAuthorization(url, {}, "managed-addon-update"), url).toBeUndefined();
+            expect(providerHeadersForHop(raw, url, {}, selectProviderAuthorization(raw, {}, "managed-addon-update")), url).toEqual({});
         }
-        expect(selectProviderAuthorization(raw, {headers: {Authorization: "token caller-secret"}})).toBeUndefined();
-        expect(selectProviderAuthorization(raw, {method: "POST"})).toBeUndefined();
-        expect(selectProviderAuthorization(raw, {rejectUnauthorized: false})).toBeUndefined();
-        expect(selectProviderAuthorization(`${raw}?token=caller`)).toBeUndefined();
+        expect(selectProviderAuthorization(raw, {headers: {Authorization: "token caller-secret"}}, "managed-addon-update")).toBeUndefined();
+        expect(selectProviderAuthorization(raw, {method: "POST"}, "managed-addon-update")).toBeUndefined();
+        expect(selectProviderAuthorization(raw, {rejectUnauthorized: false}, "managed-addon-update")).toBeUndefined();
+        expect(selectProviderAuthorization(`${raw}?token=caller`, {}, "managed-addon-update")).toBeUndefined();
         expect(redactProviderTokens(slowbro)).toBe("****4321");
         const generation = getProviderTokenGeneration("slowbro");
         configureProviderTokens({github, gitlab});
         expect(getProviderTokenGeneration("slowbro")).toBe(generation + 1);
-        expect(selectProviderAuthorization(raw)).toBeUndefined();
-        expect(selectProviderAuthorization(release)?.token).toBe(github);
+        expect(selectProviderAuthorization(raw, {}, "managed-addon-update")).toBeUndefined();
+        expect(selectProviderAuthorization(release, {}, "managed-addon-update")?.token).toBe(github);
     });
 
     test("normalizes configuration, reports only meaningful changes, and masks short values", () => {
@@ -80,29 +98,30 @@ describe("private provider authorization policy", () => {
         expect(maskProviderToken(github)).toBe("****1234");
     });
 
-    test("recognizes update API reads but leaves general provider traffic anonymous", () => {
+    test("authorizes managed update reads but leaves general provider traffic anonymous", () => {
         configureProviderTokens({github, gitlab});
         const allowed = [
             release, "https://api.github.com/repos/o/r/releases", "https://api.github.com/repos/o/r/releases/latest",
             "https://api.github.com/repos/o/r/releases/42", "https://api.github.com/repos/o/r/releases/42/assets",
             "https://api.github.com/repos/o/r/releases/assets/42", "https://api.github.com/repos/o/r/contents/dir/Addon.plugin.js",
+            "https://api.github.com/gists/abc123", "https://gitlab.com/api/v4/snippets/12",
             "https://gitlab.com/api/v4/projects/group%2Frepo/releases", "https://gitlab.com/api/v4/projects/1/releases/permalink/latest",
             "https://gitlab.com/api/v4/projects/1/releases/v1/assets/links/42",
             "https://gitlab.com/api/v4/projects/1/repository/files/dir%2FTheme.theme.css/raw"
         ];
-        for (const url of allowed) expect(selectProviderAuthorization(url, {method: "HEAD"}), url).toBeDefined();
+        for (const url of allowed) expect(selectProviderAuthorization(url, {method: "HEAD"}, "managed-addon-update"), url).toBeDefined();
         const denied = [
             "https://api.github.com/user", "https://api.github.com/repos/o/r", "https://api.github.com/repos/o/r/issues",
-            "https://api.github.com/search/code", "https://api.github.com/graphql", "https://api.github.com/gists/abc123",
+            "https://api.github.com/search/code", "https://api.github.com/graphql",
             "https://api.github.com/repos/o/r/contents/README.md", "https://raw.githubusercontent.com/o/r/main/A.plugin.js",
             "https://github.com/api/v3/repos/o/r/releases", "https://api.github.com.evil.test/repos/o/r/releases",
-            "https://gitlab.com/api/v4/projects/1", "https://gitlab.com/api/v4/snippets/12", "https://selfhost.test/api/v4/projects/1/releases",
+            "https://gitlab.com/api/v4/projects/1", "https://selfhost.test/api/v4/projects/1/releases",
             "https://gitlab.com/api/v4/projects/1/repository/files/README.md/raw", "https://api.github.com:444/repos/o/r/releases",
             release.replace("https:", "http:"), release.replace("api.github.com", "user:pass@api.github.com")
         ];
-        for (const url of denied) expect(selectProviderAuthorization(url), url).toBeUndefined();
-        expect(selectProviderAuthorization(release, {method: "POST"})).toBeUndefined();
-        expect(selectProviderAuthorization(release, {rejectUnauthorized: false})).toBeUndefined();
+        for (const url of denied) expect(selectProviderAuthorization(url, {}, "managed-addon-update"), url).toBeUndefined();
+        expect(selectProviderAuthorization(release, {method: "POST"}, "managed-addon-update")).toBeUndefined();
+        expect(selectProviderAuthorization(release, {rejectUnauthorized: false}, "managed-addon-update")).toBeUndefined();
         expect(selectProviderAuthorization("https://api.github.com/gists/abc123", {}, "managed-addon-update")?.provider).toBe("github");
         expect(selectProviderAuthorization("https://gitlab.com/api/v4/projects/a%2Fb/snippets/12", {}, "managed-addon-update")?.provider).toBe("gitlab");
     });
@@ -111,31 +130,31 @@ describe("private provider authorization policy", () => {
         configureProviderTokens({github, gitlab});
         const callerHeaders: Array<Record<string, string>> = [{Authorization: "Bearer caller"}, {authorization: "invalid-but-nonempty"}, {"PRIVATE-TOKEN": "caller"}, {"Job-Token": "caller"}, {"PRIVATE-TOKEN": "token"}, {"JOB-TOKEN": "Basic"}];
         for (const headers of callerHeaders) {
-            expect(selectProviderAuthorization(release, {headers})).toBeUndefined();
-            expect(providerHeadersForHop(release, release, {headers}, selectProviderAuthorization(release))).toEqual(headers);
+            expect(selectProviderAuthorization(release, {headers}, "managed-addon-update")).toBeUndefined();
+            expect(providerHeadersForHop(release, release, {headers}, selectProviderAuthorization(release, {}, "managed-addon-update"))).toEqual(headers);
         }
         for (const key of ["access_token", "PRIVATE-TOKEN", "auth", "api_key"]) {
-            expect(selectProviderAuthorization(`${release}?${key}=caller`)).toBeUndefined();
+            expect(selectProviderAuthorization(`${release}?${key}=caller`, {}, "managed-addon-update")).toBeUndefined();
         }
         for (const value of ["", "  ", "Bearer", "token", "Basic"]) {
             const headers = {Authorization: value, Accept: "application/json"};
-            const snapshot = selectProviderAuthorization(release, {headers});
+            const snapshot = selectProviderAuthorization(release, {headers}, "managed-addon-update");
             expect(providerHeadersForHop(release, release, {headers}, snapshot)).toEqual({"Accept": "application/json", "Authorization": `Bearer ${github}`, "User-Agent": "BetterDiscord"});
             expect(headers.Authorization).toBe(value);
         }
         const url = "https://gitlab.com/api/v4/projects/1/releases";
         const headers = {Authorization: "Bearer "};
-        expect(providerHeadersForHop(url, url, {headers}, selectProviderAuthorization(url, {headers}))).toEqual({"PRIVATE-TOKEN": gitlab});
-        expect(selectProviderAuthorization(`${release}?token=`)).toBeDefined();
-        expect(selectProviderAuthorization(`${release}?access_token=Bearer`)).toBeUndefined();
+        expect(providerHeadersForHop(url, url, {headers}, selectProviderAuthorization(url, {headers}, "managed-addon-update"))).toEqual({"PRIVATE-TOKEN": gitlab});
+        expect(selectProviderAuthorization(`${release}?token=`, {}, "managed-addon-update")).toBeDefined();
+        expect(selectProviderAuthorization(`${release}?access_token=Bearer`, {}, "managed-addon-update")).toBeUndefined();
         const rawBlank = {"PRIVATE-TOKEN": "  ", "JOB-TOKEN": " "};
-        expect(providerHeadersForHop(url, url, {headers: rawBlank}, selectProviderAuthorization(url, {headers: rawBlank}))).toEqual({"PRIVATE-TOKEN": gitlab});
+        expect(providerHeadersForHop(url, url, {headers: rawBlank}, selectProviderAuthorization(url, {headers: rawBlank}, "managed-addon-update"))).toEqual({"PRIVATE-TOKEN": gitlab});
         expect(rawBlank).toEqual({"PRIVATE-TOKEN": "  ", "JOB-TOKEN": " "});
     });
 
     test("classifies eligible anonymous requests without requiring configured credentials", () => {
         configureProviderTokens({});
-        expect(selectProviderAuthorization(release)).toBeUndefined();
+        expect(selectProviderAuthorization(release, {}, "managed-addon-update")).toBeUndefined();
         expect(getProviderForUpdateRequest(release)).toBe("github");
         expect(getProviderForUpdateRequest("https://gitlab.com/api/v4/projects/1/releases")).toBe("gitlab");
         expect(getProviderForUpdateRequest("https://api.github.com/gists/abc123")).toBeNull();
@@ -146,7 +165,7 @@ describe("private provider authorization policy", () => {
 
     test("adds GitHub's required user agent only when generating its authorization", () => {
         configureProviderTokens({github});
-        const snapshot = selectProviderAuthorization(release);
+        const snapshot = selectProviderAuthorization(release, {}, "managed-addon-update");
         const headers = {"user-agent": "Plugin Update Check"};
         expect(providerHeadersForHop(release, release, {headers}, snapshot)).toEqual({...headers, Authorization: `Bearer ${github}`});
         expect(headers).toEqual({"user-agent": "Plugin Update Check"});
@@ -181,7 +200,7 @@ describe("private provider authorization policy", () => {
 
     test("requires original and current safe endpoints and never forwards generated credentials", () => {
         configureProviderTokens({github});
-        const snapshot = selectProviderAuthorization(release)!;
+        const snapshot = selectProviderAuthorization(release, {}, "managed-addon-update")!;
         const headers = {Accept: "application/json"};
         for (const next of [release.replace("api.github.com", "raw.githubusercontent.com"), release.replace("https:", "http:"), "https://api.github.com/user", `${release}?access_token=caller`]) {
             expect(providerHeadersForHop(release, next, {headers}, snapshot)).toEqual(headers);

@@ -173,6 +173,7 @@ export function getProviderForUpdateRequest(input: string, policy: ProviderReque
 
 /** Capture once, before crossing the renderer/native boundary or changing settings. */
 export function selectProviderAuthorization(url: string, policy: ProviderRequestPolicy = {}, purpose: ProviderAuthorizationPurpose = "recognized-self-update"): ProviderAuthorization | undefined {
+    if (purpose !== "managed-addon-update") return undefined;
     const provider = eligibleProvider(url, purpose, policy);
     if (!provider || !tokens[provider]) return undefined;
     return {provider, token: tokens[provider], purpose};
@@ -181,7 +182,7 @@ export function selectProviderAuthorization(url: string, policy: ProviderRequest
 /** Always copy caller headers. Generated credentials exist only on an eligible native hop. */
 export function providerHeadersForHop(originalUrl: string, currentUrl: string, policy: ProviderRequestPolicy, authorization?: ProviderAuthorization): Record<string, string> {
     const headers = {...policy.headers};
-    if (!authorization || !normalizeProviderToken(authorization.token) || normalizeProviderToken(authorization.token) !== authorization.token) return headers;
+    if (!authorization || authorization.purpose !== "managed-addon-update" || !normalizeProviderToken(authorization.token) || normalizeProviderToken(authorization.token) !== authorization.token) return headers;
     const {provider, purpose, token} = authorization;
     if (eligibleProvider(originalUrl, purpose, policy) !== provider || eligibleProvider(currentUrl, purpose, policy) !== provider) return headers;
     if (new URL(originalUrl).origin !== new URL(currentUrl).origin) return headers;
