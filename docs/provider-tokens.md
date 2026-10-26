@@ -158,10 +158,11 @@ With **Developer Settings → Debug Logs** enabled, console and `debug.log` reco
 | Event | Level | Details |
 | --- | --- | --- |
 | Validation starts/passes | Info | Provider, setup/reactive trigger and masked token |
-| Validation fails | Warning | Fixed invalid, permission or temporary-failure reason |
+| Validation fails | Info | Fixed invalid, permission or temporary-failure reason |
 | Authenticated request completes successfully | Info | Calling addon, main provider hostname, token source and masked suffix |
 
 - Show only the final four token characters; short values are fully masked.
+- Routine outcomes stay on one line; actual exceptions retain normal error logging and stacks.
 - Successful-use means an HTTP 2xx/304 response completed, not that an addon was installed.
 - Attribution uses the managed addon or actual plugin source frame. A calling library identifies the library; unavailable attribution is **unknown addon**.
 - No full request URLs, response bodies or raw credentials in these entries.

@@ -65,7 +65,7 @@ export default new class DebugLogs extends Builtin {
                 return;
             }
             if (event.result === "valid") Logger.info("ProviderTokens", `${caller}${provider} token validation succeeded (${trigger}, ${event.maskedToken}).`);
-            else Logger.warn("ProviderTokens", `${caller}${provider} token validation failed (${trigger}, ${event.result}, ${event.maskedToken}).`);
+            else Logger.info("ProviderTokens", `${caller}${provider} token validation failed (${trigger}, ${event.result}, ${event.maskedToken}).`);
         });
     }
 

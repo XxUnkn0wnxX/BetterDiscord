@@ -163,7 +163,7 @@ const fetchGate = Promise.withResolvers<void>();
 fetchImplementation = async (url, init) => {
     fetchCalls++;
     if (url !== declaredUrl) throw new Error(`Unexpected source request: ${url}`);
-    if (init?.maxResponseBytes !== 16 * 1024 * 1024 || init?.httpsOnly !== true) {
+    if (init?.maxResponseBytes !== 16 * 1024 * 1024 || init?.httpsOnly !== true || init?.timeout !== 30_000) {
         throw new Error("Updater response guards were not passed to native fetch.");
     }
     await fetchGate.promise;

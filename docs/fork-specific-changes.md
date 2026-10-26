@@ -113,9 +113,10 @@ saved log together:
   filename, a fixed provider hostname, token source and masked suffix. Unknown
   callers stay unknown; a library frame identifies that library. HTTP success
   does not establish successful addon validation or installation.
-- Actual setup/reactive probes log progress and successful validation at Info;
-  invalid, missing-permission and temporary results use Warning. Cancelled
-  results, anonymous usage and disabled capture stay silent.
+- Actual setup/reactive probes log progress and all expected results at Info,
+  including invalid, missing-permission and temporary outcomes. These remain
+  single-line status messages; actual exceptions retain normal error/stack
+  diagnostics. Cancelled results, anonymous usage and disabled capture stay silent.
 - Capture the actual reporter callback at operation start and carry it into
   reactive validation. A request from before disable/re-enable cannot enter the
   new debug session. Coalesced checks retain their initiating context.
@@ -2054,8 +2055,8 @@ Stage 5 takes upstream's shared native-fetch transport as one atomic change:
   per-redirect webhook blocking, redirect limits, and TLS verification remain.
 - The default timeout moves from three to eight seconds.
 - `timeout: null` explicitly disables the timeout. The shared catalogue retains
-  its finite 30-second inactivity timeout, while Stage 7B addon and descriptor
-  requests use their own finite limits.
+  its finite 30-second inactivity timeout. Managed addon and descriptor requests
+  also use 30 seconds.
 
 Intentional divergence from upstream `44e21745`:
 

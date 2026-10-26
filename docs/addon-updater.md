@@ -75,7 +75,7 @@ and project information; it is not a download fallback.**
 
 | Limit | Value |
 | --- | --- |
-| Request timeout / redirects | 15 seconds / 5 HTTPS hops |
+| Request timeout / redirects | 30 seconds / 5 HTTPS hops |
 | Source file / descriptor JSON | 16 MiB / 2 MiB |
 | Raw request concurrency | 3 overall, 2 per origin |
 | Descriptor requests | Serialized; at most 5 pages |

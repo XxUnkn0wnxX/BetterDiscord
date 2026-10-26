@@ -18,10 +18,10 @@ let validationStatus = 200;
 let malformedValidation = false;
 let validationNetworkError = false;
 let missingGitLabScope = false;
-const originalConsoles = {info: console.info, warn: console.warn, debug: console.debug};
+const originalConsoles = {info: console.info, warn: console.warn, debug: console.debug, error: console.error};
 const originalHttpsRequest = https.request;
 const originalHttpRequest = http.request;
-for (const level of ["info", "warn", "debug"] as const) console[level] = (...args) => {consoleLines.push({level, args});};
+for (const level of ["info", "warn", "debug", "error"] as const) console[level] = (...args) => {consoleLines.push({level, args});};
 
 mock.module("@structs/builtin", () => ({"default": class {
     get<T>(): T {return loggingEnabled as T;}
@@ -67,7 +67,7 @@ queueMicrotask(() => {
             if (request.destroyed) return;
             request.emit("finish");
             const validation = /\/(?:rate_limit|user)$/.test(url);
-            if (validation && validationNetworkError) {request.emit("error", new Error("Private provider transport failure")); return;}
+            if (validation && validationNetworkError) {request.destroy(new Error("Private provider transport failure")); return;}
             const data = missingGitLabScope ? {error: "insufficient_granular_scope"}
                 : url.includes("rate_limit") ? {resources: {core: {limit: 5000, remaining: 10, reset: 123}}} : {id: 12, username: "dummy"};
             const status = validation ? validationStatus : 204;
@@ -88,6 +88,7 @@ queueMicrotask(() => {
 http.request = https.request;
 
 const {default: DebugLogs} = await import("../../../src/betterdiscord/builtins/developer/debuglogs");
+const {default: Logger} = await import("../../../src/common/logger");
 const {default: Net} = await import("../../../src/betterdiscord/api/net");
 const {fetchAddonUpdate} = await import("../../../src/betterdiscord/modules/net");
 const {validateProviderToken} = await import("../../../src/betterdiscord/modules/provider-token-validation");
@@ -147,24 +148,25 @@ try {
     for (const status of [200, 401, 403, 429, 500]) {
         validationStatus = status;
         const before = lineCount();
-        const result = await validateProviderToken("github", longToken, new AbortController().signal);
+        await validateProviderToken("github", longToken, new AbortController().signal);
         assert(lineCount() === before + 2 && consoleLines[before].level === "info", "Each actual validation should emit one start and one settled result.");
-        assert(consoleLines[before + 1].level === (result.status === "valid" ? "info" : "warn"), "Validation success/failure level is incorrect.");
+        assert(consoleLines[before + 1].level === "info", "Expected validation outcomes must stay at Info without warning stack expansion.");
         assert(text().includes("token validation started (setup, ****3456)"), "Validation start omitted its trigger or masked suffix.");
     }
     validationStatus = 200;
     malformedValidation = true;
     await validateProviderToken("github", longToken, new AbortController().signal);
-    assert(consoleLines.at(-1)?.level === "warn" && text().includes("setup, response, ****3456"), "Malformed validation must produce a fixed Warn reason.");
+    assert(consoleLines.at(-1)?.level === "info" && text().includes("setup, response, ****3456"), "Malformed validation must produce a concise Info reason.");
     malformedValidation = false;
     validationNetworkError = true;
     await validateProviderToken("github", longToken, new AbortController().signal);
-    assert(consoleLines.at(-1)?.level === "warn" && text().includes("setup, network, ****3456") && !text().includes("Private provider"), "Network validation failure must report a fixed Warn reason without its error text.");
+    assert(consoleLines.at(-1)?.level === "info" && text().includes("setup, network, ****3456") && !text().includes("Private provider"), "Network validation failure must report a concise Info reason without its error text.");
     validationNetworkError = false;
     validationStatus = 403;
     missingGitLabScope = true;
     await validateProviderToken("gitlab", "unconfigured-fine-grained-1234", new AbortController().signal);
-    assert(consoleLines.at(-1)?.level === "warn" && text().includes("setup, missing-permissions, ****1234"), "Confirmed missing permissions must be reported at Warn.");
+    assert(consoleLines.at(-1)?.level === "info" && text().includes("setup, missing-permissions, ****1234"), "Confirmed missing permissions must be reported at Info.");
+    assert(writes.some(value => value.includes("[CONSOLE:INFO]") && value.includes("setup, missing-permissions, ****1234")), "Routine validation failure did not reach the saved log at Info.");
     missingGitLabScope = false;
     validationStatus = 200;
     const beforeLocal = lineCount();
@@ -199,6 +201,13 @@ try {
     holdCompletion = false;
     await api.fetch(release);
     assert(lineCount() === baseline + 1, "The current logging session failed to report a completed request.");
+
+    assert(consoleLines.every(line => line.level === "info" && !line.args.some(arg => arg instanceof Error)), "Routine token diagnostics must be plain Info messages without error objects.");
+    const hardError = new Error("Unexpected token worker failure");
+    hardError.stack = "Error: Unexpected token worker failure\n    at tokenWorker (fixture.js:1:1)";
+    Logger.stacktrace("ProviderTokens", "Unexpected failure", hardError);
+    assert(consoleLines.at(-1)?.level === "error" && consoleLines.at(-1)?.args.includes(hardError), "Actual hard errors must retain their error object and stack.");
+    assert(writes.some(value => value.includes("[CONSOLE:ERROR]") && value.includes(hardError.stack!)), "Hard-error stack did not reach the saved debug log.");
 
     let finishOldEnable: (() => void) | undefined;
     const streamBaseline = streamsCreated;
