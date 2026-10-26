@@ -4,8 +4,8 @@ TypeScript type definitions for the
 [BetterDiscord fork](https://github.com/XxUnkn0wnxX/BetterDiscord) plugin API
 (`BdApi`).
 
-These types are generated from the BetterDiscord source and describe the global `BdApi` object,
-the `window.BdApi` augmentation, and the `BetterDiscord` namespace available to plugins.
+Generated from BetterDiscord source, these types describe the global `BdApi`
+object, the `window.BdApi` augmentation, and the `BetterDiscord` namespace.
 
 ## Installation
 
@@ -13,12 +13,12 @@ the `window.BdApi` augmentation, and the `BetterDiscord` namespace available to 
 npm install --save-dev @betterdiscord/types
 ```
 
-The package declares related type packages (`@types/react`, `@types/react-dom`,
-`@types/react-reconciler`) as dependencies, so they will be installed alongside it.
+The package includes `@types/react`, `@types/react-dom`, and
+`@types/react-reconciler` as dependencies.
 
 ## Usage
 
-Add the types to your `tsconfig.json` so they are picked up globally:
+Add the package to `tsconfig.json` to load the types globally:
 
 ```jsonc
 {
@@ -34,8 +34,8 @@ Or reference them directly from a source file:
 /// <reference types="@betterdiscord/types" />
 ```
 
-Once referenced, `BdApi` and the `BetterDiscord` namespace are available globally with full
-type information:
+After referencing the package, `BdApi` and `BetterDiscord` are available
+globally with full type information:
 
 ```ts
 const { Webpack, Patcher } = new BdApi("MyPlugin");
@@ -43,8 +43,8 @@ const { Webpack, Patcher } = new BdApi("MyPlugin");
 
 ## Versioning
 
-This package is versioned independently of BetterDiscord itself. Type changes follow semver
-based on the shape of the API surface, not the BetterDiscord release version.
+This package is versioned independently from BetterDiscord. Type changes follow
+semver for the API shape, not the BetterDiscord release version.
 
 ## License
 

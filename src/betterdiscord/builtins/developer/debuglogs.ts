@@ -6,7 +6,7 @@ import Config from "@stores/config";
 import {t} from "@common/i18n";
 
 import Modals from "@ui/modals";
-import {providerNames, redactProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
+import {providerHosts, redactProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
 import Logger from "@common/logger";
 
 
@@ -52,9 +52,20 @@ export default new class DebugLogs extends Builtin {
         }
         setProviderTokenUseReporter(event => {
             if (revision !== this.captureRevision || !this.get<boolean>("debugLogs")) return;
-            const provider = providerNames[event.provider];
-            const source = event.source === "betterdiscord" ? "BetterDiscord token" : "a supplied token";
-            Logger.debug("ProviderTokens", `${provider} addon update used ${source} ${event.maskedToken}.`);
+            const provider = providerHosts[event.provider];
+            if (event.kind === "update-success") {
+                const source = event.source === "betterdiscord" ? "BetterDiscord token" : "a supplied token";
+                Logger.info("ProviderTokens", `${event.addon}: ${provider} update request succeeded (HTTP ${event.status}) using ${source} ${event.maskedToken}.`);
+                return;
+            }
+            const trigger = event.trigger === "setup" ? "setup" : "update rejection";
+            const caller = event.addon ? `${event.addon}: ` : "";
+            if (event.kind === "validation-start") {
+                Logger.info("ProviderTokens", `${caller}${provider} token validation started (${trigger}, ${event.maskedToken}).`);
+                return;
+            }
+            if (event.result === "valid") Logger.info("ProviderTokens", `${caller}${provider} token validation succeeded (${trigger}, ${event.maskedToken}).`);
+            else Logger.warn("ProviderTokens", `${caller}${provider} token validation failed (${trigger}, ${event.result}, ${event.maskedToken}).`);
         });
     }
 

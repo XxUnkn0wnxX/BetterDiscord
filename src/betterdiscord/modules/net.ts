@@ -1,12 +1,13 @@
 import {dryReadableStream, hydrateReadableStream, type DriedAbortSignal, type DriedResponse, type NativeRequestInit, type NativeRequestMethod} from "@common/native-fetch";
 import Remote from "../polyfill/remote";
-import {getProviderTokenGeneration, hasProviderTokenUseReporter, providerHeadersForHop, providerTokenUseForHop, reportProviderTokenUse, sanitizeProviderError, selectProviderAuthorization, type ProviderAuthorization, type ProviderAuthorizationPurpose} from "@common/provider-auth";
+import {captureProviderTokenReporter, getProviderTokenGeneration, providerAddonFromStack, providerHeadersForHop, providerTokenUseForHop, sanitizeProviderAddonLabel, sanitizeProviderError, selectProviderAuthorization, type ProviderAuthorization, type ProviderAuthorizationPurpose, type ProviderTokenOperation} from "@common/provider-auth";
 
 const MAX_DEFAULT_REDIRECTS = 20;
 
 export interface ProviderTokenFailure {
     authorization: ProviderAuthorization;
     generation: number;
+    operation: ProviderTokenOperation;
 }
 
 let tokenFailureHandler: ((failure: ProviderTokenFailure) => Promise<void>) | undefined;
@@ -66,11 +67,11 @@ export async function fetch(input: string | URL | Request, init?: NativeRequestI
 }
 
 /** Internal managed updater lane; this is deliberately absent from BdApi.Net. */
-export async function fetchAddonUpdate(input: string | URL | Request, init?: NativeRequestInit) {
-    return fetchWithPurpose(input, init, "managed-addon-update");
+export async function fetchAddonUpdate(input: string | URL | Request, init?: NativeRequestInit, addon?: string) {
+    return fetchWithPurpose(input, init, "managed-addon-update", addon);
 }
 
-async function fetchWithPurpose(input: string | URL | Request, init: NativeRequestInit | undefined, purpose: ProviderAuthorizationPurpose) {
+async function fetchWithPurpose(input: string | URL | Request, init: NativeRequestInit | undefined, purpose: ProviderAuthorizationPurpose, addon?: string) {
     let request: Request;
     if (input instanceof URL) {
         request = new Request(input.href, init);
@@ -94,6 +95,11 @@ async function fetchWithPurpose(input: string | URL | Request, init: NativeReque
     const providerGeneration = providerAuthorization ? getProviderTokenGeneration(providerAuthorization.provider) : undefined;
     const callerToken = providerTokenUseForHop(request.url, request.url, policy, purpose)?.token;
     const capturedTokens = providerAuthorization ? [providerAuthorization.token] : callerToken ? [callerToken] : [];
+    const report = captureProviderTokenReporter();
+    const operation: ProviderTokenOperation = {
+        report,
+        addon: sanitizeProviderAddonLabel(addon ?? (report && capturedTokens.length ? providerAddonFromStack(new Error().stack, capturedTokens) : undefined), capturedTokens)
+    };
     const driedResponse = await Remote.nativeFetch({
         url: request.url,
 
@@ -112,14 +118,14 @@ async function fetchWithPurpose(input: string | URL | Request, init: NativeReque
         httpsOnly: init?.httpsOnly,
         rejectUnauthorized: init?.rejectUnauthorized ?? true,
         providerAuthorization,
-        providerTokenUsage: hasProviderTokenUseReporter() ? {purpose, report: reportProviderTokenUse} : undefined
+        providerTokenUsage: report ? {purpose, addon: operation.addon, report} : undefined
     }).catch(error => {throw sanitizeProviderError(error, capturedTokens);});
 
     if (driedResponse.status === 401 && providerAuthorization && providerGeneration !== undefined && tokenFailureHandler) {
         const finalHeaders = providerHeadersForHop(request.url, driedResponse.url, policy, providerAuthorization);
         const usage = providerTokenUseForHop(request.url, driedResponse.url, {...policy, headers: finalHeaders}, purpose, providerAuthorization);
         if (usage?.event.source === "betterdiscord") {
-            try {await tokenFailureHandler({authorization: providerAuthorization, generation: providerGeneration});}
+            try {await tokenFailureHandler({authorization: providerAuthorization, generation: providerGeneration, operation});}
             catch {/* Credential maintenance must not replace the original response. */}
         }
     }

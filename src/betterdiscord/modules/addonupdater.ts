@@ -526,7 +526,7 @@ async function recordProviderRateLimit(response: Response, context: ProviderRequ
     });
 }
 
-async function providerFetch(url: string, init: Parameters<typeof fetchAddonUpdate>[1] = {}): Promise<Response> {
+async function providerFetch(url: string, init: Parameters<typeof fetchAddonUpdate>[1] = {}, addon?: string): Promise<Response> {
     const initialOrigin = getAddonUpdateOrigin(url);
     if (!initialOrigin) throw new AddonUpdateError("unsafe", "The update source is not a safe HTTPS URL.");
 
@@ -546,7 +546,7 @@ async function providerFetch(url: string, init: Parameters<typeof fetchAddonUpda
                 timeout: init.timeout ?? ADDON_DOWNLOAD_TIMEOUT_MS,
                 maxRedirects: init.maxRedirects ?? MAX_ADDON_REDIRECTS,
                 httpsOnly: true
-            });
+            }, addon);
             assertCurrentGeneration(context.generation, result);
             responseContexts.set(result, context);
             if (isAddonUpdateRateLimitResponse(result.status, result.headers)) return recordProviderRateLimit(result, context);
@@ -661,7 +661,7 @@ function getDescriptorNextPage(value: unknown, currentUrl: string): string | nul
     }
 }
 
-async function fetchDescriptorJson(url: string): Promise<unknown> {
+async function fetchDescriptorJson(url: string, addon?: string): Promise<unknown> {
     const response = await providerFetch(url, {
         headers: {
             "Accept": "application/json",
@@ -669,7 +669,7 @@ async function fetchDescriptorJson(url: string): Promise<unknown> {
             "User-Agent": "BetterDiscord Addon Updater"
         },
         maxResponseBytes: DESCRIPTOR_LIMIT_BYTES
-    });
+    }, addon);
     assertCurrentResponse(response);
     if (response.status === 404 || response.status === 410) throw new AddonUpdateError("not-found", "The declared update source does not exist.", {silent: true});
     if (!response.ok) {
@@ -688,16 +688,16 @@ async function fetchDescriptorJson(url: string): Promise<unknown> {
     }
 }
 
-async function resolveDescriptor(descriptor: AddonUpdateDescriptor): Promise<NormalizedAddonUpdateUrl> {
+async function resolveDescriptor(descriptor: AddonUpdateDescriptor, addon?: string): Promise<NormalizedAddonUpdateUrl> {
     return queueDescriptorRequest(async () => {
-        let json = await fetchDescriptorJson(descriptor.apiUrl);
+        let json = await fetchDescriptorJson(descriptor.apiUrl, addon);
         const files = collectDescriptorFiles(json, descriptor);
 
         if (descriptor.kind === "bitbucket-snippet" && files.length === 0) {
             let pageUrl: string | null = getNestedString(json, "links", "files", "href") ?? appendApiPath(descriptor.apiUrl, "files");
             let pageCount = 0;
             while (pageUrl && pageCount < MAX_DESCRIPTOR_PAGES) {
-                json = await fetchDescriptorJson(pageUrl);
+                json = await fetchDescriptorJson(pageUrl, addon);
                 files.push(...collectDescriptorFiles(json, descriptor));
                 pageCount++;
                 pageUrl = getDescriptorNextPage(json, pageUrl);
@@ -724,12 +724,12 @@ async function resolveDescriptor(descriptor: AddonUpdateDescriptor): Promise<Nor
 async function resolveUpdateUrl(input: string, filename: string): Promise<NormalizedAddonUpdateUrl> {
     const normalized = normalizeAddonUpdateUrl(input, {expectedFilename: filename});
     if (!normalized.valid) throw new AddonUpdateError("unsafe", `The declared update URL was rejected (${normalized.reason}).`);
-    if (normalized.resolution === "descriptor") return resolveDescriptor(normalized.descriptor!);
+    if (normalized.resolution === "descriptor") return resolveDescriptor(normalized.descriptor!, filename);
     if (!normalized.fetchUrl) throw new AddonUpdateError("invalid", "The update source did not resolve to an addon file.");
     return normalized;
 }
 
-async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useValidators: boolean; generation?: ProviderGeneration;}): Promise<RawFetchResult> {
+async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useValidators: boolean; generation?: ProviderGeneration; addon?: string;}): Promise<RawFetchResult> {
     const generation = options.generation ?? captureProviderContext(fetchUrl).generation;
     assertCurrentGeneration(generation);
     const requestGeneration = generationKey(generation);
@@ -765,7 +765,7 @@ async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useV
         const response = await providerFetch(fetchUrl, {
             headers,
             maxResponseBytes: ADDON_DOWNLOAD_LIMIT_BYTES
-        });
+        }, options.addon);
         assertCurrentGeneration(generation, response);
 
         if (response.status === 404 || response.status === 410) {
@@ -1039,7 +1039,7 @@ async function inspectDeclaredUrl(
             };
         }
 
-        const raw = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: true, generation});
+        const raw = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: true, generation, addon: addon.filename});
         assertCurrentGeneration(generation);
         if (raw.kind === "not-found") {
             addonState.negativeLookupUntil = getNegativeLookupUntil(Date.now(), MISSING_SOURCE_COOLDOWN_MS);
@@ -1056,7 +1056,7 @@ async function inspectDeclaredUrl(
                 return {candidate: cached, settled: true};
             }
 
-            const refreshed = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: false, generation});
+            const refreshed = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: false, generation, addon: addon.filename});
             assertCurrentGeneration(generation);
             if (refreshed.kind !== "body") return {candidate: null, settled: refreshed.kind === "not-found"};
             delete addonState.negativeLookupUntil;
@@ -1169,8 +1169,8 @@ async function materializeCandidate(addon: Addon, candidate: Candidate): Promise
     }
     assertCurrentGeneration(generation);
 
-    let raw = await fetchRawBody(normalized.fetchUrl, {useMemory: true, useValidators: true, generation});
-    if (raw.kind === "not-modified") raw = await fetchRawBody(normalized.fetchUrl, {useMemory: false, useValidators: false, generation});
+    let raw = await fetchRawBody(normalized.fetchUrl, {useMemory: true, useValidators: true, generation, addon: addon.filename});
+    if (raw.kind === "not-modified") raw = await fetchRawBody(normalized.fetchUrl, {useMemory: false, useValidators: false, generation, addon: addon.filename});
     assertCurrentGeneration(generation);
     if (raw.kind === "not-found") throw new AddonUpdateError("not-found", "The selected update source no longer exists.", {silent: true});
     if (raw.kind !== "body") throw new AddonUpdateError("invalid", "The selected update source returned no addon body.");

@@ -2,6 +2,7 @@
 export const tokenProviders = ["github", "gitlab", "slowbro"] as const;
 export type TokenProvider = typeof tokenProviders[number];
 export const providerNames: Record<TokenProvider, string> = {github: "GitHub", gitlab: "GitLab", slowbro: "git.slowb.ro"};
+export const providerHosts: Record<TokenProvider, string> = {github: "github.com", gitlab: "gitlab.com", slowbro: "git.slowb.ro"};
 export type ProviderAuthorizationPurpose = "managed-addon-update" | "recognized-self-update";
 export interface ProviderAuthorization {
     provider: TokenProvider;
@@ -19,9 +20,29 @@ export interface ProviderTokenUse {
     maskedToken: string;
 }
 
-let tokenUseReporter: ((event: ProviderTokenUse) => void) | undefined;
+export interface ProviderTokenSuccess extends ProviderTokenUse {
+    kind: "update-success";
+    addon: string;
+    status: number;
+}
+export type ProviderValidationReason = "valid" | "invalid" | "missing-permissions" | "permission-denied" | "rate-limit" | "network" | "response";
+export type ProviderTokenDiagnostic = ProviderTokenSuccess | {
+    kind: "validation-start" | "validation-result";
+    provider: TokenProvider;
+    trigger: "setup" | "revalidation";
+    maskedToken: string;
+    addon?: string;
+    result?: ProviderValidationReason;
+};
+export type ProviderTokenReporter = (event: ProviderTokenDiagnostic) => void;
+export interface ProviderTokenOperation {
+    report?: ProviderTokenReporter;
+    addon: string;
+}
 
-export function setProviderTokenUseReporter(reporter?: (event: ProviderTokenUse) => void): void {
+let tokenUseReporter: ProviderTokenReporter | undefined;
+
+export function setProviderTokenUseReporter(reporter?: ProviderTokenReporter): void {
     tokenUseReporter = reporter;
 }
 
@@ -29,9 +50,30 @@ export function hasProviderTokenUseReporter(): boolean {
     return tokenUseReporter !== undefined;
 }
 
-export function reportProviderTokenUse(event: ProviderTokenUse): void {
-    try {tokenUseReporter?.(event);}
-    catch {/* Reporting must never change a network request's outcome. */}
+/** Retain this operation's capture session, even if logging is disabled and re-enabled. */
+export function captureProviderTokenReporter(): ProviderTokenReporter | undefined {
+    const reporter = tokenUseReporter;
+    if (!reporter) return;
+    return event => {
+        try {reporter(event);}
+        catch {/* Reporting must never change a network request's outcome. */}
+    };
+}
+
+export function sanitizeProviderAddonLabel(value: unknown, capturedTokens: readonly string[] = []): string {
+    if (typeof value !== "string") return "unknown addon";
+    const redacted = redactProviderTokens(value, capturedTokens);
+    // Labels are names, never paths, URLs or stack fragments.
+    if (/[\\/:\r\n]/.test(redacted)) return "unknown addon";
+    // eslint-disable-next-line no-control-regex -- Remove controls and directional overrides from names.
+    return redacted.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "").trim().slice(0, 120) || "unknown addon";
+}
+
+/** The first actual plugin source frame identifies a library when it owns the call. */
+export function providerAddonFromStack(stack: unknown, capturedTokens: readonly string[] = []): string {
+    if (typeof stack !== "string") return "unknown addon";
+    const match = /betterdiscord:\/\/(?:betterdiscord\/)?plugins\/([^/\r\n]+?\.plugin\.js)(?=[:)\s]|$)/.exec(stack);
+    return match ? sanitizeProviderAddonLabel(match[1], capturedTokens) : "unknown addon";
 }
 
 const tokens: Record<TokenProvider, string> = {github: "", gitlab: "", slowbro: ""};

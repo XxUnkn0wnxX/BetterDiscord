@@ -4,7 +4,7 @@ import {EyeIcon, EyeOffIcon} from "lucide-react";
 import {getProviderTokenGeneration, normalizeProviderToken, type TokenProvider} from "@common/provider-auth";
 import {t} from "@common/i18n";
 import Events from "@modules/emitter";
-import {validateProviderToken, type ProviderTokenValidationResult} from "@modules/provider-token-validation";
+import {validateProviderToken, type MissingProviderPermission, type ProviderTokenValidationResult} from "@modules/provider-token-validation";
 import {showProviderTokenPermissionWarning} from "@modules/provider-token-notices";
 import SettingsStore from "@stores/settings";
 import Button from "@ui/base/button";
@@ -22,6 +22,7 @@ interface NativeTextInputProps {
     autoComplete: string;
     spellCheck: boolean;
     inputRef: React.Ref<HTMLInputElement>;
+    focusProps: {ringClassName?: string};
     onChange(value: string, name?: string): void;
 }
 
@@ -34,7 +35,7 @@ type DraftStatus =
     | {kind: "idle"}
     | {kind: "pending"}
     | {kind: "invalid"}
-    | {kind: "unavailable"; reason: Extract<ProviderTokenValidationResult, {status: "unavailable"}>["reason"]};
+    | {kind: "unavailable"; reason: Extract<ProviderTokenValidationResult, {status: "unavailable"}>["reason"]; missingPermission?: MissingProviderPermission};
 
 function getStatusMessage(status: DraftStatus) {
     if (status.kind === "pending") return t("ProviderTokens.checking");
@@ -192,7 +193,7 @@ export default function ProviderToken(props: ProviderTokenProps) {
                 setStatus({kind: "invalid"});
                 return;
             }
-            setStatus({kind: "unavailable", reason: result.reason});
+            setStatus({kind: "unavailable", reason: result.reason, missingPermission: result.missingPermission});
             if (result.reason === "permission" && result.missingPermission) {
                 showProviderTokenPermissionWarning(id, result.missingPermission);
             }
@@ -210,6 +211,7 @@ export default function ProviderToken(props: ProviderTokenProps) {
     const Icon = revealed ? EyeOffIcon : EyeIcon;
     const toggleProps = {"aria-label": label, "aria-pressed": revealed};
     const message = getStatusMessage(status);
+    const hasError = status.kind === "invalid" || status.kind === "unavailable" && !!status.missingPermission;
     const retry = () => {
         retryRevision.current = revision.current;
         setStatus({kind: "pending"});
@@ -222,19 +224,23 @@ export default function ProviderToken(props: ProviderTokenProps) {
         </div>;
     }
 
-    return <div className="bd-provider-token-control">
-        <NativeTextInput
-            id={id}
-            value={draft}
-            type={revealed ? "text" : "password"}
-            error={message}
-            disabled={disabled}
-            maxLength={1024}
-            autoComplete="off"
-            spellCheck={false}
-            inputRef={inputRef}
-            onChange={handleChange}
-        />
+    return <div className={`bd-provider-token-control${status.kind === "pending" ? " bd-provider-token-pending" : ""}`}>
+        <div className="bd-provider-token-input">
+            <NativeTextInput
+                id={id}
+                value={draft}
+                type={revealed ? "text" : "password"}
+                error={hasError ? message : undefined}
+                disabled={disabled}
+                maxLength={1024}
+                autoComplete="off"
+                spellCheck={false}
+                inputRef={inputRef}
+                focusProps={{ringClassName: "bd-provider-token-ring"}}
+                onChange={handleChange}
+            />
+            {!hasError && message && <div className="bd-provider-token-status" role="status">{message}</div>}
+        </div>
         <div className="bd-provider-token-actions">
             <Button {...(toggleProps as any)} className="bd-provider-token-toggle" size={Button.Sizes.ICON} grow={false} disabled={disabled} onClick={() => setRevealed(value => !value)}>
                 <Icon size="16px" aria-hidden="true" />

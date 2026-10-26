@@ -1,9 +1,10 @@
 # Optional BetterDiscord Plugin APIs
 
-Quick notes for optional APIs that can simplify plugin code. These notes track
-plugin-facing helpers separately from the fork's implementation contracts.
-Availability below refers to the current repository branches, not a version
-number guess.
+Optional APIs that can simplify plugin code, documented separately from the
+fork's implementation contracts. Availability below is verified against this
+checkout, not inferred from a version number.
+
+**On this page:** [Typed `getById`](#typed-bdapiwebpackgetbyid) · [`byDestructure`](#bdapiwebpackfiltersbydestructure) · [`loadEntry`](#bdapiutilsloadentry) · [Maintaining these notes](#keeping-these-notes-current)
 
 | API | Availability in this checkout | What it is for |
 | --- | --- | --- |
@@ -58,26 +59,15 @@ check that the returned export has the behavior your plugin needs.
 
 ### Practical uses
 
-The property names below are illustrative. Inspect the intended function on the
-client being targeted; matching a common property alone does not establish that
-the returned function is the right component or handler.
+Property names are illustrative. Inspect the target function on the client;
+matching common properties alone does not identify the right export.
 
-- **Find a React component:** a message renderer may extract
-  `const {message, compact}=props`. Use
-  `Filters.byDestructure("message", "compact")` to search for that pair inside
-  its function body. Channel or member components can be found through their
-  own characteristic props in the same way.
-- **Find a handler or utility:** a function may extract
-  `const {channelId: channel, guildId: guild}=options`. Use
-  `Filters.byDestructure("channelId", "guildId")`; aliases such as `channel`
-  and `guild` do not change the property names being matched.
-- **Repair a lookup after a Discord update:** when a function or export has
-  been renamed, a verified pair such as `channelId` and `guildId` may still
-  identify it. Recheck its source and behavior before replacing the old lookup;
-  property names and the function's responsibilities can change too.
-- **Narrow another search:** combine the destructuring filter with a source
-  string or another filter when several exports use the same property names.
-  `Filters.combine(...)` requires every supplied filter to match.
+| Use | Example | Check |
+| --- | --- | --- |
+| Find a React component | Search for `message` and `compact` extracted from props. | Verify the returned component; channel and member components need their own characteristic props. |
+| Find a handler or utility | Search for `channelId` and `guildId` in options. | Aliases such as `channel` and `guild` do not change the matched property names. |
+| Repair a lookup after Discord updates | A verified property pair may still find a renamed function. | Recheck its source and behavior; its properties or responsibilities may change. |
+| Narrow a broad search | Combine with a source-string or another filter. | `Filters.combine(...)` requires every filter to match. |
 
 For example, a combined lookup can distinguish message-related components:
 
@@ -92,10 +82,10 @@ if (typeof Filters.byDestructure === "function") {
 }
 ```
 
-Replace `your-verified-source-marker` with a distinctive literal from the intended
-function's inspected source. This example is a lookup pattern, not a ready-made
-identifier for a particular Discord component. Discovery does not call or modify
-the matched function, and the helper does not load missing chunks.
+Replace `your-verified-source-marker` with a distinctive literal from the
+intended function's inspected source. This pattern does not identify a
+particular component. Discovery does not call or modify the match or load
+missing chunks.
 
 ### Compatibility evidence
 
@@ -154,19 +144,17 @@ loader pattern. An empty array means no entry exports were loaded. Chunk or
 module loading can reject, so callers should handle errors. The helper skips
 chunk files identified as workers and caches its worker check internally.
 
-This fork keeps the public helper's upstream input and result contract while
-choosing `Map.prototype.getOrInsertComputed` by capability and using a private
-fallback when it is unavailable. That adaptation does not patch `Map.prototype`
-or add a plugin-facing alternate API.
+This fork preserves the upstream input and result contract. Internally, it uses
+`Map.prototype.getOrInsertComputed` when available and a private fallback when
+not; it does not patch `Map.prototype` or add another plugin-facing API.
 
 The 1.14.3 adaptation leaves both this helper and its compatibility patch
 unchanged. Prior runtime validation remains applicable to that unchanged code;
 the new `byDestructure` audit did not retest `loadEntry` or alter its behavior.
 
 `BdApi.Utils.loadEntry` is unrelated to the removed legacy plugin-instance
-`load()` lifecycle callback. A plugin should use the lifecycle contract
-supported by its BetterDiscord host; the shared word “load” does not make these
-APIs interchangeable.
+`load()` lifecycle callback. Use the lifecycle contract supported by the host;
+these APIs are not interchangeable.
 
 ## Keeping these notes current
 

@@ -3,15 +3,15 @@ import http from "http";
 import {EventEmitter} from "node:events";
 import {nativeFetch} from "../../src/electron/preload/api/fetch";
 import type {DriedRequest} from "@common/native-fetch";
-import {configureProviderTokens, selectProviderAuthorization, type ProviderTokenUse} from "@common/provider-auth";
+import {configureProviderTokens, selectProviderAuthorization, type ProviderTokenSuccess} from "@common/provider-auth";
 
 const token = "dummy-native-token-2468";
 const origin = "https://api.github.com/repos/o/r/releases";
 const calls: Array<{url: string; headers: Record<string, string>;}> = [];
-const usageEvents: ProviderTokenUse[] = [];
-interface Step {location?: string; throwOnRequest?: boolean; error?: boolean;}
+const usageEvents: ProviderTokenSuccess[] = [];
+interface Step {location?: string; throwOnRequest?: boolean; error?: boolean; status?: number; headers?: Record<string, string>;}
 let steps: Step[] = [];
-let response: EventEmitter;
+let response!: EventEmitter;
 const originalRequest = https.request;
 const originalHttpRequest = http.request;
 
@@ -27,9 +27,9 @@ https.request = ((url: string, options: http.RequestOptions, callback: (res: htt
         if (step.error) {request.emit("error", new Error(`request error ${token}`)); return;}
         request.emit("finish");
         const res = Object.assign(new EventEmitter(), {
-            statusCode: step.location ? 302 : 200,
+            statusCode: step.location ? 302 : step.status ?? 200,
             statusMessage: "OK",
-            headers: step.location ? {location: step.location} : {},
+            headers: step.location ? {location: step.location} : step.headers ?? {},
             destroy() {}
         });
         response = res;
@@ -52,7 +52,7 @@ function driedRequest(): DriedRequest {
         maxRedirects: 3,
         rejectUnauthorized: true,
         providerAuthorization: selectProviderAuthorization(origin),
-        providerTokenUsage: {purpose: "recognized-self-update", report: event => usageEvents.push(event)}
+        providerTokenUsage: {purpose: "recognized-self-update", addon: "Actual.plugin.js", report: event => usageEvents.push(event)}
     };
 }
 function check(condition: unknown, message: string): asserts condition {
@@ -76,7 +76,9 @@ try {
     const same = await nativeFetch(first);
     check(calls.length === 2 && calls.every(call => call.headers.Authorization === `Bearer ${token}`), "same-origin update redirect lost authentication");
     check(!("Authorization" in first.headers), "caller headers were mutated");
-    check(usageEvents.length === 1 && usageEvents[0].source === "betterdiscord" && usageEvents[0].maskedToken === "****2468", "redirects did not report exactly one safe dispatched use");
+    check(usageEvents.length === 0, "Dispatch or response headers reported success before completion");
+    response.emit("end");
+    check(Number(usageEvents.length) === 1 && usageEvents[0].source === "betterdiscord" && usageEvents[0].maskedToken === "****2468" && usageEvents[0].addon === "Actual.plugin.js" && usageEvents[0].status === 200, "redirects did not report exactly one completed authenticated request");
     await same.body?.cancel();
 
     calls.length = 0;
@@ -100,7 +102,9 @@ try {
         ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl)
     });
     check(calls[0].headers.Authorization === `token ${token}`, "Actual Forgejo raw transport did not send the PAT scheme");
-    check(usageEvents.length === 1 && usageEvents[0].provider === "slowbro" && usageEvents[0].source === "betterdiscord", "Actual Forgejo transport did not report its masked provider use");
+    check(usageEvents.length === 0, "Forgejo headers were mistaken for completion");
+    response.emit("end");
+    check(Number(usageEvents.length) === 1 && usageEvents[0].provider === "slowbro" && usageEvents[0].source === "betterdiscord", "Actual Forgejo transport did not report its masked completed provider use");
     await slowbroResult.body?.cancel();
     calls.length = 0;
     steps = [{location: "https://codeberg.org/owner/repo/raw/branch/main/Test.plugin.js"}, {}];
@@ -117,7 +121,8 @@ try {
         steps = [{location}, {}];
         const result = await nativeFetch(driedRequest());
         check(calls.length === 2 && !calls[1].headers.Authorization, "credential escaped on redirect");
-        check(usageEvents.length === 1, "a downstream non-update hop reported another credential use");
+        response.emit("end");
+        check(usageEvents.length === 0, "An eligible intermediate hop was logged as a successful final authenticated request");
         await result.body?.cancel();
     }
 
@@ -129,6 +134,32 @@ try {
     check(calls[1].url === "https://api.github.com/repos/o/r/latest?page=2", "existing relative/query forwarding changed");
     check(!calls[1].headers.Authorization, "downstream non-release endpoint received a token");
     await relative.body?.cancel();
+
+    for (const status of [200, 204, 304, 401, 403, 429, 500]) {
+        usageEvents.length = 0;
+        steps = [{status}];
+        const result = await nativeFetch(driedRequest());
+        check(usageEvents.length === 0, "Request dispatch/headers logged a successful use");
+        response.emit("end");
+        response.emit("end");
+        check(usageEvents.length === (status >= 200 && status < 300 || status === 304 ? 1 : 0), `Unexpected completed-request diagnostic for HTTP ${status}`);
+        await result.body?.cancel();
+    }
+
+    for (const failure of ["cancel", "error", "aborted", "size"] as const) {
+        usageEvents.length = 0;
+        steps = [{}];
+        const result = await nativeFetch({...driedRequest(), ...(failure === "size" ? {maxResponseBytes: 1} : {})});
+        if (failure === "cancel") {await result.body?.cancel();}
+        else {
+            const read = result.body!.read();
+            if (failure === "size") response.emit("data", Buffer.from("too large"));
+            else response.emit(failure, failure === "error" ? new Error("body failed") : undefined);
+            await read.catch(() => {});
+        }
+        response.emit("end");
+        check(usageEvents.length === 0, `A ${failure} body produced a success diagnostic`);
+    }
 
     usageEvents.length = 0;
     steps = [{throwOnRequest: true}];
@@ -160,7 +191,21 @@ try {
             report() {throw new Error("reporter unavailable");}
         }
     });
+    response.emit("end");
     await throwingReporter.body?.cancel();
+
+    steps = [{}];
+    const disposedBridge = await nativeFetch({
+        ...driedRequest(),
+        signal: {
+            aborted() {throw new Error("Disposed bridge");},
+            reason: () => undefined,
+            addListener: () => () => {}
+        }
+    });
+    // A diagnostic-only bridged getter must not throw from the native end listener.
+    response.emit("end");
+    await disposedBridge.body?.cancel();
 
     steps = [{}];
     const delayed = await nativeFetch(driedRequest());

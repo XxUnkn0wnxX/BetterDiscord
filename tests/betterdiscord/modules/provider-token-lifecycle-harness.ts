@@ -1,5 +1,6 @@
 import {mock} from "bun:test";
 import {dryReadableStream, type DriedRequest, type DriedResponse} from "@common/native-fetch";
+import {setProviderTokenUseReporter, type ProviderTokenDiagnostic} from "@common/provider-auth";
 
 const persisted: Record<string, any> = {};
 const calls: DriedRequest[] = [];
@@ -67,6 +68,8 @@ initializeProviderTokenLifecycle();
 const cleared: string[] = [];
 Events.on("provider-token-cleared", (provider: string) => cleared.push(provider));
 set("github", token);
+const diagnostics: ProviderTokenDiagnostic[] = [];
+setProviderTokenUseReporter(event => diagnostics.push(event));
 const beforeWrites = writes;
 const gate = Promise.withResolvers<DriedResponse>();
 delayProbe = gate.promise;
@@ -78,6 +81,8 @@ gate.resolve(response("https://api.github.com/rate_limit", 401));
 await Promise.all([first, second].map(async request => discard(await request)));
 assert(get("github") === "" && persisted.settings.accessTokens.github === "", "Confirmed invalid credentials must clear and persist through Settings");
 assert(writes === beforeWrites + 1 && cleared.join() === "github", "Coalesced removal should write and notify once");
+assert(diagnostics.length === 2 && diagnostics[0].kind === "validation-start" && diagnostics[1].kind === "validation-result", "Coalesced revalidation should report one start/result sequence");
+assert(diagnostics.every(event => event.kind !== "update-success" && event.trigger === "revalidation"), "A rejected update was logged as a successful token use");
 assert(Notifications.notifications.length === 1, "Clearing should produce one warning");
 const warning = Notifications.notifications[0];
 assert(warning.type === "warning" && warning.duration === Infinity && warning.actions?.[0].label.startsWith("ProviderTokens.dismiss"), "Clearing must produce a persistent manually dismissible warning");
@@ -122,6 +127,18 @@ resetObservations(); set("slowbro", "dummy-lifecycle-forgejo-9876"); probeStatus
 await discard(await Net.fetch(slowbro));
 assert(probeCalls().length === 1 && probeCalls()[0].url === "https://git.slowb.ro/api/v1/user", "Reactive Forgejo validation must skip setup-only repository permissions");
 assert(get("slowbro") === "dummy-lifecycle-forgejo-9876", "Valid Forgejo credentials must remain configured");
+
+resetObservations(); set("github", token); probeStatus = 200;
+const oldSession: ProviderTokenDiagnostic[] = [];
+const newSession: ProviderTokenDiagnostic[] = [];
+setProviderTokenUseReporter(event => oldSession.push(event));
+const held401 = Promise.withResolvers<DriedResponse>(); delayUpdate = held401.promise;
+const oldCaptureRequest = Net.fetch(release);
+setProviderTokenUseReporter(event => newSession.push(event));
+held401.resolve(response(release, 401));
+await discard(await oldCaptureRequest);
+assert(oldSession.length === 2 && newSession.length === 0, "Reactive validation switched to a new logging session instead of retaining its original callback");
+setProviderTokenUseReporter();
 
 resetObservations(); set("github", token);
 Net.setProviderTokenFailureHandler(async () => {throw new Error("maintenance unavailable");});

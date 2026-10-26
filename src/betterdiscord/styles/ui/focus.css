@@ -28,5 +28,5 @@
 :where(dialog, [role="dialog"]):has(.bd-settings-group) .focus-rings-ring,
 :where(dialog, [role="dialog"]):has(.bd-addon-store-wrapper) .focus-rings-ring,
 :where(dialog, [role="dialog"]):has(.bd-custom-css-page-panel) .focus-rings-ring {
-    box-shadow: 0 0 0 1px var(--bd-brand);
+    box-shadow: 0 0 0 1px var(--bd-native-focus-color, var(--bd-brand));
 }

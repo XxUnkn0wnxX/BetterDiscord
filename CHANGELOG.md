@@ -1,6 +1,11 @@
 # BetterDiscord Changelog
 
-This changelog starts with the restructured 1.0.0 release that happened after context isolation changes. The changelogs here should more-or-less mirror the ones that get shown in the client but probably with less formatting and pizzazz.
+Release history begins with the restructured 1.0.0 release after context
+isolation changes. Upstream entries broadly mirror the client changelog;
+fork additions are listed first.
+
+[Current fork highlights](#fork-highlights) · [Feature guides](docs/README.md) ·
+[Integration record](docs/fork-specific-changes.md)
 
 ## Fork (1.14.4)
 
@@ -9,6 +14,8 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 ### Fork highlights
 
+- Added [optional provider tokens](docs/provider-tokens.md) for GitHub, GitLab.com and git.slowb.ro, with validated autosave, persistent invalid-token warnings and masked validation/update diagnostics.
+- Extended [recovery reports](docs/fork-specific-changes.md#recovery-report-enhancements) to GitLab alongside GitHub, git.slowb.ro and the manual fallback.
 - Reviewed and adapted upstream development through [`47a3396f`](https://github.com/BetterDiscord/BetterDiscord/commit/47a3396f26aa76eb123654596c0f626a0fb4b04f): adopted floating-editor focus ownership and modal accessibility improvements while preserving older-client fallbacks, scoped Monaco guards, autofocus and Settings-close sequencing. Added generic typing for the existing module-ID lookup.
 - Reviewed and adapted upstream development through [`3eafabae`](https://github.com/BetterDiscord/BetterDiscord/commit/3eafabae8c4ccc28aeb2ff97239f757ee87cbe17): added the optional destructuring filter, adopted the modal input and account-switch transparency fixes, and retained this fork's custom reinjection and OpenAsar handoff unchanged.
 - Reviewed and adapted upstream development through [`133bc83b`](https://github.com/BetterDiscord/BetterDiscord/commit/133bc83b6bae998a321615a77e15b94956265d12), preserving older-Electron compatibility and required fork behavior while following upstream plugin contracts.
@@ -30,30 +37,37 @@ behavior inventory, upstream comparison, source map, and future merge rules.
 ### 1.14.4
 
 ### Added
+
 - `BdApi.Webpack.getById<T>()` accepts the expected module shape in TypeScript. Runtime lookup behavior is unchanged; see [Plugin API notes](docs/plugin-api-notes.md).
 
 ### Changed
+
 - Upstream's revamped recovery screen and patch-assisted suspected-plugin detection are already included. This fork retains its extra report targets, Manual report, exact-error attribution and recovery safeguards.
 
 ### Fixed
+
 - Modal accessibility exposes one dialog owner, including when the older-client native-dialog fallback is selected.
 - Floating Custom CSS, plugin and theme editors coordinate focus with Discord's native focus locks where available, retaining existing selection, one-shot autofocus and Settings-close behavior.
 
 ### Retained fork behavior
+
 - Keeps custom macOS reinjection, recovery and OpenAsar handoff, Store navigation, external addon updates, disabled-plugin behavior and the temporary Bun 1.1.20 pin.
 - Source tests cover the new focus ownership; fresh release-injected native focus verification remains a separate gate.
 
 ### 1.14.3
 
 ### Added
+
 - `BdApi.Webpack.Filters.byDestructure` for finding functions by properties in destructuring assignments. See [Plugin API notes](docs/plugin-api-notes.md) for examples and source-format limitations.
 
 ### Fixed
+
 - Modal input handling uses upstream's focus scope where available, with a capability-based fallback for pinned older Discord builds.
 - Account switching preserves the transparent background used by transparency and native window effects.
 - Upstream's recovery-page correction is already present in this fork; its existing patch ownership and one-time initialization remain intact.
 
 ### Retained fork behavior
+
 - Retains this fork's custom macOS reinjection, recovery, and identity-matched OpenAsar handoff. Upstream's new reinjection implementation is not imported.
 - Keeps older-Electron compatibility, the private `loadEntry` fallback, and the Bun 1.1.20 toolchain. Reinjection can be reconsidered once a newer system supports real host-update testing.
 
@@ -64,22 +78,26 @@ before this version bump, as well as the new Webpack options, plugin lifecycle,
 and CSS performance changes.
 
 ### Added
+
 - Notification `render` API, ContextMenu types, Modal component, and exposed Checkbox component.
 - Native window settings: rounded corners, macOS first-click acceptance, vibrancy and visual-effect state, and Windows background material where supported.
 - Webpack `withKey`, `map`, and `mapDeclarations` options.
 - A performance builtin that removes the targeted slow Discord CSS selector.
 
 ### Removed
+
 - Host calls to plugin `load`, `getName`, `getVersion`, `getAuthor`, and `getDescription` methods. Use supported lifecycle methods and metadata headers.
 - Recovery and Addon Store opt-outs; these remain available as core features.
 - The obsolete In App Traffic Lights setting.
 
 ### Changed
+
 - Notifications no longer require an ID.
 - `getWithKey` and `getMangled`/`getMangledProxy` are deprecated in favor of the new Webpack options; existing helpers remain implemented.
 - Shared plugin mutation observation is acquired only when needed; `observer` and `onSwitch` remain supported but deprecated.
 
 ### Fixed
+
 - Core settings `enableWith` updates and the Number input minimum.
 - Windows/Linux reinjection improvements. This fork retains its separate macOS recovery and identity-matched OpenAsar handoff; upstream's OpenAsar incompatibility note does not describe this fork's retained implementation.
 - Style removal, ContextMenu patching, and slow internal CSS selectors.
@@ -93,11 +111,13 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed global setting onChange listener from not running
 
 ### 1.14.0
 
 ### Added
+
 - BetterDiscord now has official types [@betterdiscord/types](https://www.npmjs.com/package/@betterdiscord/types)
 - `BdApi.UI.openFloatingWindow` to open a floating window like the addon editor
 - `BdApi.Utils.loadEntry` to load lazy Discord chunks and modules
@@ -108,6 +128,7 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Switched to app.asar injection style
 - The Custom CSS editor now fills the settings page
 - The floating and popout editors have received additional features
@@ -116,6 +137,7 @@ and CSS performance changes.
 - Addons do not run when disabled
 
 ### Fixed
+
 - Discord Activities are fixed
 - BetterDiscord's location in settings is now fixed
 - Made the Patcher not rerun the original function for each `instead` patch
@@ -124,9 +146,11 @@ and CSS performance changes.
 ### 1.13.14
 
 ### Improvements
+
 - Improved start up times
 
 ### Fixed
+
 - Themes with special characters in their names didn't unload properly
 - Fixed BD's markdown
 - Fixed theme attributes
@@ -134,37 +158,44 @@ and CSS performance changes.
 - Fixed passing fatal to waitForModule / getLazy causing a possible error
 
 ### Added
+
 - Added declarationFilter to waitForModule / getLazy
 
 ### 1.13.13
 
 ### Added
+
 - New system for exposing top-level module declarations
 - New `@runAt` meta tag to work around issues caused by lazy loading
 
 ### 1.13.12
 
 ### Fixed
+
 - BetterDiscord now loads
 
 ### 1.13.11
 
 ### Improvements
+
 - Dropdowns now close after selecting an option
 - Dropdowns do not display the scrollbar when its not needed
 - Better handling of other client mods
 
 ### Fixed
+
 - Fix for lazy listeners firing before class modules get interpolated
 
 ### 1.13.10
 
 ### Fixed
+
 - Fixed crashing when trying to view BetterDiscord's custom setting tabs
 
 ### 1.13.9
 
 ### Fixed
+
 - Fixes BD's items in the settings cog context-menu
 - The changelog button was at the bottom of the bd section
 - Hovering over a bd section would cause the to get filled instead of changing the color
@@ -174,9 +205,11 @@ and CSS performance changes.
 ### 1.13.8
 
 ### Fixed
+
 - BetterDiscord now loads on macOS and Linux.
 
 ### Added
+
 - Added `--avatar-url-[size]` to avatars for theme attributes.
 - Added a bunch of new theme attributes to messages.
 - Added an utility for developers to easily patch react elements.
@@ -184,25 +217,30 @@ and CSS performance changes.
 ### 1.13.7
 
 ### Added
+
 - New Webpack cache system for faster loading times; you will see much faster loading times after the first launch with this update.
 
 ### Fixed
+
 - Fixed `tags` button appearing behind other elements in the Addon Store
 - Fixed downloading addons via the addon store
 - Fixed dropdowns with lots of options not allowing you to scroll through all of the options
 - Minor UI fixes
 
 ### Improvements
+
 - Dropdowns now automatically scroll to the selected option when opened
 
 ### 1.13.6
 
 ### Fixed
+
 - Fixed BetterDiscord not appearing in the `Settings Cog` context menu (right click menu)
 - Fixed `Version Info` strings in settings not appearing
 - Native titlebar matches Linux now
 
 ### Improvements
+
 - Allow context menu toggle to be preventDefaulted
 - ContextMenu API Rework
 - Rewrite Native Fetch
@@ -210,14 +248,17 @@ and CSS performance changes.
 ### 1.13.5
 
 ### Added
+
 - Added `data-speaking` attribute to VoiceUser in ThemeAttributes
 
 ### Fixed
+
 - Fixed BdApi.Net.fetch not handling relative urls properly
 - BetterDiscord now properly checks for addon updates periodically
 - BetterDiscord now loads up correctly
 
 ### Improved
+
 - Tweaked styles for InstallCSS
 - BetterDiscord's Dropdown Component was rewrote
 
@@ -226,12 +267,14 @@ and CSS performance changes.
 ### 1.13.4
 
 ### Fixed:
+
 - Fixed styles breaking in certain areas.
 - Fixed theme attributes from causing a bunch of lag.
 
 ### 1.13.3
 
 ### Fixed:
+
 - BetterDiscord Settings section now appears correctly in the settings menu
 - Fixed css to match Discord's latest changes
 - Context Menu patches fixed
@@ -239,6 +282,7 @@ and CSS performance changes.
 ### 1.13.2
 
 ### Fixed:
+
 - BetterDiscord Settings section now appears correctly in the settings menu
 - Fixed css to match Discord's latest changes
 - Context Menu patches fixed
@@ -247,6 +291,7 @@ and CSS performance changes.
 ### 1.13.1
 
 ### Fixed:
+
 - Navigating to Plugins, Themes, or Settings from the context menu now correctly opens the intended page
 - Custom CSS file is now automatically created if it doesn't exist
 - aria-label for BetterDiscord section in settings panel now sets correctly
@@ -259,6 +304,7 @@ and CSS performance changes.
 ## 1.13.0
 
 ### Added
+
 - InstallCSS button next to CSS snippets for easy installation, with safety fallbacks like "Keep Changes", automatically reverting changes after 10 seconds if not kept
 - In-App Notification API `BdApi.UI.showNotification`
 - Ability to shift+click to open a plugin's settings from context menu
@@ -273,11 +319,13 @@ and CSS performance changes.
 - Added a changelog button to the layer modal settings
 
 ### Removed
+
 - `Filters.byProps` removed
 - `Filters.byPrototypeFields` removed
 - All functions directly on `BdApi` have been removed
 
 ### Changed
+
 - Repository reorganization, move from node/npm to bun, from webpack to esbuild, from mocha to bun:test, start TypeScript, and upgrade eslint
 - Switched to using lucide icons
 - Full transition to TypeScript
@@ -299,6 +347,7 @@ and CSS performance changes.
 - Visual changes to the react error recovery page to increase aesthetics.
 
 ### Fixed
+
 - Context issue on BdApi.Webpack where `this.getModule` could return `not a function`
 - Slash Command API conflicts
 - getMangled utility function to properly handle undefined properties when mapping object keys
@@ -325,6 +374,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed for Discord modal changes
 
 
@@ -335,6 +385,7 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Move settings patch to after user connection
 
 ### Fixed
@@ -349,6 +400,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed theme attribute selectors
  - Fixed remove minimum size
  - Fixed bad css
@@ -363,6 +415,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed more using old reactdom apis
  - Fixed webpack require hijack
  - Fixed customcss watcher
@@ -377,6 +430,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed using old reactdom apis
 
 
@@ -387,6 +441,7 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
  - Added a temporary delay to renderer injection in response to Discord changes
 
 ### Fixed
@@ -401,6 +456,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed pasting in monaco
  - Fixed command auth
  - Fixed toast location
@@ -411,19 +467,23 @@ and CSS performance changes.
 ## 1.12.1
 
 ### Added
+
  - Sliders can now set more specific labels in their markers
  - Addon update checking can now be toggled
  - Update checking can now be done periodically
 
 ### Removed
+
 - Removed extra code in the devtools warning module
 
 ### Changed
+
  - `forceUpdate` is only used for particular setting IDs
  - `bySource` now accepted multiple searches
  - Store and addon requests now set the no-cache directive
 
 ### Fixed
+
  - Fixed frame showing up on linux
  - Fixed opening store from context menu
  - Fixed addon store error causing freezes
@@ -434,6 +494,7 @@ and CSS performance changes.
 ## 1.12.0
 
 ### Added
+
  - Added built-in addon store
  - Slash command API
  - Default BetterDiscord slash commands
@@ -450,6 +511,7 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
  - `DOM.createElement` can now accept multiple children and any number of directly assignable properties
  - Settings builder now accepts a `button` type
  - Addon error modal now uses `details` and `summary` to be more accessible
@@ -460,6 +522,7 @@ and CSS performance changes.
    - The downside is this has some very slight overhead for all other types of searching
 
 ### Fixed
+
  - Fixed remove minimum size
  - Clicking component source in react devtoools now goes to the right component when patched
  - Corrupt plugin configs won't halt operation
@@ -468,11 +531,13 @@ and CSS performance changes.
  - Fixed grabbing modal actions
 
 ### Deprecated
+
  - `target` option of `DOM.createElement` is deprecated
 
 ## 1.11.0
 
 ### Added
+
  - Added new `showChangelogModal` to the `UI` namespace
  - Added `getNestedValue` and `semverCompare` to `Utils`
  - Added settings builders to `UI` namespace as `buildSettingItem` and `buildSettingsPanel`
@@ -484,6 +549,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
  - Fixed a `0` showing up when modals weren't on screen
  - Fixed the version string not showing up in settings
  - Fixed an issue where enabled/disabling custom css wouldn't update the style
@@ -501,11 +567,13 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed transition group search for Discord's new export schema
 
 ## 1.10.1
 
 ### Added
+
 - Added an `ErrorBoundary` to the custom modal stack to prevent errors from bubbling up and preventing startup.
 
 ### Removed
@@ -513,12 +581,14 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed modal transition component search for Discord's new function component version
 
 
 ## 1.10.0
 
 ### Added
+
 - Enable/disable all buttons for both AddonLists
 - BDContextMenu has been integrated
 - Ability to reset to default settings of any collection
@@ -529,12 +599,14 @@ and CSS performance changes.
 - New debug information in user settings
 
 ### Removed
+
 - Several unused "known modules"
 - `DiscordClasses` module since it was seldom used
 - `ClassName` and similar constructs
 - Legacy emote assets
 
 ### Changed
+
 - Search bars now auto focus
 - Opening folder on Windows now occur in the foreground
 - Search fields are now clearable
@@ -549,6 +621,7 @@ and CSS performance changes.
 - Lazy loaded modules are returned to the original source
 
 ### Fixed
+
 - Fixed grabbing the wrong module for accepting invites
 - Fixed more strings that were not translatable
 
@@ -561,34 +634,41 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Removed `ipc.sendTo` for electron 28
 - Fixed core updater not using the semver comparator
 
 ## 1.9.7
 
 ### Added
+
 - Support for Spanish (LATAM) locale
 
 ### Removed
 
 ### Changed
+
 - Updated translations
 - Ignore relative requires (This is because when favoriting a GIF and other UI actions, Discord repeatedly attempts to load relative requires on accident causing our code to make tons of FS requests causing lag.)
 
 ### Fixed
+
 - Fixed locale not falling back to English properly
 
 ## 1.9.6
 
 ### Added
+
 - All HTTP request options for bd-fetch
 
 ### Removed
 
 ### Changed
+
 - Updated translations
 
 ### Fixed
+
 - Fixed race conditions for notices
 - Fixed options not being sent to fetch
 
@@ -601,35 +681,42 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed the webpack patch for the new loader
 
 ## 1.9.4
 
 ### Added
+
 - New css variable `--os-accent-color`
 - Temporary `Buffer` polyfill
 
 ### Removed
 
 ### Changed
+
 - `BdApi.Net.fetch` now has an optional `timeout` parameter
 
 ### Fixed
+
 - Fixes not being able to use `http` for `BdApi.Net.fetch`.
 - Bad URLs and other early errors in `BdApi.Net.fetch` now handled better.
 
 ## 1.9.3
 
 ### Added
+
 - Multiple shorthand functions under `BdApi.Webpack`
 - New `getStore` filter
 
 ### Removed
 
 ### Changed
+
 - Updated translations
 
 ### Fixed
+
 - Fixed header color in light mode.
 - Fixed window size retention for users of remove minimum size option.
 - Fixed a toast saying an addon was loaded when it was unloaded.
@@ -644,11 +731,13 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed context menu crash & api
 
 ## 1.9.1
 
 ### Added
+
 - SourceURL for the renderer
 
 ### Removed
@@ -656,38 +745,46 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed client crashes
 
 ## 1.9.0
 
 ### Added
+
 - Remove minimum window size now remembers desired size
 - Basic semver comparison
 
 ### Removed
+
 - Public Servers
 - Old DataStore functions that are no longer used
 
 ### Changed
+
 - All main react components are now functional with hooks
 - Mac now uses cmd instead of ctrl
 
 ### Fixed
+
 - Fixed dropdowns
 - Fixed markdown parser
 
 ## 1.8.5
 
 ### Added
+
 - Ability to use a custom local version of React DevTools
 - Experimental `BdApi.Components` for component access in plugins
 
 ### Removed
 
 ### Changed
+
 - Title for settings sidebar now uses a custom component
 
 ### Fixed
+
 - Fixed ModalRoot and ConfirmationModal not being found in webpack
 - Fixed context menus for internal changes
 
@@ -700,22 +797,27 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed more bugs with context menu api
 
 ## 1.8.3
 
 ### Added
+
 - Checking for old installs and deleting them
 
 ### Removed
+
 - All references to Emotes, this will become a separate plugin
 
 ### Changed
+
 - Moved to the more permissive Apache 2.0 license
 - Now check for discord.asar for electron17+
 - Handle setting module exports internally rather than maintaining getter references
 
 ### Fixed
+
 - Fixed `inject` for electron17+
 - Updater checking `>` which does not work for open versions
 - Fixed a startup bug with the context menu api
@@ -729,6 +831,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed modals not working
 - Fixed downloading binary files
 - Fixed public server invites
@@ -736,16 +839,19 @@ and CSS performance changes.
 ## 1.8.1
 
 ### Added
+
 - A script to automatically grab the new translations from POEditor
 - Several new translations
 
 ### Removed
 
 ### Changed
+
 - Moved some hardcoded strings to be part of the translation system
 - Several updated translations
 
 ### Fixed
+
 - Fixed context menu patcher not patching consistently
 - Fixed context menu toggle item UI not updating
 - Fixed an issue with the bound API checking the wrong arguments
@@ -754,6 +860,7 @@ and CSS performance changes.
 ## 1.8.0
 
 ### Added
+
 - Proper updater system with UI.
 - Tooltip component for plugins.
 - Highly expanded plugin API.
@@ -761,10 +868,12 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Reverted how internal webpack module searches are performed.
 - New options for webpack searches.
 
 ### Fixed
+
 - Fixed many issues regarding memory leaks and out-of-memory errors!
 - Fixed a major issue where webpack searches would iterate by default.
 - Fixed an issue with `byStrings` and `combine` filters in the API.
@@ -777,18 +886,22 @@ and CSS performance changes.
 ## 1.7.0
 
 ### Added
+
 - Polyfill for certain node modules.
 
 ### Removed
+
 - Proxy protection for certain modules.
 
 ### Changed
+
 - Changed how internal webpack module searches are performed.
 - New location for public servers button.
 - Switch to pnpm with workspaces.
 - Improved startup errors.
 
 ### Fixed
+
 - Fixed several issues for Discord's internal changes.
 
 ## 1.6.3
@@ -798,9 +911,11 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Plugin startup errors should be more descriptive for developers.
 
 ### Fixed
+
 - Fixed an issue where custom css crashed Discord.
 - Fixed an issue where `waitForModule` returned a boolean instead of a module.
 
@@ -813,6 +928,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed non-loading issue due to changed UserSettingsStore
 
 ## 1.6.1
@@ -824,6 +940,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed an issue where `waitForModule` would not return the found module.
 - Fixed an issue where broken addon METAs could prevent BD from fully loading.
 - Fixed an issue where developer badges stopped rendering.
@@ -831,6 +948,7 @@ and CSS performance changes.
 ## 1.6.0
 
 ### Added
+
 - Better handling and fallback when the editor fails to load. (Thanks Qb)
 - Now able to sort addons by whether they're enabled. (Thanks TheGreenPig)
 - New `Webpack` API added for plugin developers to take advantage of.
@@ -838,11 +956,13 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Addon loading no longer uses `require`
 - Addon error modal updated (Thanks Qb)
 - Fixed plugin error display on the modal
 
 ### Fixed
+
 - Fixed dispatcher changes by Discord
 
 ## 1.5.3
@@ -854,6 +974,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed Canary crashing immediately
 
 ## 1.5.2
@@ -865,11 +986,13 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed being unable to inject into settings, thanks @Strencher
 
 ## 1.5.1
 
 ### Added
+
 - `Number` settings component using builtin `input[type=number]`
 - Settings for monaco editor: font size, line numbers, minimap, whitespace, quick suggestions, tooltips
 
@@ -878,6 +1001,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed `GuildComponent` throwing errors
 - Fixed public servers button disappearing when guilds list rerenders
 - Fixed plugin compilation error not pointing to console
@@ -886,15 +1010,18 @@ and CSS performance changes.
 ## 1.5.0
 
 ### Added
+
 - `appSettings` override and corresponding toggle to enable DevTools (Thanks [Kyza](https://github.com/Kyza))
 - `bd-transparency` class is added to `document.body` when window transparency is enabled (Thanks [Strencher](https://github.com/Strencher))
 
 ### Removed
+
 - Removed all appearance related `Builtin`s including: 24 Hour Timestamps, Colored Text, Hide GIF/Gift Button, and MinimalMode
 
 ### Changed
 
 ### Fixed
+
 - Fixed `DebugLogs` throwing errors or not writing `null`, `undefined`, and circular objects
 - Fixed guild utility classes not being added
 - Fixed toast location
@@ -902,6 +1029,7 @@ and CSS performance changes.
 ## 1.4.0
 
 ### Added
+
 - Notices API (Thanks [Strencher](https://github.com/Strencher))
 
 ### Removed
@@ -909,6 +1037,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed outdates styles and classnames (Thanks [Strencher](https://github.com/Strencher))
 - Fixed guild list classes being overwritten causing the public server button to not show
 - Fixed finding the wrong module for `ActionTypes` in custom css module
@@ -922,9 +1051,11 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Startup now waits for current user to be populated or for CONNECTION_OPEN event
 
 ### Fixed
+
 - Fixed emote menu causing crashes
 
 ## 1.2.4
@@ -936,6 +1067,7 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed loading sequence using wrong classes
 
 ## 1.2.3
@@ -947,12 +1079,14 @@ and CSS performance changes.
 ### Changed
 
 ### Fixed
+
 - Fixed translations not falling back to English
 - Fixed waiting for guilds due to class name changes
 
 ## 1.2.2
 
 ### Added
+
 - Added Czech translation
 - Added Spanish translation
 - Added Hindi (partial) translation
@@ -967,27 +1101,32 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - `window.webpackJsonp` is temporarily polyfilled for Canary but _will_ be disappearing
 - Updated French translation
 - Updated Germand translation
 
 ### Fixed
+
 - Fixed public servers missing (Thanks [Strencher](https://github.com/Strencher))
 - Fixed guild classes missing (Thanks [Strencher](https://github.com/Strencher))
 
 ## 1.2.1
 
 ### Added
+
 - Added `getPatchesByCaller` to `BdApi.Patcher`
 
 ### Removed
 
 ### Changed
+
 - Internal react keys updated for new version in Discord (Thanks [Strencher](https://github.com/Strencher))
 - Monaco editor now loads for all cases rather than just for custom css (Thanks [Qb](https://github.com/QbDesu))
 - MacOS on Discord non-canary will use the default `process` object
 
 ### Fixed
+
 - Fixed failed plugin loads being permanently cached (Thanks [Strencher](https://github.com/Strencher))
 - Fixed duplicate file renaming sometimes causing crashed (Thanks [Strencher](https://github.com/Strencher))
 - Fixed plugin data retrieval when using falsey values
@@ -997,16 +1136,19 @@ and CSS performance changes.
 ## 1.2.0
 
 ### Added
+
 - `openDialog` function added to `BdApi` to enable save/load of files.
 
 ### Removed
 
 ### Changed
+
 - Emote menu now more seamlessly integrates with Discord.
 - Support for other chrome profiles added when using React DevTools. (Thanks [CrizGames](https://github.com/CrizGames))
 - Console errors from plugins should now properly map to the local file.
 
 ### Fixed
+
 - Fixed several crashing issues related to voice and video chats.
 - Fixed the incompatibility with Canary/PTB
 - Fixed missing class names on guild elements.
@@ -1020,10 +1162,12 @@ and CSS performance changes.
 ### Removed
 
 ### Changed
+
 - Plugin loader now removes the used `script` tags
 - URLs reflect new website
 
 ### Fixed
+
 - Fixed an issue with hiding GIF and Gift buttons
 - Fixed certain plugin patches not returning values
 - Fixed an issue with the settings patch failing
@@ -1032,6 +1176,7 @@ and CSS performance changes.
 ## 1.1.0
 
 ### Added
+
 - Added an option to prevent Discord from hijacking the media keys.
 - Added command line flag to launch a vanilla version of Discord `--vanilla`
 - Added an option for app-wide `ctrl+shift+c` shortcut for inspect element.
@@ -1043,9 +1188,11 @@ and CSS performance changes.
 - Added translations for the following languages: French, Slovak, Polish, Portuguese (BR), Chinese (Traditional), Chinese (Simplified)
 
 ### Removed
+
 - Class normalizer was removed as it does more harm than good.
 
 ### Changed
+
 - Addon error modals got a makeover thanks to [Strencher](https://github.com/Strencher) and [Tropical](https://github.com/Tropix126)
 - Emotes are now downloaded as a single asar bundle as opposed to individual JSON files.
 - Strings are now bundles with the main payload, but may move to a separate asar like the emotes.
@@ -1054,6 +1201,7 @@ and CSS performance changes.
 - DataStore now has additional protections (`try..catch`).
 
 ### Fixed
+
 - Fixed an issue with old METAs used in themes cause the css to render invalid.
 - Fixed crashing issues with plugins using `Buffer`.
 - Fixed a bug for manual and 3rd party installations that don't create the BD folder.
@@ -1073,6 +1221,7 @@ and CSS performance changes.
 ## 1.0.0
 
 ### Added
+
 - **Everything** is entirely rewritten, for better or worse.
 - **Emotes and Custom CSS** can be completely turned off for those not interested. It saves on memory too by not loading those components.
 - **Floating editors** for both custom css and plugins/themes are now available.
@@ -1083,6 +1232,7 @@ and CSS performance changes.
 We added settings to hide the **Gif Picker** and the **Nitro Gift** buttons in the textarea.
 
 ### Changed
+
 - **Patcher API** was added to `BdApi` under `BdApi.Patcher`. The old `BdApi.monkeyPatch` was patched to use the Patcher as well. This allows plugins and patches to play nice with one another.
 - **jQuery** was removed from dependencies.
 - **General performance** improvements throughout the app, from startup to emotes to addons.
@@ -1093,5 +1243,6 @@ We added settings to hide the **Gif Picker** and the **Nitro Gift** buttons in t
 - **Debugger Hotkey** is now a built-in feature!
 
 ### Fixed
+
 - **Minimal mode** has been redesigned from the ground up and now works as intended.
 - **Emote menus** are fixed and now use React Patching to properly integrate into the new Emoji Picker. (Thanks Strencher#1044!)

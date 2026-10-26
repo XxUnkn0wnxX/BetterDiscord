@@ -1,12 +1,35 @@
 import {afterEach, describe, expect, test} from "bun:test";
-import {configureProviderTokens, getProviderForUpdateRequest, getProviderTokenGeneration, maskProviderToken, normalizeProviderToken, providerHeadersForHop, providerTokenUseForHop, redactProviderTokens, sanitizeProviderError, selectProviderAuthorization} from "@common/provider-auth";
+import {captureProviderTokenReporter, configureProviderTokens, getProviderForUpdateRequest, getProviderTokenGeneration, maskProviderToken, normalizeProviderToken, providerAddonFromStack, providerHeadersForHop, providerTokenUseForHop, redactProviderTokens, sanitizeProviderAddonLabel, sanitizeProviderError, selectProviderAuthorization, setProviderTokenUseReporter, type ProviderTokenDiagnostic} from "@common/provider-auth";
 
 const github = "dummy-github-secret-1234";
 const gitlab = "dummy-gitlab-secret-5678";
 const release = "https://api.github.com/repos/owner/addon/releases/tags/Nightly-Fork";
-afterEach(() => configureProviderTokens({}));
+afterEach(() => {configureProviderTokens({}); setProviderTokenUseReporter();});
 
 describe("private provider authorization policy", () => {
+    test("captures one reporter session and keeps addon labels bounded and secret-free", () => {
+        const oldEvents: ProviderTokenDiagnostic[] = [];
+        const newEvents: ProviderTokenDiagnostic[] = [];
+        setProviderTokenUseReporter(event => oldEvents.push(event));
+        const captured = captureProviderTokenReporter()!;
+        setProviderTokenUseReporter(event => newEvents.push(event));
+        captured({kind: "validation-start", provider: "github", trigger: "setup", maskedToken: "****"});
+        expect(oldEvents).toHaveLength(1);
+        expect(newEvents).toHaveLength(0);
+        setProviderTokenUseReporter(() => {throw new Error("Disposed reporter");});
+        expect(() => captureProviderTokenReporter()!({kind: "validation-start", provider: "github", trigger: "setup", maskedToken: "****"})).not.toThrow();
+        setProviderTokenUseReporter();
+        expect(captureProviderTokenReporter()).toBeUndefined();
+
+        const longCallerToken = `not-configured-${"a".repeat(180)}-1234`;
+        const stack = `Error\n at call (betterdiscord://betterdiscord/plugins/Library-${longCallerToken}.plugin.js:2:4)\n at caller (betterdiscord://plugins/Requester.plugin.js:8:1)`;
+        expect(providerAddonFromStack(stack, [longCallerToken])).toBe("Library-****1234.plugin.js");
+        expect(providerAddonFromStack("Error\n at helper (https://example.test/Other.plugin.js:2:1)")).toBe("unknown addon");
+        expect(sanitizeProviderAddonLabel("https://example.test/private?q=secret")).toBe("unknown addon");
+        expect(sanitizeProviderAddonLabel("label\n at other()")).toBe("unknown addon");
+        expect(sanitizeProviderAddonLabel("x".repeat(200))).toHaveLength(120);
+    });
+
     test("authenticates Slowbro addon raw and API reads without expanding to other Forgejo traffic", () => {
         const slowbro = "dummy-slowbro-secret-4321";
         configureProviderTokens({github, gitlab, slowbro});

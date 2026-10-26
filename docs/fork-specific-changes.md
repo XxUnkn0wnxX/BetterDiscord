@@ -11,6 +11,21 @@ bundle to the older machine or upgrades to a newer machine. Historical Bun
 versions in validation records remain evidence of those checks, not permanent
 toolchain requirements.
 
+## Navigate this record
+
+| Topic | Reference |
+| --- | --- |
+| User guides | [Installation](manual-install.md), [addon updates](addon-updater.md), [tokens](provider-tokens.md), [plugin APIs](plugin-api-notes.md) |
+| Required external-update features | [Provider tokens](#optional-provider-tokens-for-addon-updates), [identity-aware updater](#identity-aware-plugintheme-updater-stage-7b) |
+| Replaceable recovery enhancements | [Report controls and replacement criteria](#recovery-report-enhancements) |
+| macOS and OpenAsar | [Injection, recovery and handoff](#injection-recovery-and-openasar-handoff) |
+| Settings and UI | [Settings integration](#settings-integration), [Custom CSS](#custom-css), [notifications](#notification-api-and-renderer-lifecycle) |
+| Compatibility | [Runtime hardening](#runtime-compatibility-hardening), [temporary Bun pin](#temporary-bun-build-runtime-pin) |
+| Upstream maintenance | [Merge policy](#merge-policy), [source map](#source-and-commit-map), [required checks](#required-checks-after-an-overlapping-upstream-change) |
+
+Integration sections retain their original evidence and revision context.
+[Documentation index](README.md) · [Project overview](../README.md)
+
 ## Optional provider tokens for addon updates
 
 **Maintenance note for future agents:** Using a token is optional for the user;
@@ -24,9 +39,12 @@ instruction.
 The collapsed core **Access Tokens** category stores optional GitHub, GitLab.com
 and git.slowb.ro credentials in ordinary channel settings, with empty defaults.
 GitHub classic/fine-grained and GitLab legacy/fine-grained PATs share their
-respective opaque fields. Private native Discord text inputs
-provide password masking, eye reveal, and native error styling; ordinary plugin
-text-setting contracts remain unchanged. Drafts validate through bounded read-only
+respective opaque fields. Private native Discord text inputs provide password
+masking and eye reveal. Pending validation recolors the existing native border
+and focus ring using Discord warning variables, without adding another ring.
+Only invalid tokens or confirmed missing permissions use the native error state;
+temporary failures and generic denials use separate status feedback. Ordinary
+plugin text-setting contracts remain unchanged. Drafts validate through bounded read-only
 provider probes before autosaving. Editing, clearing, reset, disable and unmount
 invalidate obsolete results; reset notification also covers already-empty saved
 values. Automatic invalidation cancels and re-masks the matching mounted field;
@@ -85,12 +103,28 @@ controls. Infinite-duration cards explicitly pause their progress animation,
 ignore animation completion and omit the countdown bar; finite-duration behavior
 remains unchanged. Notices never contain credentials or raw provider responses.
 
-Private native request-finish events report only provider, source and a masked
-suffix. The renderer reporter follows DebugLogs' actual capture lifecycle,
-including delayed enable/disable guards, so safe lines reach console and saved
-log together. Anonymous/validation/debug-off requests stay silent. Configured
-values and captured request failures are redacted; no raw token or URL enters
-the usage event. Shared policy code has no store/logger/runtime imports.
+Private diagnostics follow DebugLogs' capture lifecycle and reach console and
+saved log together:
+
+- Successful-use events occur once after the final authenticated response
+  completes with HTTP 2xx or 304. Dispatch, headers, redirects to anonymous
+  destinations, aborted/error bodies and size rejection do not count.
+- Info entries identify the initiating managed addon or actual plugin source
+  filename, a fixed provider hostname, token source and masked suffix. Unknown
+  callers stay unknown; a library frame identifies that library. HTTP success
+  does not establish successful addon validation or installation.
+- Actual setup/reactive probes log progress and successful validation at Info;
+  invalid, missing-permission and temporary results use Warning. Cancelled
+  results, anonymous usage and disabled capture stay silent.
+- Capture the actual reporter callback at operation start and carry it into
+  reactive validation. A request from before disable/re-enable cannot enter the
+  new debug session. Coalesced checks retain their initiating context.
+- Redact captured credentials before bounding caller labels. Events contain no
+  full URLs, stacks, raw credentials or provider responses. Configured values
+  and captured request errors remain redacted.
+
+Shared policy code has no store/logger/runtime imports; caller attribution and
+diagnostics add no public `BdApi.Net` options or changed bound-instance behavior.
 
 Managed updates keep anonymous origin state plus one authenticated bucket keyed
 by a SHA-256 credential fingerprint. Matching authenticated limits survive
@@ -124,6 +158,14 @@ Dedicated Astra Max reviewed the final credential ownership, setup/validity
 separation, persistent notifications and regression evidence with no blocking
 findings. Real authenticated provider traffic and injected-client UI behavior
 remain the separate runtime checks described above.
+
+The validation-feedback and diagnostics follow-up passed 573 full-suite tests,
+with 24 existing Intl skips and zero failures. After the final focus-ring
+correction, the affected UI harness passed again: it models a native ring that
+caches its class on focus and checks pending/settled transitions without blur.
+Full lint/types and scoped CSS checks pass. Dedicated Astra reviews passed the
+logging design and corrected focus behavior. Native color transitions and real
+plugin caller attribution remain user-owned checks.
 
 ## Translation refresh through 1894f011
 
@@ -622,6 +664,11 @@ variants for the same runtime filename. The GitLab variant opens a draft on
 never trigger a crash automatically. Opening a draft does not verify website
 prefill until checked in a browser, and the source-level harness cannot prove
 live tracker settings or permissions.
+
+Following the local `31f23241` release handoff, the user confirmed that the
+GitLab crash-recovery/report button worked in their client. RecoveryAudit was
+unlinked at their request; its source and reports remain available locally.
+This is user-reported native evidence, separate from the source harness above.
 
 ## Recovery revamp through 3e70353a
 
@@ -2115,6 +2162,10 @@ a fork-specific navigation contract.
 
 ### Identity-aware plugin/theme updater (Stage 7B)
 
+For settings, source selection and troubleshooting, see the dedicated
+[plugin and theme updater guide](addon-updater.md). This section records the
+implementation decisions and preservation contract for future integrations.
+
 Primary files:
 
 - `src/betterdiscord/modules/addonupdater.ts`
@@ -2148,9 +2199,10 @@ Source and identity rules:
   repository mismatch is rejected unless an independent author match proves
   the identity. A Store row with no positive identity evidence remains
   ineligible.
-- A declared URL with no repository or author evidence may use the narrow
-  fallback of a fully validated matching addon name. This fallback is not
-  granted to Store rows because the installed addon explicitly chose the URL.
+- A declared URL whose identity remains unknown may use a fully validated
+  matching addon name, provided there is no confirmed repository mismatch.
+  Author-only differences do not block this fallback. Store rows never receive
+  it; the installed addon must have explicitly declared the URL.
 - The installed JumpToTop source identifies
   `github.com/XxUnkn0wnxX/BDPlugins`; the Store row identifies
   `github.com/snappycreeper/BetterDiscordPlugins`. Their repository and author
@@ -2170,7 +2222,7 @@ URL normalization and source validation:
   hosts. An already-direct generic HTTPS source remains usable.
 - Gists and snippets resolve through bounded provider metadata calls and must
   select the exact installed filename, or the only plugin/theme file when no
-  filename is available. Descriptor calls are serialized and bounded in size
+  exact match exists. Descriptor calls are serialized and bounded in size
   and pagination rather than guessing among multiple files.
 - Require HTTPS, reject embedded credentials, remove fragments, follow at most
   five redirects, and reject a downgrade or unsafe redirect. Known
@@ -2243,8 +2295,8 @@ Freshness, scheduling, and request control:
   forces the first pass immediately, joins any active per-addon check, and
   refuses repeated manual bursts for 60 seconds. It performs at most one needed
   catalogue refresh rather than one request per manager. Concurrent manual
-  callers share the same owner, so the joined caller cannot duplicate the one
-  allowed core metadata check.
+  callers share the same addon-check owner and catalogue refresh. All core
+  metadata-check calls remain commented out and dormant.
 - A real plugin/theme file-read event receives one forced recheck after a
   750-millisecond debounce so a local downgrade or metadata change is noticed.
   Passive Settings/Store renders only read updater state and do not start

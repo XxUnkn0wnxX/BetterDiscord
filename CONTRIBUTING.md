@@ -2,6 +2,8 @@
 
 Thanks for helping improve this macOS-focused BetterDiscord fork.
 
+**Guide:** [Fork changes](docs/fork-specific-changes.md) · [Build and inject](docs/manual-install.md) · [Build and test](#build-and-test) · [Runtime verification](#runtime-verification-on-macos) · [Report a bug](#reporting-bugs)
+
 Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Before changing a
 fork-sensitive area, also read:
 
@@ -21,10 +23,10 @@ Keep changes focused, preserve existing authorship, and explain any intentional
 departure from upstream behavior. Do not rewrite workflows, injection plumbing,
 or OpenAsar coordination as part of an unrelated change.
 
-When upstream introduces a newer Web, Electron, or Discord-runtime assumption,
-keep its public/plugin-facing contract authoritative. Check that assumption on
-the fork's older macOS and pinned Discord targets, and use a narrow
-capability-based backport when needed instead of creating a fork-only API.
+When upstream changes its Web, Electron, or Discord-runtime assumptions,
+preserve its public/plugin contract. Verify the change on older supported
+targets and use a narrow capability-based backport when needed, rather than a
+fork-only API.
 
 ## Local setup
 
@@ -36,14 +38,14 @@ cd BetterDiscord
 bun install
 ```
 
-The main source areas are:
-
-- `src/betterdiscord/` — renderer UI, settings, addons, APIs, and runtime logic;
-- `src/electron/` — Electron main/preload integration and macOS recovery;
-- `src/common/` — code shared across process boundaries;
-- `scripts/` — build, pack, inject, uninject, and resource-discovery tooling;
-- `tests/` — Bun tests for shared, renderer, Electron, and wrapper behavior;
-- `docs/` — fork behavior and manual installation documentation.
+| Area | Contents |
+| --- | --- |
+| `src/betterdiscord/` | Renderer UI, settings, addons, APIs, and runtime logic |
+| `src/electron/` | Electron main/preload integration and macOS recovery |
+| `src/common/` | Code shared across process boundaries |
+| `scripts/` | Build, pack, inject, uninject, and resource-discovery tooling |
+| `tests/` | Bun tests for shared, renderer, Electron, and wrapper behavior |
+| `docs/` | Fork behavior and manual installation guides |
 
 ## Build and test
 
@@ -146,7 +148,7 @@ upstream installer support flow.
   `Verification`.
 - Keep documentation and source comments synchronized with intentional fork
   differences.
-- Never commit `tmp/`, local runtime reports, credentials, or generated Discord
+- Never commit `.tmp/`, `tmp/`, local runtime reports, credentials, or generated Discord
   application files.
 
 ## License

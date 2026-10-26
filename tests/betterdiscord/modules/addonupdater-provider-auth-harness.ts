@@ -1,6 +1,6 @@
 import {mock} from "bun:test";
 import {dryReadableStream, type DriedRequest} from "@common/native-fetch";
-import {configureProviderTokens} from "@common/provider-auth";
+import {configureProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
 import {getAddonUpdateContentHash, getAddonUpdateUrlFingerprint} from "@utils/addonupdatestate";
 
 const restart = process.argv[2] === "restart";
@@ -9,6 +9,7 @@ const gitlabToken = "dummy-updater-gitlab-5678";
 let now = 1_800_000_000_000;
 Date.now = () => now;
 const calls: DriedRequest[] = [];
+setProviderTokenUseReporter(() => {});
 const failures: string[] = [];
 let persisted: any = {version: 1, addons: {}, urls: {}, origins: {}};
 const pluginManager = {addonList: [] as any[], addonFolder: "unused"};
@@ -94,6 +95,7 @@ else {
     handlers.set(githubUrl, () => new Response(body("Quota", githubUrl)));
     assert(await AddonUpdateCoordinator.checkManually(), "Manual check did not resume after cooldown.");
     assert(calls.length === 2 && calls[1].providerAuthorization?.token === token, "Anonymous quota/target retry blocked the new token.");
+    assert(calls[1].providerTokenUsage?.addon === "Quota.plugin.js", "Managed raw update lost the initiating addon filename.");
     assert(PluginUpdater.getUpdateCandidate("Quota.plugin.js")?.version === "2.0.0", "Authenticated source did not produce a candidate.");
     assert(persisted.origins["https://api.github.com"].blockedUntil === anonymousBlockedUntil, "Authenticated success erased anonymous backoff.");
 
@@ -147,6 +149,7 @@ else {
     let descriptorCalls = 0;
     handlers.set(descriptorUrl, request => {
         assert(request.providerAuthorization?.purpose === "managed-addon-update", "Descriptor did not enter the managed transport lane.");
+        assert(request.providerTokenUsage?.addon === "Gist.plugin.js", "Managed descriptor metadata lost its initiating addon filename.");
         if (++descriptorCalls > 1) return Response.json({files: {"Gist.plugin.js": {filename: "Gist.plugin.js", raw_url: newRaw}}});
         return new Response(new ReadableStream({async start(controller) {
             await descriptorBody.promise;

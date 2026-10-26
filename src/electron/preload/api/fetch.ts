@@ -2,7 +2,7 @@ import https from "https";
 import http from "http";
 import {hydrateReadableStream, dryReadableStream, type DriedRequest, type DriedResponse} from "@common/native-fetch";
 import {isWebhookUrl} from "./webhook";
-import {providerHeadersForHop, providerTokenUseForHop, sanitizeProviderError} from "@common/provider-auth";
+import {providerHeadersForHop, providerTokenUseForHop, sanitizeProviderAddonLabel, sanitizeProviderError} from "@common/provider-auth";
 
 const DEFAULT_TIMEOUT = 8_000;
 
@@ -22,8 +22,22 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
     let redirectCount = 0;
     let usageReported = false;
 
-    function out(uri: string, res: http.IncomingMessage): DriedResponse {
+    function out(uri: string, res: http.IncomingMessage, usedToken?: ReturnType<typeof providerTokenUseForHop>): DriedResponse {
         const status = res.statusCode ?? 0;
+        const reportSuccess = () => {
+            try {
+                if (usageReported || !providerTokenUsage || !usedToken || dryAbortSignal?.aborted()
+                    || !(status >= 200 && status < 300 || status === 304)) return;
+                usageReported = true;
+                providerTokenUsage.report({
+                    ...usedToken.event,
+                    kind: "update-success",
+                    addon: sanitizeProviderAddonLabel(providerTokenUsage.addon, capturedTokens),
+                    status
+                });
+            }
+            catch {/* A renderer reporter must never interrupt the response. */}
+        };
 
         let stream: ReadableStream | null = null;
 
@@ -47,6 +61,8 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
                         settled = true;
                         controller.error(sanitize(error));
                     });
+
+                    res.once("aborted", () => fail(new Error("Response was aborted.")));
 
                     const contentLength = Number(res.headers["content-length"]);
                     if (init.maxResponseBytes && Number.isFinite(contentLength) && contentLength > init.maxResponseBytes) {
@@ -72,6 +88,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
                         if (settled) return;
                         settled = true;
                         controller.close();
+                        reportSuccess();
                     });
                 },
                 cancel() {
@@ -85,6 +102,15 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
                 },
                 type: "bytes"
             });
+        }
+
+        if (bodylessStatusCodes.has(status)) {
+            let failed = false;
+            res.once("error", () => {failed = true;});
+            res.once("aborted", () => {failed = true;});
+            res.once("end", () => {if (!failed) reportSuccess();});
+            // A bodyless response still needs to reach its native completion event.
+            res.resume?.();
         }
 
         return {
@@ -156,7 +182,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
                         return;
                     }
                     if (init.redirect === "manual") {
-                        resolve(out(uri, res));
+                        resolve(out(uri, res, usedToken));
                         return;
                     }
                     if (redirectCount >= maxRedirects) {
@@ -196,7 +222,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
                     }
                 }
 
-                resolve(out(uri, res));
+                resolve(out(uri, res, usedToken));
             }
             catch (error) {
                 res.destroy();
@@ -205,15 +231,6 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, provide
         });
 
         request.shouldKeepAlive = init.keepalive;
-
-        if (providerTokenUsage && usedToken) {
-            request.once("finish", () => {
-                if (usageReported || request.destroyed) return;
-                usageReported = true;
-                try {providerTokenUsage.report(usedToken.event);}
-                catch {/* A renderer reporter must never interrupt the request. */}
-            });
-        }
 
         if (dryAbortSignal) {
             const undo = dryAbortSignal.addListener(() => {

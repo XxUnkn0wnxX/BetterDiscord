@@ -1,4 +1,4 @@
-import {normalizeProviderToken, type TokenProvider} from "@common/provider-auth";
+import {captureProviderTokenReporter, maskProviderToken, normalizeProviderToken, sanitizeProviderAddonLabel, type ProviderTokenDiagnostic, type ProviderTokenOperation, type ProviderTokenReporter, type ProviderValidationReason, type TokenProvider} from "@common/provider-auth";
 import {fetch} from "./net";
 
 const VALIDATION_TIMEOUT_MS = 10_000;
@@ -34,12 +34,24 @@ async function readJson(response: Response): Promise<any> {
 }
 
 /** Bounded provider probes; setup additionally checks permissions where the provider permits it. */
-export async function validateProviderToken(provider: TokenProvider, candidate: string, signal: AbortSignal, mode: ProviderTokenValidationMode = "setup"): Promise<ProviderTokenValidationResult> {
+export async function validateProviderToken(provider: TokenProvider, candidate: string, signal: AbortSignal, mode: ProviderTokenValidationMode = "setup", operation?: ProviderTokenOperation): Promise<ProviderTokenValidationResult> {
     const token = normalizeProviderToken(candidate);
     if (!token || token.length > 1024) return {status: "invalid"};
     if (signal.aborted) return unavailable("network");
 
     const controller = new AbortController();
+    let report: ProviderTokenReporter | undefined;
+    let started = false;
+    const emitDiagnostic = (event: ProviderTokenDiagnostic) => {
+        try {report?.(event);}
+        catch {/* Diagnostics must never change validation or token persistence. */}
+    };
+    const diagnostic: Omit<Extract<ProviderTokenDiagnostic, {trigger: string}>, "kind"> = {
+        provider,
+        trigger: mode === "setup" ? "setup" : "revalidation",
+        maskedToken: maskProviderToken(token),
+        ...(operation?.addon ? {addon: sanitizeProviderAddonLabel(operation.addon, [token])} : {})
+    };
     let resolveAbort!: (result: ProviderTokenValidationResult) => void;
     let resolveTimeout!: (result: ProviderTokenValidationResult) => void;
     const aborted = new Promise<ProviderTokenValidationResult>(resolve => {resolveAbort = resolve;});
@@ -69,6 +81,11 @@ export async function validateProviderToken(provider: TokenProvider, candidate: 
 
     const probe = async (input: string, permission?: MissingProviderPermission): Promise<{status: "response"; data: any} | ProviderTokenValidationResult> => {
         if (controller.signal.aborted) return unavailable("network");
+        if (!started) {
+            started = true;
+            report = operation ? operation.report : captureProviderTokenReporter();
+            emitDiagnostic({...diagnostic, kind: "validation-start"});
+        }
         const response = await fetch(input, {
             method: "GET",
             headers,
@@ -122,7 +139,14 @@ export async function validateProviderToken(provider: TokenProvider, candidate: 
     };
 
     try {
-        return await Promise.race([request(), timedOut, aborted]);
+        const result = await Promise.race([request(), timedOut, aborted]);
+        if (started && !signal.aborted) {
+            const reason: ProviderValidationReason = result.status === "unavailable"
+                ? result.missingPermission ? "missing-permissions" : result.reason === "permission" ? "permission-denied" : result.reason
+                : result.status;
+            emitDiagnostic({...diagnostic, kind: "validation-result", result: reason});
+        }
+        return result;
     }
     finally {
         clearTimeout(timer);

@@ -36,7 +36,7 @@ async function handleFailure(failure: ProviderTokenFailure): Promise<void> {
     };
     validation.promise = Promise.resolve().then(async () => {
         if (controller.signal.aborted || !stillCurrent(failure)) return;
-        const result = await validateProviderToken(provider, token, controller.signal, "validity");
+        const result = await validateProviderToken(provider, token, controller.signal, "validity", failure.operation);
         if (controller.signal.aborted || result.status !== "invalid" || !stillCurrent(failure)) return;
         Settings.set("settings", "accessTokens", provider, "");
         // A synchronous settings subscriber may already have supplied a replacement.

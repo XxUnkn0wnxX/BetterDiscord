@@ -45,7 +45,8 @@ export interface DriedRequest {
     providerAuthorization?: import("./provider-auth").ProviderAuthorization;
     providerTokenUsage?: {
         purpose: import("./provider-auth").ProviderAuthorizationPurpose;
-        report(event: import("./provider-auth").ProviderTokenUse): void;
+        addon?: string;
+        report(event: import("./provider-auth").ProviderTokenSuccess): void;
     };
 }
 

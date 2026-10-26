@@ -29,9 +29,11 @@ const validationListeners = new Map<string, Set<ValidationListener>>();
 const validateProviderToken = (provider: string, candidate: string, signal: AbortSignal) => new Promise<ValidationResult>(resolve => {
     validationRequests.push({provider, candidate, signal, resolve});
 });
-function NativeTextInput(props: {id: string; value: string; type: string; error?: string; disabled?: boolean; maxLength: number; autoComplete: string; spellCheck: boolean; inputRef: React.Ref<HTMLInputElement>; onChange(value: string, name?: string): void;}) {
-    return <div data-native-text-input>
-        <input id={props.id} type={props.type} value={props.value} disabled={props.disabled} maxLength={props.maxLength} autoComplete={props.autoComplete} spellCheck={props.spellCheck} ref={props.inputRef} onChange={event => props.onChange(event.currentTarget.value, props.id)} />
+function NativeTextInput(props: {id: string; value: string; type: string; error?: string; disabled?: boolean; maxLength: number; autoComplete: string; spellCheck: boolean; inputRef: React.Ref<HTMLInputElement>; focusProps: {ringClassName?: string}; onChange(value: string, name?: string): void;}) {
+    // Native FocusRing snapshots this class on focus, not on every input rerender.
+    const [ringClass, setRingClass] = React.useState<string | undefined>();
+    return <div data-native-text-input data-native-ring={ringClass}>
+        <input id={props.id} type={props.type} value={props.value} aria-invalid={!!props.error} disabled={props.disabled} maxLength={props.maxLength} autoComplete={props.autoComplete} spellCheck={props.spellCheck} ref={props.inputRef} onFocus={() => setRingClass(props.focusProps.ringClassName)} onChange={event => props.onChange(event.currentTarget.value, props.id)} />
         {props.error && <div data-native-error>{props.error}</div>}
     </div>;
 }
@@ -303,6 +305,11 @@ describe("Group with collection-backed controls", () => {
         expect(input?.type).toBe("password");
         expect(input?.value).toBe("gh-dummy-token-123456");
         expect(validationRequests).toHaveLength(0);
+        const ringClass = () => container.querySelector("[data-native-text-input]")?.getAttribute("data-native-ring");
+        const pendingFocus = () => container.querySelector(".bd-provider-token-pending input:focus");
+        await act(async () => input!.focus());
+        expect(ringClass()).toBe("bd-provider-token-ring");
+        expect(pendingFocus()).toBeNull();
         const toggle = container.querySelector<HTMLButtonElement>("button[aria-label='ProviderTokens.show']");
         expect(toggle).toBeTruthy();
         await act(async () => toggle!.click());
@@ -318,6 +325,16 @@ describe("Group with collection-backed controls", () => {
         expect(validationRequests).toHaveLength(0);
 
         await act(async () => changeNativeInput(input!, "gh-updated-dummy-token"));
+        expect(input!.getAttribute("aria-invalid")).toBe("false");
+        expect(container.querySelector("[data-native-error]")).toBeNull();
+        expect(container.querySelector("[role='status']")?.textContent).toBe("ProviderTokens.checking");
+        expect(ringClass()).toBe("bd-provider-token-ring");
+        expect(pendingFocus()).toBe(input);
+        await act(async () => hideToggle!.focus());
+        expect(container.querySelector(".bd-provider-token-pending")).not.toBeNull();
+        expect(pendingFocus()).toBeNull();
+        await act(async () => input!.focus());
+        expect(pendingFocus()).toBe(input);
         expect(callbacks).toHaveLength(0);
         await advanceTimers(749);
         expect(validationRequests).toHaveLength(0);
@@ -325,11 +342,18 @@ describe("Group with collection-backed controls", () => {
         expect(validationRequests.map(request => request.candidate)).toEqual(["gh-updated-dummy-token"]);
         await act(async () => validationRequests[0].resolve({status: "valid"}));
         expect(callbacks).toEqual([["accessTokens", "github", "gh-updated-dummy-token"]]);
+        expect(document.activeElement).toBe(input);
+        expect(ringClass()).toBe("bd-provider-token-ring");
+        expect(pendingFocus()).toBeNull();
 
         await act(async () => changeNativeInput(input!, "gh-invalid-draft"));
         await advanceTimers(750);
         await act(async () => validationRequests[1].resolve({status: "invalid"}));
         expect(container.querySelector("[data-native-error]")?.textContent).toBe("ProviderTokens.invalid");
+        expect(input!.getAttribute("aria-invalid")).toBe("true");
+        expect(document.activeElement).toBe(input);
+        expect(ringClass()).toBe("bd-provider-token-ring");
+        expect(pendingFocus()).toBeNull();
         expect(storeState.providerToken).toBe("gh-updated-dummy-token");
         expect(container.querySelector(".bd-provider-token-retry")).toBeNull();
         expect(callbacks).toHaveLength(1);
@@ -337,11 +361,20 @@ describe("Group with collection-backed controls", () => {
         await act(async () => changeNativeInput(input!, "gh-temporary-draft"));
         await advanceTimers(750);
         await act(async () => validationRequests[2].resolve({status: "unavailable", reason: "network"}));
+        expect(input!.getAttribute("aria-invalid")).toBe("false");
+        expect(container.querySelector("[data-native-error]")).toBeNull();
+        expect(container.querySelector("[role='status']")?.textContent).toBe("ProviderTokens.unavailable.network");
+        expect(document.activeElement).toBe(input);
+        expect(ringClass()).toBe("bd-provider-token-ring");
+        expect(pendingFocus()).toBeNull();
         expect(storeState.providerToken).toBe("gh-updated-dummy-token");
         expect(callbacks).toHaveLength(1);
         const retryButton = container.querySelector<HTMLButtonElement>(".bd-provider-token-retry");
         expect(retryButton).toBeTruthy();
+        await act(async () => retryButton!.focus());
         await act(async () => retryButton!.click());
+        expect(container.querySelector(".bd-provider-token-pending")).not.toBeNull();
+        expect(pendingFocus()).toBeNull();
         await advanceTimers(0);
         expect(validationRequests[3].candidate).toBe("gh-temporary-draft");
         await act(async () => validationRequests[3].resolve({status: "valid"}));
@@ -433,6 +466,8 @@ describe("Group with collection-backed controls", () => {
         expect(Notifications.notifications[0].id).toBe("provider-token-permissions-slowbro");
         expect(Notifications.notifications[0].duration).toBe(Infinity);
         expect(Notifications.notifications[0].type).toBe("warning");
+        expect(input.getAttribute("aria-invalid")).toBe("true");
+        expect(container.querySelector("[data-native-error]")?.textContent).toBe("ProviderTokens.unavailable.permission");
         Notifications.hide("provider-token-permissions-slowbro");
         await act(async () => changeNativeInput(input, "stale-scope-dummy"));
         await advanceTimers(750);
@@ -455,6 +490,21 @@ describe("Group with collection-backed controls", () => {
         ]} />));
         expect(container.querySelector<HTMLInputElement>("input#github")?.type).toBe("password");
         expect(validationRequests).toHaveLength(0);
+    });
+
+    test("a generic permission denial is a status message without claiming invalid input", async () => {
+        enableFakeTimers();
+        await act(async () => root.render(<Group id="accessTokens" collection="settings" settings={[
+            {type: "text", id: "gitlab", name: "GitLab", value: storeState.providerToken}
+        ]} />));
+        const input = container.querySelector<HTMLInputElement>("input#gitlab")!;
+        await act(async () => changeNativeInput(input, "generic-denial-dummy"));
+        await advanceTimers(750);
+        await act(async () => validationRequests[0].resolve({status: "unavailable", reason: "permission"}));
+        expect(input.getAttribute("aria-invalid")).toBe("false");
+        expect(container.querySelector("[data-native-error]")).toBeNull();
+        expect(container.querySelector("[role='status']")?.textContent).toBe("ProviderTokens.unavailable.permission");
+        expect(Notifications.notifications).toHaveLength(0);
     });
 
     test("ordinary plugin text setting keeps its textbox renderer", async () => {

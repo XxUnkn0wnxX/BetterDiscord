@@ -19,3 +19,22 @@
 .bd-provider-token-toggle {
     flex: 0 0 auto;
 }
+
+.bd-provider-token-pending input,
+.bd-provider-token-pending [data-error] {
+    border-color: var(--text-feedback-warning, var(--status-warning));
+}
+
+/* Native rings may cache their class until blur; derive color from the focused field. */
+:where(dialog, [role="dialog"]):has(.bd-provider-token-pending input:focus) .focus-rings-ring.bd-provider-token-ring {
+    --bd-native-focus-color: var(--text-feedback-warning, var(--status-warning));
+}
+
+.bd-provider-token-status {
+    margin-top: 8px;
+    color: var(--text-normal);
+}
+
+.bd-provider-token-pending .bd-provider-token-status {
+    color: var(--text-feedback-warning, var(--status-warning));
+}

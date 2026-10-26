@@ -15,48 +15,31 @@
 [translate-badge]: https://img.shields.io/badge/upstream-translate-3a71c1?logo=crowdin&style=for-the-badge
 [translate-link]: https://translate.betterdiscord.app
 
-This is an independent, macOS-focused fork of
-[BetterDiscord](https://github.com/BetterDiscord/BetterDiscord). It is built
-for local use from the `develop` branch and does not provide or promote the
-upstream installer downloads. Keeping upstream BetterDiscord features and
-plugin-facing APIs usable on older macOS versions and pinned older
-Discord/Electron builds is a primary focus of this fork.
+An independent [BetterDiscord](https://github.com/BetterDiscord/BetterDiscord)
+fork focused on older macOS and pinned Discord/Electron builds. Build locally
+from `develop`, inject into a standard macOS Discord installation, then open
+Discord normally.
 
-The maintained workflow for this fork is to build it locally, inject it into a
-standard macOS Discord installation, and open Discord normally.
-
-The Website, Docs, Discord, and Translate shields above are upstream community
-resources. This fork deliberately does not link or promote upstream installer
+The Website, Docs, Discord and Translate badges link to upstream community
+resources. This fork uses the local build workflow below, not upstream installer
 downloads.
 
 ## :sparkles: How this fork differs
 
-- **:package: Custom reinjection:** Retains this fork's application-ASAR wrapper, macOS update recovery,
-  and identity-matched OpenAsar handoff. Routine upstream syncs keep this implementation intact;
-  newer reinjection designs can be revisited when real host updates can be tested on a supported newer system.
-- **:hammer_and_wrench: Local workflow:** Provides Zsh wrappers for release/dev injection, safe uninject, and
-  Stable, PTB, or Canary selection.
-- **:no_entry_sign: Core updates:** Keeps BetterDiscord core update checks disabled while plugin and theme
-  updates remain active.
-- **:shield: Safer addon updates:** Uses identity-aware plugin/theme updates so a same-filename Store addon
-  cannot silently replace an unrelated forked addon.
-- **:electric_plug: Library-neutral loading:** Gives no special startup treatment to `0BDFDB.plugin.js` or another plugin
-  library; disabled plugins stay disabled.
-- **:hourglass_flowing_sand: Legacy runtime compatibility:** Keeps upstream plugin-facing behavior while adapting internal runtime
-  assumptions for older macOS and pinned Discord/Electron builds when a small, capability-based backport is practical.
-- **:arrows_counterclockwise: Upstream plugin contracts:** Follows upstream API and lifecycle changes, including removal of obsolete
-  hooks. Older-Electron support does not mean retaining every historical plugin API or BetterDiscord implementation.
-- **:paintbrush: Runtime hardening:** Retains fork-specific Settings, Custom CSS, editor, Addon Store, and Discord
-  runtime compatibility fixes around reviewed upstream changes.
+| Area | Fork behavior |
+| --- | --- |
+| macOS recovery | Keeps the application-ASAR wrapper, update recovery and identity-matched OpenAsar handoff. |
+| Local workflow | Zsh wrappers for release/dev builds, injection and safe removal on Stable, PTB or Canary. |
+| [Addon updates](docs/addon-updater.md) | Compares declared update URLs and Store candidates by identity and version; filenames alone cannot replace unrelated addons. |
+| [Access tokens](docs/provider-tokens.md) | Optional GitHub, GitLab and git.slowb.ro authentication with validated autosave and masked diagnostics. |
+| Core updates | BetterDiscord core checks stay disabled; plugin/theme checks and the Addon Store stay active. |
+| Plugin loading | Disabled plugins stay disabled, with no special treatment for libraries such as `0BDFDB.plugin.js`. |
+| Compatibility | Adapts internals for older runtimes while following upstream APIs, lifecycle changes and removal of obsolete hooks. |
+| Runtime fixes | Preserves Settings, Custom CSS/editor, Addon Store and Discord compatibility fixes. |
 
-See [Plugin API notes](docs/plugin-api-notes.md) for optional helpers, examples,
-availability, and older-runtime considerations.
-
-See [Optional addon update tokens](docs/provider-tokens.md) for GitHub, GitLab and
-git.slowb.ro token setup, validation, and masked update diagnostics.
-
-See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
-upstream-versus-fork inventory and the rules used for future merges.
+The [fork record](docs/fork-specific-changes.md) defines preservation and
+replacement criteria for future upstream merges, including reinjection review
+on a supported newer system.
 
 ## :apple: Supported workflow
 
@@ -91,7 +74,7 @@ bun install
 Build a release ASAR and inject it into Discord Stable:
 
 ```sh
-zsh local-build.zsh -mrts 45
+zsh local-build.zsh dist -mrts 45
 zsh local-inject.zsh stable
 ```
 
@@ -121,16 +104,16 @@ This preserves a nested OpenAsar payload when one was already installed.
 
 ## :book: Documentation
 
-- [Manual macOS build and injection](docs/manual-install.md)
-- [Fork-specific changes and upstream policy](docs/fork-specific-changes.md)
-- [Optional plugin APIs and examples](docs/plugin-api-notes.md)
-- [Contributing to this fork](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
-- [Apache License 2.0](LICENSE.md)
+| Guide | Find |
+| --- | --- |
+| [Build and injection](docs/manual-install.md) | Release/dev modes, dry runs, recovery, OpenAsar and removal |
+| [Plugin and theme updates](docs/addon-updater.md) | Sources, selection rules, scheduling and troubleshooting |
+| [Access tokens](docs/provider-tokens.md) | Token creation, permissions, validation and logs |
+| [Plugin API notes](docs/plugin-api-notes.md) | Optional helpers, examples and runtime evidence |
+| [Fork record](docs/fork-specific-changes.md) | Preserved behavior and upstream integration decisions |
 
-The detailed manual guide covers release and dev injection, dry runs,
-Stable/PTB/Canary selection, update recovery, OpenAsar ordering, and safe
-uninject behavior.
+[All documentation](docs/README.md) · [Contributing](CONTRIBUTING.md) ·
+[Changelog](CHANGELOG.md) · [License](LICENSE.md)
 
 ## :link: Upstream and license
 
