@@ -165,6 +165,29 @@ else {
     assert(descriptorCalls === 2 && !calls.some(call => call.url === oldRaw), "Old descriptor body restored a superseded raw resolution.");
     assert(persisted.addons["plugin:Gist.plugin.js"].resolvedUrlFingerprint === getAddonUpdateUrlFingerprint(newRaw), "Current descriptor resolution was not persisted.");
     assert(calls.find(call => call.url === newRaw)?.providerAuthorization === undefined, "Descriptor raw download acquired API authentication.");
+
+    const slowbroUrl = "https://git.slowb.ro/owner/repo/raw/branch/main/Slowbro.plugin.js";
+    const slowbroToken = "dummy-updater-slowbro-7890";
+    pluginManager.addonList.push(addon("Slowbro", slowbroUrl));
+    handlers.set(slowbroUrl, () => limited());
+    await AddonUpdateCoordinator.checkAutomatic("scheduled");
+    const slowbroAnonymousLimit = persisted.origins["https://git.slowb.ro"].blockedUntil;
+    assert(slowbroAnonymousLimit > now, "Slowbro's anonymous rate limit was not retained.");
+    configureProviderTokens({github: "dummy-updater-latest-3456", gitlab: gitlabToken, slowbro: slowbroToken});
+    handlers.set(slowbroUrl, () => new Response(body("Slowbro", slowbroUrl)));
+    await AddonUpdateCoordinator.checkAutomatic("scheduled");
+    assert(calls.filter(call => call.url === slowbroUrl).length === 2, "New Slowbro authentication did not invalidate anonymous target retry.");
+    assert(calls.filter(call => call.url === slowbroUrl).at(-1)?.providerAuthorization?.token === slowbroToken, "Managed Forgejo raw updates did not acquire the matching provider token.");
+    assert(PluginUpdater.getUpdateCandidate("Slowbro.plugin.js")?.version === "2.0.0", "Authenticated Slowbro update did not produce its candidate.");
+    handlers.set(slowbroUrl, () => limited());
+    await PluginUpdater.checkAll(false);
+    assert(persisted.origins["https://git.slowb.ro"].authenticated.credentialFingerprint === fingerprint(slowbroToken), "Slowbro authenticated requests were placed in the anonymous bucket.");
+    assert(persisted.origins["https://git.slowb.ro"].authenticated.blockedUntil > now, "Slowbro authenticated throttling was not persisted.");
+    assert(persisted.origins["https://git.slowb.ro"].blockedUntil === slowbroAnonymousLimit, "Slowbro authenticated throttling overwrote its anonymous state.");
+    configureProviderTokens({github: "dummy-updater-latest-3456", gitlab: gitlabToken, slowbro: "dummy-updater-slowbro-rotated-8901"});
+    handlers.set(slowbroUrl, () => new Response(body("Slowbro", slowbroUrl, "3.0.0")));
+    await AddonUpdateCoordinator.checkAutomatic("scheduled");
+    assert(PluginUpdater.getUpdateCandidate("Slowbro.plugin.js")?.version === "3.0.0", "Slowbro generation changes did not reconcile stale authenticated limits/target state.");
     assert(failures.length === 0, "Superseded work escaped as an unexpected failure.");
 }
 const serialized = JSON.stringify(persisted);

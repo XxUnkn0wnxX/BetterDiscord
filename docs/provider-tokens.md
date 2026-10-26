@@ -1,7 +1,7 @@
 # Optional addon update tokens
 
-BetterDiscord can use an optional GitHub or GitLab.com access token for plugin
-and theme update requests. Leave either field empty to disable BetterDiscord's
+BetterDiscord can use optional GitHub, GitLab.com, or git.slowb.ro access tokens for
+plugin and theme update requests. Leave a field empty to disable BetterDiscord's
 token fallback for that provider. GitHub fine-grained and classic personal access tokens use the
 same **GitHub Token** field.
 
@@ -17,6 +17,8 @@ that allowance, and secondary limits still apply. See
 | GitHub | Fine-grained personal access token | Automatic public repository read access; no additional permissions needed |
 | GitHub alternative | Personal access token (classic) | Leave all scopes unchecked |
 | GitLab.com | Personal access token with `read_api` | Read-only API access |
+| GitLab.com alternative | Fine-grained personal access token | User / Read for validation, plus the relevant project read permissions below |
+| git.slowb.ro | Forgejo personal access token | Public only, `read:user` and `read:repository` |
 
 Public GitHub releases can be read without additional repository permissions.
 These update requests do not need write, administration, or pull-request
@@ -47,7 +49,7 @@ that a classic token without scopes can access public
 information. Either GitHub token type works in the same field; do not add a
 `Bearer` prefix or quotes.
 
-## Create a GitLab.com token
+## Create a GitLab.com legacy token
 
 1. Open [GitLab.com's personal access token settings](https://gitlab.com/-/user_settings/personal_access_tokens).
 2. From **Generate token**, choose **Legacy token**.
@@ -58,11 +60,47 @@ information. Either GitHub token type works in the same field; do not add a
 See GitLab's [token creation instructions](https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token)
 and [scope reference](https://docs.gitlab.com/security/tokens/access_token_scopes/).
 
-The field does not enforce a particular token prefix. A GitLab fine-grained token
-also needs **User / Read** permission for validation, plus the appropriate project
-read permissions for its update endpoints. A successful identity check does not
-establish access to every repository or snippet. See
-[GitLab's fine-grained API permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_rest/).
+## Create a GitLab.com fine-grained token
+
+Both GitLab token types use the same **GitLab Token** field and `PRIVATE-TOKEN`
+header. BetterDiscord checks the provider's response rather than requiring a
+particular prefix.
+
+1. Open [GitLab.com's personal access token settings](https://gitlab.com/-/user_settings/personal_access_tokens).
+2. From **Generate token**, choose **Fine-grained token**.
+3. Enter a name and an expiration date.
+4. Under **Group and project access**, select access covering the addon projects you use.
+5. Under **Add resource permissions**, use the **User** tab to add **User → Read**. BetterDiscord needs this for its `GET /user` validation request.
+6. Under **Group and project**, add the read permissions used by your addons:
+
+   | Update source | Permission |
+   | --- | --- |
+   | Release metadata | Release → Read |
+   | Release asset links | Release Link → Read |
+   | Repository plugin/theme files | Repository → Read |
+   | Snippet metadata | Snippet → Read |
+
+7. Generate the token and paste it into BetterDiscord's **GitLab Token** field.
+
+Choose only the resources your addons need; write permissions are unnecessary.
+A successful identity check confirms the token's validity, but not access to
+every project. Missing validation permission prevents autosave. See
+[GitLab's creation guide](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens/)
+and [fine-grained API permissions](https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_rest/).
+
+## Create a git.slowb.ro token
+
+1. Sign in and open [Settings → Applications](https://git.slowb.ro/user/settings/applications).
+2. Create a new access token named **BetterDiscord addon updates**.
+3. Select **Public only** access.
+4. Set **user** and **repository** permissions to **Read** (`read:user` and `read:repository`). Other permissions are unnecessary.
+5. Generate the token and copy it into BetterDiscord's **git.slowb.ro Token** field.
+
+The user permission allows the credential check; repository permission allows
+addon reads. The setup check verifies both. A token restricted to specific
+repositories cannot include the user permission needed by this validator.
+See [Forgejo's scope reference](https://forgejo.org/docs/v16.0/user/authentication/token-scope/)
+and [API authentication guide](https://forgejo.org/docs/v16.0/user/api/usage/).
 
 ## Add, replace, or remove a token
 
@@ -77,14 +115,30 @@ establish access to every repository or snippet. See
 A replacement stays local to the field until validation succeeds. The previously
 saved token remains active during checking or an unsuccessful replacement.
 Clearing the field disables that provider's token immediately. Resetting settings
-also cancels pending validation.
+also cancels pending validation. Unsaved drafts are discarded when the control
+unmounts, and unfinished validation is cancelled. Invalid drafts never replace
+the saved value.
 
 GitHub validation reads [`GET /rate_limit`](https://docs.github.com/en/rest/rate-limit/rate-limit),
 which does not consume its primary REST allowance and needs no fine-grained
 permissions. GitLab validation reads
 [`GET /api/v4/user`](https://docs.gitlab.com/api/users/#retrieve-the-current-user).
-Validation requests reject redirects and have a ten-second total deadline.
+git.slowb.ro validation reads `GET /api/v1/user`; setup also checks repository
+access with `GET /api/v1/repos/search?limit=1`. These checks use a ten-second
+overall deadline and reject redirects.
 No account/profile data is saved.
+
+If a provider confirms missing permissions during setup, the token is not saved.
+A persistent BetterDiscord warning explains the required access and stays until
+you select **Dismiss** or **×**. Create a **new** GitLab or Forgejo token with the
+required permissions: rotating or regenerating an existing token preserves its
+scopes. A generic server denial or temporary connection/rate-limit problem is
+reported separately and does not trigger that missing-permissions warning. See
+[GitLab's token troubleshooting](https://docs.gitlab.com/security/tokens/token_troubleshooting/).
+
+This permission check runs when setting or replacing the token. GitLab's account
+probe cannot certify every fine-grained project permission; its selected projects
+and addon API permissions must also match the sources you use.
 
 Tokens are stored in plaintext with BetterDiscord's channel settings. On macOS:
 
@@ -106,11 +160,17 @@ BetterDiscord does not inspect arbitrary plugin setting names.
 Coverage includes managed plugin/theme checks and downloads where eligible, plus
 recognized release and addon-file API requests through `BdApi.Net.fetch`, such as
 SHC's GitHub release check. Managed gist/snippet metadata reads use the same
-policy. GitHub and GitLab tokens are selected independently.
+policy. Each provider's token is selected independently.
 
 Tokens added by this feature are limited to matching HTTPS API reads at
-`api.github.com` and `gitlab.com/api/v4`. They are dropped on redirects to another
-origin or an unrelated path. Ordinary API calls, raw/CDN downloads, other hosts,
+`api.github.com`, `gitlab.com/api/v4`, and the recognized repository API routes at
+`git.slowb.ro/api/v1`. On git.slowb.ro, existing addon URLs under
+`/<owner>/<repo>/raw/branch/...`, `/raw/tag/...`, and `/raw/commit/...` also accept
+the saved token when they name a `.plugin.js` or `.theme.css` file. This covers
+the raw update route used by MessageLogger without changing its URL.
+
+Tokens are dropped on redirects to another origin or an unrelated path.
+Ordinary API calls, other raw/CDN downloads, other hosts,
 self-hosted GitLab, and GitHub Enterprise do not receive the saved token.
 Custom Node or browser networking does not inherit BD's token fallback.
 
@@ -137,6 +197,20 @@ level is filtered out.
 - **Temporarily unavailable:** restore connectivity or wait for the provider's limit to reset, then select **Retry**. The draft is not saved meanwhile.
 - **Valid token, update still fails:** validation confirms the credential, not every repository's permissions or an addon's source URL. Existing addon credentials can also take priority.
 - **Rate-limit pause:** BetterDiscord's managed updater separates authenticated API backoff from anonymous limits. Its normal manual-check cooldowns and genuine authenticated limits still apply. Addon self-updaters retain their own scheduling and retry logic.
+
+If an eligible update request using a saved BetterDiscord token returns **401**,
+BetterDiscord reruns the credential validator. Only a confirmed invalid token
+that is still the current saved value is cleared. A persistent provider warning
+then explains that it was removed and asks you to add a replacement; select
+**Dismiss** or **×** to close it. An open field clears and returns to masked
+display. Concurrent failures share a check, and a late result cannot erase a
+replacement token.
+
+Successful updates do not make an extra validation request. Permission failures,
+rate limits and temporary validation failures retain the saved token. Credentials
+supplied by an addon remain under that addon's control. The failed update is not
+automatically retried with a different token; later eligible requests without
+their own credentials use anonymous access once the BD token is cleared.
 
 Clearing a saved token removes BetterDiscord's fallback; requests without their
 own credentials then use anonymous access. Tokens affect addon updates; this

@@ -325,6 +325,29 @@ describe("notification store and UI", () => {
         expect(preInit.isVisible()).toBe(false);
         expect(preInitCloseCount).toBe(1);
 
+        let persistentCloseCount = 0;
+        const persistent = await show({
+            id: "persistent-warning",
+title: "persistent warning",
+type: "warning",
+duration: Infinity,
+            actions: [{label: "Dismiss"}],
+onClose: () => persistentCloseCount++
+        });
+        await flush();
+        expect(springCalls.at(-1)?.options.pause).toBe(true);
+        expect(Number.isFinite(springCalls.at(-1)?.options.config.duration)).toBe(true);
+        expect(cardWithTitle("persistent warning").querySelector(".bd-notification-progress")).toBeNull();
+        await act(async () => springCalls.at(-1)!.trigger("0%"));
+        expect(persistent.isVisible()).toBe(true);
+        expect(persistentCloseCount).toBe(0);
+        await act(async () => cardWithTitle("persistent warning").querySelector<HTMLButtonElement>(".bd-notification-action")!.click());
+        expect(persistent.isVisible()).toBe(false);
+        expect(persistentCloseCount).toBe(1);
+        const persistentX = await show({title: "persistent close", duration: Infinity});
+        await act(async () => cardWithTitle("persistent close").querySelector<HTMLElement>(".bd-notification-close")!.click());
+        expect(persistentX.isVisible()).toBe(false);
+
         const sameAnonymousNotification = {title: "same anonymous rendered"};
         const firstAnonymousRendered = await show(sameAnonymousNotification);
         const secondAnonymousRendered = await show(sameAnonymousNotification);

@@ -35,7 +35,8 @@ const DefaultSettings = [
         shown: false,
         settings: [
             {type: "text", id: "github", value: "", maxLength: 1024},
-            {type: "text", id: "gitlab", value: "", maxLength: 1024}
+            {type: "text", id: "gitlab", value: "", maxLength: 1024},
+            {type: "text", id: "slowbro", value: "", maxLength: 1024}
         ]
     },
     {

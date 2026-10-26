@@ -7,6 +7,41 @@ const release = "https://api.github.com/repos/owner/addon/releases/tags/Nightly-
 afterEach(() => configureProviderTokens({}));
 
 describe("private provider authorization policy", () => {
+    test("authenticates Slowbro addon raw and API reads without expanding to other Forgejo traffic", () => {
+        const slowbro = "dummy-slowbro-secret-4321";
+        configureProviderTokens({github, gitlab, slowbro});
+        const raw = "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/raw/branch/main/MessageLoggerV2.plugin.js";
+        for (const url of [raw, raw.replace("/branch/", "/tag/"), raw.replace("/branch/", "/commit/"),
+            "https://git.slowb.ro/api/v1/repos/o/r/releases/latest",
+            "https://git.slowb.ro/api/v1/repos/o/r/releases/tags/v1",
+            "https://git.slowb.ro/api/v1/repos/o/r/releases/1/assets/2",
+            "https://git.slowb.ro/api/v1/repos/o/r/raw/Test.theme.css",
+            "https://git.slowb.ro/api/v1/repos/o/r/contents/Test.plugin.js"]) {
+            const snapshot = selectProviderAuthorization(url)!;
+            expect(snapshot.provider).toBe("slowbro");
+            const headers = providerHeadersForHop(url, url, {}, snapshot);
+            expect(headers).toEqual({Authorization: `token ${slowbro}`});
+            expect(providerTokenUseForHop(url, url, {headers}, snapshot.purpose, snapshot)?.event).toEqual({provider: "slowbro", source: "betterdiscord", maskedToken: "****4321"});
+        }
+        for (const url of [raw.replace("git.slowb.ro", "codeberg.org"), raw.replace("git.slowb.ro", "git.slowb.ro.evil.test"),
+            raw.replace("/raw/", "/src/"), raw.replace("MessageLoggerV2.plugin.js", "README.md"),
+            "https://git.slowb.ro/api/v1/user", "https://git.slowb.ro/api/v1/repos/o/r/issues",
+            raw.replace("https:", "http:"), raw.replace("git.slowb.ro", "git.slowb.ro:444")]) {
+            expect(selectProviderAuthorization(url), url).toBeUndefined();
+            expect(providerHeadersForHop(raw, url, {}, selectProviderAuthorization(raw)), url).toEqual({});
+        }
+        expect(selectProviderAuthorization(raw, {headers: {Authorization: "token caller-secret"}})).toBeUndefined();
+        expect(selectProviderAuthorization(raw, {method: "POST"})).toBeUndefined();
+        expect(selectProviderAuthorization(raw, {rejectUnauthorized: false})).toBeUndefined();
+        expect(selectProviderAuthorization(`${raw}?token=caller`)).toBeUndefined();
+        expect(redactProviderTokens(slowbro)).toBe("****4321");
+        const generation = getProviderTokenGeneration("slowbro");
+        configureProviderTokens({github, gitlab});
+        expect(getProviderTokenGeneration("slowbro")).toBe(generation + 1);
+        expect(selectProviderAuthorization(raw)).toBeUndefined();
+        expect(selectProviderAuthorization(release)?.token).toBe(github);
+    });
+
     test("normalizes configuration, reports only meaningful changes, and masks short values", () => {
         configureProviderTokens({});
         const before = getProviderTokenGeneration("github");

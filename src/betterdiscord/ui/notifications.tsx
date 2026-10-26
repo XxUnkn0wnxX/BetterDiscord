@@ -93,15 +93,16 @@ const NotificationItem = ({entry}: {entry: NotificationEntry;}) => {
 
     const [isPaused, setIsPaused] = React.useState(false);
     const isCustom = !!notification.render;
+    const isPersistent = duration === Infinity;
 
     // @ts-expect-error Discord may use a different version of react-spring
     const progressProps = spring.useSpring({
         width: "0%",
         from: {width: "100%"},
-        config: {duration},
-        pause: isPaused || isCustom,
+        config: {duration: isPersistent ? 5000 : duration},
+        pause: isPaused || isCustom || isPersistent,
         onChange: ({width}: {width: string;}) => {
-            if (width === "0%") {
+            if (!isPersistent && width === "0%") {
                 handleClose();
             }
         },
@@ -191,7 +192,7 @@ const NotificationItem = ({entry}: {entry: NotificationEntry;}) => {
                     >
                         ✕
                     </Text>
-                    <spring.animated.div
+                    {!isPersistent && <spring.animated.div
                         className="bd-notification-progress"
                         style={{
                             ...(!isCustom ? progressProps : null),
@@ -202,7 +203,7 @@ const NotificationItem = ({entry}: {entry: NotificationEntry;}) => {
                                 info: "var(--bd-brand)"
                             }[type]
                         }}
-                    />
+                    />}
                 </>
             }
         </spring.animated.div>

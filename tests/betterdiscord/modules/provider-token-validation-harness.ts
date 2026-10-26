@@ -36,11 +36,45 @@ assert(options.httpsOnly === true && options.rejectUnauthorized === true, "Valid
 assert(options.maxResponseBytes === 64 * 1024 && options.timeout === 10_000, "Validation should bound response bytes and transport timeout.");
 assert(new Headers(options.headers).get("accept-encoding") === "identity", "Validation should request identity encoding.");
 
+assert((await validateProviderToken("gitlab", "opaque-fine-grained-dummy", new AbortController().signal)).status === "valid", "GitLab fine-grained tokens should use the same identity contract without a prefix gate.");
+respond = async () => new Response("", {status: 403, headers: {"WWW-Authenticate": "Bearer error=\"insufficient_scope\""}});
+const missingGitLab = await validateProviderToken("gitlab", gitlabToken, new AbortController().signal);
+assert(missingGitLab.status === "unavailable" && missingGitLab.missingPermission === "user-read", "A documented GitLab scope denial should identify required validation access.");
+const validityPermission = await validateProviderToken("gitlab", gitlabToken, new AbortController().signal, "validity");
+assert(validityPermission.status === "unavailable" && validityPermission.missingPermission === undefined, "Reactive validity checks must not produce setup permission warnings.");
+for (const error of ["insufficient_scope", "insufficient_granular_scope"]) {
+    respond = async () => Response.json({error, error_description: "Provider text must not escape into the result"}, {status: 403});
+    const missingBodyPermission = await validateProviderToken("gitlab", gitlabToken, new AbortController().signal);
+    assert(missingBodyPermission.status === "unavailable" && missingBodyPermission.missingPermission === "user-read", "GitLab's legacy and fine-grained JSON scope denials should produce the fixed setup permission result without requiring a challenge header.");
+    assert(!JSON.stringify(missingBodyPermission).includes("Provider text"), "Provider error descriptions must be discarded.");
+}
+
+const slowbroToken = "opaque-forgejo-dummy-123456";
+respond = async url => Response.json(url.endsWith("/user") ? {id: 42, login: "dummy"} : {ok: true, data: []});
+const beforeSlowbro = calls.length;
+assert((await validateProviderToken("slowbro", slowbroToken, new AbortController().signal)).status === "valid", "Forgejo setup should verify identity and repository scope.");
+assert(calls.length === beforeSlowbro + 2 && calls.at(-1)!.url === "https://git.slowb.ro/api/v1/repos/search?limit=1", "Forgejo setup must use its bounded repository search scope probe.");
+assert(new Headers(calls.at(-1)!.init.headers).get("authorization") === `token ${slowbroToken}`, "Forgejo validation must use its PAT scheme.");
+const beforeValidity = calls.length;
+assert((await validateProviderToken("slowbro", slowbroToken, new AbortController().signal, "validity")).status === "valid", "Forgejo validity should accept its login identity.");
+assert(calls.length === beforeValidity + 1, "Reactive validity must not run the setup-only repository probe.");
+respond = async url => url.endsWith("/user") ? Response.json({id: 42, login: "dummy"}) : Response.json({message: "token does not have at least one of required scope(s): read:repository"}, {status: 403});
+const missingRepository = await validateProviderToken("slowbro", slowbroToken, new AbortController().signal);
+assert(missingRepository.status === "unavailable" && missingRepository.missingPermission === "read:repository", "Forgejo's exact scope-denial marker should become a fixed local permission identifier.");
+respond = async () => Response.json({message: "token does not have at least one of required scope(s): read:user"}, {status: 403});
+const missingUser = await validateProviderToken("slowbro", slowbroToken, new AbortController().signal);
+assert(missingUser.status === "unavailable" && missingUser.missingPermission === "read:user", "The identity scope denial must identify read:user rather than repository access.");
+respond = async () => Response.json({id: 42, username: "wrong-field"});
+assert((await validateProviderToken("slowbro", slowbroToken, new AbortController().signal)).status === "unavailable", "Forgejo must require login rather than GitLab's username field.");
+respond = async url => Response.json(url.endsWith("/user") ? {id: 42, login: "dummy"} : {ok: false, data: []});
+assert((await validateProviderToken("slowbro", slowbroToken, new AbortController().signal)).status === "unavailable", "A failed repository-search shape must not pass setup.");
+
 respond = async () => new Response("", {status: 401});
 assert((await validateProviderToken("github", classic, new AbortController().signal)).status === "invalid", "401 should mean invalid credentials.");
 respond = async () => new Response("", {status: 403});
 const permission = await validateProviderToken("gitlab", gitlabToken, new AbortController().signal);
 assert(permission.status === "unavailable" && permission.reason === "permission", "403 should be a temporary/permission-unavailable result.");
+assert(permission.status === "unavailable" && permission.missingPermission === undefined, "Generic 403 must not claim confirmed missing scopes.");
 respond = async () => new Response("", {status: 429});
 const rateLimit = await validateProviderToken("github", classic, new AbortController().signal);
 assert(rateLimit.status === "unavailable" && rateLimit.reason === "rate-limit", "429 should be rate-limit unavailable.");

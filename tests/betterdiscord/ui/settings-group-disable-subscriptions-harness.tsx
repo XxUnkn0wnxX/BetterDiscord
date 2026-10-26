@@ -18,7 +18,7 @@ const storeState = {
     providerDisabled: false,
     providerToken: "gh-dummy-token-123456"
 };
-type ValidationResult = {status: "valid"} | {status: "invalid"} | {status: "unavailable"; reason: "permission" | "rate-limit" | "network" | "response"};
+type ValidationResult = {status: "valid"} | {status: "invalid"} | {status: "unavailable"; reason: "permission" | "rate-limit" | "network" | "response"; missingPermission?: "read:user" | "read:repository" | "user-read"};
 type PendingValidation = {provider: string; candidate: string; signal: AbortSignal; resolve(result: ValidationResult): void;};
 const validationRequests: PendingValidation[] = [];
 let nativeInputAvailable = false;
@@ -60,7 +60,7 @@ mock.module("@stores/settings", () => ({
         },
         get: (_collection: string, _category: string, id: string) => {
             if (id === "dependent-toggle") return false;
-            if (id === "github") return storeState.providerToken;
+            if (id === "github" || id === "gitlab" || id === "slowbro") return storeState.providerToken;
             return undefined;
         },
         getSetting: (_collection: string, _category: string, id?: string) => {
@@ -134,6 +134,7 @@ mock.module("@ui/settings/components/color", () => ({"default": () => <div data-
 mock.module("@ui/settings/components/position", () => ({"default": () => <div data-setting="position" />}));
 
 const {default: Group} = await import("@ui/settings/group");
+const {default: Notifications} = await import("@stores/notifications");
 
 
 function emitStoreChange() {
@@ -191,8 +192,8 @@ function changeNativeInput(input: HTMLInputElement, value: string) {
     input.dispatchEvent(new Event("change", {bubbles: true}));
 }
 
-function dispatchPrivateEvent(name: string) {
-    for (const listener of validationListeners.get(name) ?? []) listener();
+function dispatchPrivateEvent(name: string, ...args: any[]) {
+    for (const listener of validationListeners.get(name) ?? []) listener(...args);
 }
 
 beforeEach(() => {
@@ -204,6 +205,7 @@ beforeEach(() => {
     validationRequests.length = 0;
     validationListeners.clear();
     storeListeners.clear();
+    for (const notification of Notifications.notifications) Notifications.hide(notification);
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -390,6 +392,60 @@ describe("Group with collection-backed controls", () => {
         expect(unmountedRequest.signal.aborted).toBe(true);
         await act(async () => unmountedRequest.resolve({status: "valid"}));
         expect(callbacks).toHaveLength(3);
+    });
+
+    test("external token removal clears and re-masks only its field and blocks a late save", async () => {
+        const callbacks: unknown[][] = [];
+        enableFakeTimers();
+        await act(async () => root.render(<Group id="accessTokens" collection="settings" settings={[
+            {type: "text", id: "github", name: "GitHub", value: storeState.providerToken},
+            {type: "text", id: "gitlab", name: "GitLab", value: storeState.providerToken}
+        ]} onChange={((...args: unknown[]) => callbacks.push(args)) as any} />));
+        const input = container.querySelector<HTMLInputElement>("input#github")!;
+        const other = container.querySelector<HTMLInputElement>("input#gitlab")!;
+        await act(async () => container.querySelector<HTMLButtonElement>("button[aria-label='ProviderTokens.show']")!.click());
+        await act(async () => changeNativeInput(input, "pending-dummy-replacement"));
+        await advanceTimers(750);
+        const pending = validationRequests[0];
+        storeState.providerToken = "";
+        await act(async () => dispatchPrivateEvent("provider-token-cleared", "github"));
+        expect(input.value).toBe("");
+        expect(input.type).toBe("password");
+        expect(other.value).toBe("gh-dummy-token-123456");
+        expect(pending.signal.aborted).toBe(true);
+        await act(async () => pending.resolve({status: "valid"}));
+        expect(callbacks).toHaveLength(0);
+    });
+
+    test("current setup permission failures show persistent warnings while stale results stay silent", async () => {
+        const callbacks: unknown[][] = [];
+        enableFakeTimers();
+        await act(async () => root.render(<Group id="accessTokens" collection="settings" settings={[
+            {type: "text", id: "slowbro", name: "Slowbro", value: storeState.providerToken}
+        ]} onChange={((...args: unknown[]) => callbacks.push(args)) as any} />));
+        const input = container.querySelector<HTMLInputElement>("input#slowbro")!;
+        await act(async () => changeNativeInput(input, "missing-scope-dummy"));
+        await advanceTimers(750);
+        await act(async () => validationRequests[0].resolve({status: "unavailable", reason: "permission", missingPermission: "read:repository"}));
+        expect(callbacks).toHaveLength(0);
+        expect(storeState.providerToken).toBe("gh-dummy-token-123456");
+        expect(Notifications.notifications).toHaveLength(1);
+        expect(Notifications.notifications[0].id).toBe("provider-token-permissions-slowbro");
+        expect(Notifications.notifications[0].duration).toBe(Infinity);
+        expect(Notifications.notifications[0].type).toBe("warning");
+        Notifications.hide("provider-token-permissions-slowbro");
+        await act(async () => changeNativeInput(input, "stale-scope-dummy"));
+        await advanceTimers(750);
+        const stale = validationRequests[1];
+        await act(async () => changeNativeInput(input, "newer-dummy-token"));
+        await act(async () => stale.resolve({status: "unavailable", reason: "permission", missingPermission: "read:user"}));
+        expect(Notifications.notifications).toHaveLength(0);
+        await advanceTimers(750);
+        const unmounted = validationRequests[2];
+        await act(async () => root.unmount());
+        await act(async () => unmounted.resolve({status: "unavailable", reason: "permission", missingPermission: "read:user"}));
+        expect(Notifications.notifications).toHaveLength(0);
+        expect(callbacks).toHaveLength(0);
     });
 
     test("uses the native alternative when the legacy input is unavailable", async () => {

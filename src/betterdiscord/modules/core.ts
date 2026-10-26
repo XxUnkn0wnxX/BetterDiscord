@@ -28,6 +28,7 @@ import CommandManager from "./commandmanager";
 import InstallCSS from "@ui/customcss/mdinstallcss";
 import {allModulesLoaded, getStore, Stores} from "@webpack";
 import Patcher from "./patcher";
+import {initializeProviderTokenLifecycle} from "./provider-token-lifecycle";
 
 export default new class Core {
     hasStarted = false;
@@ -51,6 +52,7 @@ export default new class Core {
 
         Logger.log("Startup", "Initializing Settings");
         Settings.initialize();
+        initializeProviderTokenLifecycle();
         SettingsRenderer.initialize();
 
         Logger.log("Startup", "Initializing AddonStore");

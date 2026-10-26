@@ -6,7 +6,7 @@ import Config from "@stores/config";
 import {t} from "@common/i18n";
 
 import Modals from "@ui/modals";
-import {redactProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
+import {providerNames, redactProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
 import Logger from "@common/logger";
 
 
@@ -52,7 +52,7 @@ export default new class DebugLogs extends Builtin {
         }
         setProviderTokenUseReporter(event => {
             if (revision !== this.captureRevision || !this.get<boolean>("debugLogs")) return;
-            const provider = event.provider === "github" ? "GitHub" : "GitLab";
+            const provider = providerNames[event.provider];
             const source = event.source === "betterdiscord" ? "BetterDiscord token" : "a supplied token";
             Logger.debug("ProviderTokens", `${provider} addon update used ${source} ${event.maskedToken}.`);
         });

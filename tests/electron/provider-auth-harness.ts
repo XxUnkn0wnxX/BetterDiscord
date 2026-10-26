@@ -91,6 +91,24 @@ try {
     });
     check(calls[0].headers["PRIVATE-TOKEN"] === token && !calls[0].headers.Authorization, "native GitLab fallback retained a competing empty header");
     await gitlabResult.body?.cancel();
+    const slowbroUrl = "https://git.slowb.ro/owner/repo/raw/branch/main/Test.plugin.js";
+    configureProviderTokens({slowbro: token});
+    calls.length = 0;
+    usageEvents.length = 0;
+    steps = [{}];
+    const slowbroResult = await nativeFetch({
+        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl)
+    });
+    check(calls[0].headers.Authorization === `token ${token}`, "Actual Forgejo raw transport did not send the PAT scheme");
+    check(usageEvents.length === 1 && usageEvents[0].provider === "slowbro" && usageEvents[0].source === "betterdiscord", "Actual Forgejo transport did not report its masked provider use");
+    await slowbroResult.body?.cancel();
+    calls.length = 0;
+    steps = [{location: "https://codeberg.org/owner/repo/raw/branch/main/Test.plugin.js"}, {}];
+    const slowbroRedirect = await nativeFetch({
+        ...driedRequest(), url: slowbroUrl, headers: {}, providerAuthorization: selectProviderAuthorization(slowbroUrl)
+    });
+    check(calls.length === 2 && !calls[1].headers.Authorization, "Slowbro token escaped to another Forgejo host");
+    await slowbroRedirect.body?.cancel();
     configureProviderTokens({github: token});
 
     for (const location of ["https://cdn.example.test/addon.plugin.js", "https://api.github.com/user", "http://api.github.com/repos/o/r/releases/latest"]) {

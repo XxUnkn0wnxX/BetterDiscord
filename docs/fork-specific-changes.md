@@ -13,24 +13,65 @@ toolchain requirements.
 
 ## Optional provider tokens for addon updates
 
-The collapsed core **Access Tokens** category stores optional GitHub/GitLab.com
-credentials in ordinary channel settings, with empty defaults. GitHub classic
-and fine-grained PATs share one opaque field. Private native Discord text inputs
+The collapsed core **Access Tokens** category stores optional GitHub, GitLab.com
+and git.slowb.ro credentials in ordinary channel settings, with empty defaults.
+GitHub classic/fine-grained and GitLab legacy/fine-grained PATs share their
+respective opaque fields. Private native Discord text inputs
 provide password masking, eye reveal, and native error styling; ordinary plugin
 text-setting contracts remain unchanged. Drafts validate through bounded read-only
 provider probes before autosaving. Editing, clearing, reset, disable and unmount
 invalidate obsolete results; reset notification also covers already-empty saved
-values. See [token setup and coverage](provider-tokens.md).
+values. Automatic invalidation cancels and re-masks the matching mounted field;
+generation guards prevent a late validation from restoring a cleared token.
+See [token setup and coverage](provider-tokens.md).
 
 Preserve the common request policy and the private managed-update transport lane.
 Existing `BdApi.Net.fetch` calls receive fallback only for recognized update API
-shapes; managed gist/snippet metadata has explicit private purpose. Meaningful
+shapes and git.slowb.ro addon raw routes; managed gist/snippet metadata has
+explicit private purpose. Meaningful
 caller credentials win, followed by the matching BD token, then anonymous.
 Generated headers require valid HTTPS/TLS, read methods, exact provider origins,
 and eligible original/current paths. Each redirect gets fresh headers; a token
-must not follow raw/CDN, different-origin, or unrelated API redirects. GitHub's
+must not follow other raw/CDN, different-origin, or unrelated API redirects. GitHub's
 required User-Agent is supplied only when generating its authentication and the
 caller has no meaningful User-Agent. Public `NativeRequestInit` is unchanged.
+
+git.slowb.ro is an exact-host Forgejo provider using `Authorization: token`.
+Forgejo v16.0.6's mixed authentication routes support the existing
+`/<owner>/<repo>/raw/branch|tag|commit/...` addon-file URLs; no URL rewrite is
+needed. Only recognized release/addon-file API and `.plugin.js`/`.theme.css` raw
+routes qualify. Source-browser pages, arbitrary attachments and other Forgejo
+hosts remain outside token fallback. Preserve all three provider generations
+and use actual generated-hop authentication when selecting updater buckets.
+
+Setup validation and reactive credential validation have distinct purposes.
+GitHub uses `/rate_limit`; GitLab uses `/api/v4/user`; Forgejo uses `/api/v1/user`
+with its `login` response field. Only Forgejo setup adds the bounded
+`/api/v1/repos/search?limit=1` read-permission check. All setup requests share the
+ten-second deadline and existing response-size/TLS/redirect restrictions.
+GitLab's account probe does not establish every fine-grained project permission.
+Do not require additional token-introspection access just to inspect scopes.
+Confirmed setup scope failures use fixed local identifiers from GitLab's
+`insufficient_scope` authentication challenge or exact JSON error codes
+`insufficient_scope` / `insufficient_granular_scope`, or Forgejo's known
+scope-denial message prefix. Generic 403 responses do not prove missing scopes. Current
+drafts with confirmed missing permissions stay unsaved and show a persistent
+BD warning with new-token guidance; stale results must not produce notices.
+
+A private renderer hook handles eligible HTTP 401 responses only when the failed
+final hop used the captured BD credential. Core registers its lifecycle after
+Settings initialization. Await one bounded, coalesced validity probe, checking
+both saved token and captured generation before and after it. Only confirmed
+invalidity clears a still-current token through the normal store. Caller-owned
+credentials, permission/rate/network failures and A→B→A stale results cannot
+remove it. No automatic anonymous retry is added. Generation changes reach the
+managed updater before it can persist stale failure state.
+
+Token-clear and setup-permission warnings use BD's notification store, fixed
+provider-specific IDs, warning styling and `duration: Infinity`, with Dismiss/X
+controls. Infinite-duration cards explicitly pause their progress animation,
+ignore animation completion and omit the countdown bar; finite-duration behavior
+remains unchanged. Notices never contain credentials or raw provider responses.
 
 Private native request-finish events report only provider, source and a masked
 suffix. The renderer reporter follows DebugLogs' actual capture lifecycle,
@@ -55,7 +96,7 @@ visual styling, actual authenticated provider responses and injected-client
 logging remain separate user-owned runtime checks; source evidence is not a
 native pass. Preserve that boundary during future overlapping merges.
 
-The accumulated full source run passed 568 cases with 24 existing legacy-Intl
+The initial two-provider feature's accumulated full source run passed 568 cases with 24 existing legacy-Intl
 skips; two lifecycle fixtures initially lacked the new private fetch export.
 After correcting that test-only mock, both cases passed. Type-only corrections
 passed 18 affected cases and the full TypeScript gate; full JavaScript/TypeScript
@@ -63,6 +104,14 @@ lint has no errors. Dedicated Astra Max integration review found no blocking
 production issue and independently matched all 32 source/test hashes to the
 validation receipt. This is accumulated validation, rather than a second fresh
 uninterrupted full-suite run.
+
+The three-provider lifecycle/permission extension has a fresh full-suite pass:
+572 tests passed, 24 existing Intl cases skipped, zero failures, and 1,885
+assertions across 85 files. Full ESLint, TypeScript and whitespace checks pass.
+Dedicated Astra Max reviewed the final credential ownership, setup/validity
+separation, persistent notifications and regression evidence with no blocking
+findings. Real authenticated provider traffic and injected-client UI behavior
+remain the separate runtime checks described above.
 
 ## Translation refresh through 1894f011
 

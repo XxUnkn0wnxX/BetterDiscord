@@ -52,8 +52,8 @@ downloads.
 See [Plugin API notes](docs/plugin-api-notes.md) for optional helpers, examples,
 availability, and older-runtime considerations.
 
-See [Optional addon update tokens](docs/provider-tokens.md) for GitHub and
-GitLab token setup, validation, and masked update diagnostics.
+See [Optional addon update tokens](docs/provider-tokens.md) for GitHub, GitLab and
+git.slowb.ro token setup, validation, and masked update diagnostics.
 
 See [docs/fork-specific-changes.md](docs/fork-specific-changes.md) for the full
 upstream-versus-fork inventory and the rules used for future merges.

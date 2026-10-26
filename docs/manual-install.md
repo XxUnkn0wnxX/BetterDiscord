@@ -16,7 +16,7 @@ Bun commands remain documented for development, troubleshooting, and precise
 control over individual build or injection steps.
 
 After installation, [optional addon update tokens](provider-tokens.md) can
-authorize supported GitHub/GitLab plugin and theme update requests. That guide
+authorize supported GitHub, GitLab and git.slowb.ro plugin and theme update requests. That guide
 includes token creation steps and the **Access Tokens** settings controls.
 
 ## Prerequisites

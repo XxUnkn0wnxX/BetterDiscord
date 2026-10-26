@@ -1,8 +1,20 @@
 import {dryReadableStream, hydrateReadableStream, type DriedAbortSignal, type DriedResponse, type NativeRequestInit, type NativeRequestMethod} from "@common/native-fetch";
 import Remote from "../polyfill/remote";
-import {hasProviderTokenUseReporter, providerTokenUseForHop, reportProviderTokenUse, sanitizeProviderError, selectProviderAuthorization, type ProviderAuthorizationPurpose} from "@common/provider-auth";
+import {getProviderTokenGeneration, hasProviderTokenUseReporter, providerHeadersForHop, providerTokenUseForHop, reportProviderTokenUse, sanitizeProviderError, selectProviderAuthorization, type ProviderAuthorization, type ProviderAuthorizationPurpose} from "@common/provider-auth";
 
 const MAX_DEFAULT_REDIRECTS = 20;
+
+export interface ProviderTokenFailure {
+    authorization: ProviderAuthorization;
+    generation: number;
+}
+
+let tokenFailureHandler: ((failure: ProviderTokenFailure) => Promise<void>) | undefined;
+
+/** Private renderer lifecycle hook; deliberately absent from BdApi.Net. */
+export function setProviderTokenFailureHandler(handler: (failure: ProviderTokenFailure) => Promise<void>): void {
+    tokenFailureHandler = handler;
+}
 
 const methods = new Set(["GET", "PUT", "POST", "DELETE", "PATCH", "OPTIONS", "HEAD", "CONNECT", "TRACE"]);
 
@@ -79,6 +91,7 @@ async function fetchWithPurpose(input: string | URL | Request, init: NativeReque
         rejectUnauthorized: init?.rejectUnauthorized
     };
     const providerAuthorization = selectProviderAuthorization(request.url, policy, purpose);
+    const providerGeneration = providerAuthorization ? getProviderTokenGeneration(providerAuthorization.provider) : undefined;
     const callerToken = providerTokenUseForHop(request.url, request.url, policy, purpose)?.token;
     const capturedTokens = providerAuthorization ? [providerAuthorization.token] : callerToken ? [callerToken] : [];
     const driedResponse = await Remote.nativeFetch({
@@ -101,6 +114,15 @@ async function fetchWithPurpose(input: string | URL | Request, init: NativeReque
         providerAuthorization,
         providerTokenUsage: hasProviderTokenUseReporter() ? {purpose, report: reportProviderTokenUse} : undefined
     }).catch(error => {throw sanitizeProviderError(error, capturedTokens);});
+
+    if (driedResponse.status === 401 && providerAuthorization && providerGeneration !== undefined && tokenFailureHandler) {
+        const finalHeaders = providerHeadersForHop(request.url, driedResponse.url, policy, providerAuthorization);
+        const usage = providerTokenUseForHop(request.url, driedResponse.url, {...policy, headers: finalHeaders}, purpose, providerAuthorization);
+        if (usage?.event.source === "betterdiscord") {
+            try {await tokenFailureHandler({authorization: providerAuthorization, generation: providerGeneration});}
+            catch {/* Credential maintenance must not replace the original response. */}
+        }
+    }
 
     return new HydratingResponse(driedResponse);
 }

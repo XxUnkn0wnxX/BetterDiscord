@@ -2,7 +2,7 @@ import path from "path";
 
 import Logger from "@common/logger";
 import {t} from "@common/i18n";
-import {getProviderForUpdateRequest, getProviderTokenGeneration, providerHeadersForHop, selectProviderAuthorization, type ProviderAuthorization, type ProviderRequestPolicy, type TokenProvider} from "@common/provider-auth";
+import {getProviderForUpdateRequest, getProviderTokenGeneration, providerHeadersForHop, providerTokenUseForHop, selectProviderAuthorization, tokenProviders, type ProviderAuthorization, type ProviderRequestPolicy, type TokenProvider} from "@common/provider-auth";
 
 import SettingsStore from "@stores/settings";
 import JsonStore from "@stores/json";
@@ -433,9 +433,7 @@ function requestBucket(context: ProviderRequestContext, input = context.url): Or
     const origin = getAddonUpdateOrigin(url) ?? getAddonUpdateOrigin(context.url)!;
     const authorization = context.authorization;
     const headers = providerHeadersForHop(context.url, url, context.policy, authorization);
-    const generated = authorization && (authorization.provider === "github"
-        ? headers.Authorization === `Bearer ${authorization.token}`
-        : headers["PRIVATE-TOKEN"] === authorization.token);
+    const generated = authorization && providerTokenUseForHop(context.url, url, {...context.policy, headers}, authorization.purpose, authorization)?.event.source === "betterdiscord";
     return {origin, credentialFingerprint: generated ? context.credentialFingerprint : undefined};
 }
 
@@ -1766,9 +1764,9 @@ export class AddonUpdateCoordinator {
     }
 
     static #reconcileProviderConfiguration() {
-        const current = {github: getProviderTokenGeneration("github"), gitlab: getProviderTokenGeneration("gitlab")};
+        const current = {github: getProviderTokenGeneration("github"), gitlab: getProviderTokenGeneration("gitlab"), slowbro: getProviderTokenGeneration("slowbro")};
         const changed = new Set<TokenProvider>();
-        for (const provider of ["github", "gitlab"] as const) {
+        for (const provider of tokenProviders) {
             if (this.#providerGenerations[provider] !== undefined && this.#providerGenerations[provider] !== current[provider]) changed.add(provider);
         }
         for (const {updater, addon} of this.#installedTargets()) {

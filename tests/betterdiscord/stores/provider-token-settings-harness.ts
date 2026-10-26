@@ -22,6 +22,7 @@ const {default: Events} = await import("../../../src/betterdiscord/modules/emitt
 const {selectProviderAuthorization} = await import("../../../src/common/provider-auth");
 const githubUrl = "https://api.github.com/repos/example/project/releases/latest";
 const gitlabUrl = "https://gitlab.com/api/v4/projects/example%2Fproject/releases/permalink/latest";
+const slowbroUrl = "https://git.slowb.ro/owner/repo/raw/branch/main/Test.plugin.js";
 const assert = (condition: boolean, message: string) => {if (!condition) throw new Error(message);};
 assertAuthBeforeWrite = () => {
     if (process.env.PROVIDER_TOKEN_SETTINGS_SCENARIO === "saved") {
@@ -52,6 +53,11 @@ Settings.set("settings", "accessTokens", "gitlab", "gl-dummy-token-abcdef");
 assert(selectProviderAuthorization(githubUrl)?.token === "gh-dummy-token-123456", "Changing GitLab must preserve GitHub.");
 assert(selectProviderAuthorization(gitlabUrl)?.token === "gl-dummy-token-abcdef", "GitLab token should authorize its provider.");
 assert(persisted.settings.accessTokens.github === "gh-dummy-token-123456", "GitHub token should persist in settings.");
+assert(Settings.getSetting("settings", "accessTokens", "slowbro")?.value === "", "Slowbro should have an empty optional default.");
+Settings.set("settings", "accessTokens", "slowbro", "forgejo-dummy-token-7890");
+assert(selectProviderAuthorization(slowbroUrl)?.token === "forgejo-dummy-token-7890", "Saving Slowbro should synchronize its raw update requests.");
+assert(persisted.settings.accessTokens.slowbro === "forgejo-dummy-token-7890", "Slowbro token should persist with channel settings.");
+assert(selectProviderAuthorization(githubUrl)?.token === "gh-dummy-token-123456" && selectProviderAuthorization(gitlabUrl)?.token === "gl-dummy-token-abcdef", "Changing Slowbro must preserve the other providers.");
 Settings.set("settings", "accessTokens", "github", "");
 assert(selectProviderAuthorization(githubUrl) === undefined, "Clearing a token must disable provider authorization.");
 Settings.set("settings", "accessTokens", "gitlab", "");
@@ -62,6 +68,7 @@ Settings.resetCollection("settings");
 Events.off("provider-tokens-reset", onProviderTokensReset);
 assert(selectProviderAuthorization(gitlabUrl) === undefined, "Reset should clear token authorization.");
 assert(persisted.settings.accessTokens.gitlab === "", "Reset should persist empty token defaults.");
+assert(selectProviderAuthorization(slowbroUrl) === undefined && persisted.settings.accessTokens.slowbro === "", "Reset should persist Slowbro's empty default and disable authentication.");
 assert(resetNotifications === 1, "Settings reset should notify dirty drafts even when committed token values already match defaults.");
 
 persisted.settings = {accessTokens: {github: "gh-reloaded-token-123", gitlab: "gl-reloaded-token-456"}};

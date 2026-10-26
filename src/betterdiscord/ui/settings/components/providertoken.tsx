@@ -1,10 +1,11 @@
 import React from "react";
 import {EyeIcon, EyeOffIcon} from "lucide-react";
 
-import {normalizeProviderToken, type TokenProvider} from "@common/provider-auth";
+import {getProviderTokenGeneration, normalizeProviderToken, type TokenProvider} from "@common/provider-auth";
 import {t} from "@common/i18n";
 import Events from "@modules/emitter";
 import {validateProviderToken, type ProviderTokenValidationResult} from "@modules/provider-token-validation";
+import {showProviderTokenPermissionWarning} from "@modules/provider-token-notices";
 import SettingsStore from "@stores/settings";
 import Button from "@ui/base/button";
 import {getByStrings} from "@webpack";
@@ -138,7 +139,7 @@ export default function ProviderToken(props: ProviderTokenProps) {
     }, [cancelValidation, committed, disabled]);
 
     React.useEffect(() => {
-        const onReset = () => {
+        const synchronizeDraft = () => {
             revision.current++;
             cancelValidation();
             retryRevision.current = undefined;
@@ -148,14 +149,22 @@ export default function ProviderToken(props: ProviderTokenProps) {
             setStatus({kind: "idle"});
             setRevealed(false);
         };
-        Events.on("provider-tokens-reset", onReset);
-        return () => {Events.off("provider-tokens-reset", onReset);};
+        const onCleared = (provider: TokenProvider) => {
+            if (provider === id) synchronizeDraft();
+        };
+        Events.on("provider-tokens-reset", synchronizeDraft);
+        Events.on("provider-token-cleared", onCleared);
+        return () => {
+            Events.off("provider-tokens-reset", synchronizeDraft);
+            Events.off("provider-token-cleared", onCleared);
+        };
     }, [cancelValidation, id]);
 
     React.useEffect(() => {
         if (status.kind !== "pending" || disabled) return;
         const requestRevision = revision.current;
         const requestProvider = id;
+        const requestGeneration = getProviderTokenGeneration(id);
         const requestDraft = draft;
         const candidate = normalizeProviderToken(requestDraft);
         if (!candidate) return;
@@ -169,6 +178,7 @@ export default function ProviderToken(props: ProviderTokenProps) {
             if (activeController.current === controller) activeController.current = undefined;
             if (!mounted.current || disabledRef.current || controller.signal.aborted
                 || revision.current !== requestRevision || providerRef.current !== requestProvider
+                || getProviderTokenGeneration(id) !== requestGeneration
                 || draftRef.current !== requestDraft || normalizeProviderToken(draftRef.current) !== candidate) return;
 
             if (result.status === "valid") {
@@ -183,6 +193,9 @@ export default function ProviderToken(props: ProviderTokenProps) {
                 return;
             }
             setStatus({kind: "unavailable", reason: result.reason});
+            if (result.reason === "permission" && result.missingPermission) {
+                showProviderTokenPermissionWarning(id, result.missingPermission);
+            }
         }, delay);
 
         return () => {

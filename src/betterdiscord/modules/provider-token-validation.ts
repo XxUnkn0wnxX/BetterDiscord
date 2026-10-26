@@ -3,11 +3,14 @@ import {fetch} from "./net";
 
 const VALIDATION_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 64 * 1024;
+const FORGEJO_SCOPE_DENIAL = "token does not have at least one of required scope(s):";
 
+export type MissingProviderPermission = "read:user" | "read:repository" | "user-read";
+export type ProviderTokenValidationMode = "setup" | "validity";
 export type ProviderTokenValidationResult =
     | {status: "valid"}
     | {status: "invalid"}
-    | {status: "unavailable"; reason: "permission" | "rate-limit" | "network" | "response"};
+    | {status: "unavailable"; reason: "permission" | "rate-limit" | "network" | "response"; missingPermission?: MissingProviderPermission};
 
 const unavailable = (reason: Extract<ProviderTokenValidationResult, {status: "unavailable"}>["reason"]): ProviderTokenValidationResult => ({status: "unavailable", reason});
 
@@ -18,13 +21,20 @@ function hasValidGitHubQuota(value: any): boolean {
         && Number.isFinite(core?.reset) && core.reset >= 0;
 }
 
-function hasValidGitLabIdentity(value: any): boolean {
+function hasValidIdentity(value: any, field: "username" | "login"): boolean {
     return Number.isSafeInteger(value?.id) && value.id > 0
-        && typeof value?.username === "string" && value.username.trim().length > 0;
+        && typeof value?.[field] === "string" && value[field].trim().length > 0;
 }
 
-/** Validate a token draft with one bounded, read-only request. Response data is discarded. */
-export async function validateProviderToken(provider: TokenProvider, candidate: string, signal: AbortSignal): Promise<ProviderTokenValidationResult> {
+async function readJson(response: Response): Promise<any> {
+    const body = await response.text();
+    if (new TextEncoder().encode(body).byteLength > MAX_RESPONSE_BYTES) return;
+    try {return JSON.parse(body);}
+    catch {return;}
+}
+
+/** Bounded provider probes; setup additionally checks permissions where the provider permits it. */
+export async function validateProviderToken(provider: TokenProvider, candidate: string, signal: AbortSignal, mode: ProviderTokenValidationMode = "setup"): Promise<ProviderTokenValidationResult> {
     const token = normalizeProviderToken(candidate);
     if (!token || token.length > 1024) return {status: "invalid"};
     if (signal.aborted) return unavailable("network");
@@ -45,48 +55,70 @@ export async function validateProviderToken(provider: TokenProvider, candidate: 
         resolveTimeout(unavailable("network"));
     }, VALIDATION_TIMEOUT_MS);
 
-    const url = provider === "github"
-        ? "https://api.github.com/rate_limit"
-        : "https://gitlab.com/api/v4/user";
+    const url = provider === "github" ? "https://api.github.com/rate_limit"
+        : provider === "gitlab" ? "https://gitlab.com/api/v4/user"
+            : "https://git.slowb.ro/api/v1/user";
     const headers: Record<string, string> = {
         "Accept": "application/json",
         "Accept-Encoding": "identity",
         "User-Agent": "BetterDiscord"
     };
     if (provider === "github") headers.Authorization = `Bearer ${token}`;
+    else if (provider === "slowbro") headers.Authorization = `token ${token}`;
     else headers["PRIVATE-TOKEN"] = token;
+
+    const probe = async (input: string, permission?: MissingProviderPermission): Promise<{status: "response"; data: any} | ProviderTokenValidationResult> => {
+        if (controller.signal.aborted) return unavailable("network");
+        const response = await fetch(input, {
+            method: "GET",
+            headers,
+            signal: controller.signal,
+            redirect: "error",
+            maxRedirects: 0,
+            httpsOnly: true,
+            rejectUnauthorized: true,
+            timeout: VALIDATION_TIMEOUT_MS,
+            maxResponseBytes: MAX_RESPONSE_BYTES
+        });
+        if (response.status === 401) return {status: "invalid"};
+        if (response.status === 403) {
+            if (mode === "setup" && provider === "gitlab") {
+                if (/\berror\s*=\s*"insufficient_scope"/i.test(response.headers.get("www-authenticate") ?? "")) {
+                    return {status: "unavailable", reason: "permission", missingPermission: "user-read"};
+                }
+                const data = await readJson(response);
+                if (data?.error === "insufficient_scope" || data?.error === "insufficient_granular_scope") {
+                    return {status: "unavailable", reason: "permission", missingPermission: "user-read"};
+                }
+            }
+            if (mode === "setup" && provider === "slowbro" && permission) {
+                const data = await readJson(response);
+                if (typeof data?.message === "string" && data.message.startsWith(FORGEJO_SCOPE_DENIAL)) {
+                    return {status: "unavailable", reason: "permission", missingPermission: permission};
+                }
+            }
+            return unavailable("permission");
+        }
+        if (response.status === 429) return unavailable("rate-limit");
+        if (response.status !== 200) return unavailable("response");
+        return {status: "response", data: await readJson(response)};
+    };
 
     const request = async (): Promise<ProviderTokenValidationResult> => {
         try {
-            const response = await fetch(url, {
-                method: "GET",
-                headers,
-                signal: controller.signal,
-                redirect: "error",
-                maxRedirects: 0,
-                httpsOnly: true,
-                rejectUnauthorized: true,
-                timeout: VALIDATION_TIMEOUT_MS,
-                maxResponseBytes: MAX_RESPONSE_BYTES
-            });
-
-            if (response.status === 401) return {status: "invalid"};
-            if (response.status === 403) return unavailable("permission");
-            if (response.status === 429) return unavailable("rate-limit");
-            if (response.status !== 200) return unavailable("response");
-
-            const body = await response.text();
-            if (new TextEncoder().encode(body).byteLength > MAX_RESPONSE_BYTES) return unavailable("response");
-            let data: unknown;
-            try {data = JSON.parse(body);}
-            catch {return unavailable("response");}
-
-            const valid = provider === "github" ? hasValidGitHubQuota(data) : hasValidGitLabIdentity(data);
-            return valid ? {status: "valid"} : unavailable("response");
+            const identity = await probe(url, "read:user");
+            if (identity.status !== "response") return identity;
+            const valid = provider === "github" ? hasValidGitHubQuota(identity.data)
+                : hasValidIdentity(identity.data, provider === "gitlab" ? "username" : "login");
+            if (!valid) return unavailable("response");
+            if (provider === "slowbro" && mode === "setup") {
+                const repository = await probe("https://git.slowb.ro/api/v1/repos/search?limit=1", "read:repository");
+                if (repository.status !== "response") return repository;
+                if (repository.data?.ok !== true || !Array.isArray(repository.data?.data)) return unavailable("response");
+            }
+            return {status: "valid"};
         }
-        catch {
-            return unavailable("network");
-        }
+        catch {return unavailable("network");}
     };
 
     try {

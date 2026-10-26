@@ -1,5 +1,7 @@
 /** Private provider policy shared by the renderer and native transport. No store or runtime imports. */
-export type TokenProvider = "github" | "gitlab";
+export const tokenProviders = ["github", "gitlab", "slowbro"] as const;
+export type TokenProvider = typeof tokenProviders[number];
+export const providerNames: Record<TokenProvider, string> = {github: "GitHub", gitlab: "GitLab", slowbro: "git.slowb.ro"};
 export type ProviderAuthorizationPurpose = "managed-addon-update" | "recognized-self-update";
 export interface ProviderAuthorization {
     provider: TokenProvider;
@@ -32,9 +34,8 @@ export function reportProviderTokenUse(event: ProviderTokenUse): void {
     catch {/* Reporting must never change a network request's outcome. */}
 }
 
-const providers: TokenProvider[] = ["github", "gitlab"];
-const tokens: Record<TokenProvider, string> = {github: "", gitlab: ""};
-const generations: Record<TokenProvider, number> = {github: 0, gitlab: 0};
+const tokens: Record<TokenProvider, string> = {github: "", gitlab: "", slowbro: ""};
+const generations: Record<TokenProvider, number> = {github: 0, gitlab: 0, slowbro: 0};
 const recentTokens: string[] = [];
 const credentialHeaders = new Set(["authorization", "proxy-authorization", "private-token", "job-token", "x-gitlab-token", "x-api-key"]);
 const credentialQuery = new Set(["access_token", "private_token", "job_token", "token", "auth", "authorization", "api_key", "apikey", "oauth_token"]);
@@ -49,7 +50,7 @@ export function normalizeProviderToken(value: unknown): string {
 /** Replace the complete configuration; an omitted provider is disabled. */
 export function configureProviderTokens(values: Partial<Record<TokenProvider, unknown>>) {
     const changedProviders: TokenProvider[] = [];
-    for (const provider of providers) {
+    for (const provider of tokenProviders) {
         const value = values[provider];
         if (typeof value === "string" && value.trim()) {
             const index = recentTokens.indexOf(value.trim());
@@ -115,6 +116,11 @@ function eligibleProvider(input: string, purpose: ProviderAuthorizationPurpose, 
         }
         if (purpose === "managed-addon-update" && /^\/api\/v4\/(?:projects\/[^/]+\/)?snippets\/\d+$/.test(path)) return "gitlab";
     }
+    if (url.origin === "https://git.slowb.ro") {
+        if (/^\/api\/v1\/repos\/[^/]+\/[^/]+\/releases(?:\/(?:latest|tags\/[^/]+|\d+(?:\/assets(?:\/\d+)?)?))?\/?$/.test(path)) return "slowbro";
+        if (/^\/api\/v1\/repos\/[^/]+\/[^/]+\/(?:contents|raw)\/.+/.test(path) && addonFile.test(path)) return "slowbro";
+        if (/^\/[^/]+\/[^/]+\/raw\/(?:branch|tag|commit)\/.+\/.+/.test(path) && addonFile.test(path)) return "slowbro";
+    }
     return null;
 }
 
@@ -149,6 +155,7 @@ export function providerHeadersForHop(originalUrl: string, currentUrl: string, p
             headers["User-Agent"] = "BetterDiscord";
         }
     }
+    else if (provider === "slowbro") {headers.Authorization = `token ${token}`;}
     else {headers["PRIVATE-TOKEN"] = token;}
     return headers;
 }
@@ -163,7 +170,7 @@ export function providerTokenUseForHop(originalUrl: string, currentUrl: string, 
     const headers = new Map(Object.entries(policy.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]));
     const suppliedAuthorization = headers.get("authorization")?.trim() ?? "";
     let token: string | undefined;
-    if (provider === "github") {
+    if (provider === "github" || provider === "slowbro") {
         token = /^(?:Bearer|token)\s+(.+)$/i.exec(suppliedAuthorization)?.[1];
     }
     else {

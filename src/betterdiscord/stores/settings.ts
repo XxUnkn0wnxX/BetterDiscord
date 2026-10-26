@@ -252,7 +252,7 @@ class SettingsManager extends Store {
 
     onSettingChange(collection: string, category: string, id: string, value: unknown) {
         this.state[collection][category][id] = value;
-        if (collection === "settings" && category === "accessTokens" && (id === "github" || id === "gitlab")) this.syncProviderTokens();
+        if (collection === "settings" && category === "accessTokens" && (id === "github" || id === "gitlab" || id === "slowbro")) this.syncProviderTokens();
         Events.dispatch("setting-updated", collection, category, id, value);
         this.emitChange();
         this.saveCollection(collection);
@@ -260,7 +260,7 @@ class SettingsManager extends Store {
 
     private syncProviderTokens() {
         const tokens = this.state.settings?.accessTokens ?? {};
-        configureProviderTokens({github: tokens.github, gitlab: tokens.gitlab});
+        configureProviderTokens({github: tokens.github, gitlab: tokens.gitlab, slowbro: tokens.slowbro});
     }
 
     getSetting(collection: string, category: string, id?: string) {

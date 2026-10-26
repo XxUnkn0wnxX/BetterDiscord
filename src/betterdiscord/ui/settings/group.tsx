@@ -87,7 +87,7 @@ export default function Group(props: GroupProps) {
             };
             const settingWithCallback = {...setting, onChange: callback};
             const settingToRender = collection ? withoutCollectionDisabled(settingWithCallback) : settingWithCallback;
-            if (collection === "settings" && id === "accessTokens" && (setting.id === "github" || setting.id === "gitlab")) {
+            if (collection === "settings" && id === "accessTokens" && (setting.id === "github" || setting.id === "gitlab" || setting.id === "slowbro")) {
                 const token = <ProviderToken id={setting.id} value={settingToRender.value} onChange={settingToRender.onChange} />;
                 return <SettingsProvider collection={collection} category={id} id={setting.id} key={setting.id}>
                     <Item id={setting.id} name={settingToRender.name} note={settingToRender.note}>{token}</Item>
