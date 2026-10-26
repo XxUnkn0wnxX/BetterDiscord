@@ -11,9 +11,10 @@
     outline-offset: 1px;
 }
 
-/* These fields already use their border as the blue focus indicator. */
+/* These fields already own a focus border or a native Discord focus ring. */
 .bd-text-input:focus-visible,
 .bd-number-input:focus-visible,
+.bd-provider-token-control input:focus-visible,
 .bd-addon-error-header:focus-visible {
     outline: none;
 }

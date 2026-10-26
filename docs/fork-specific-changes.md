@@ -157,6 +157,8 @@ Text and number inputs retain their existing blue focus border without the
 additional outline. Native feedback showed that drawing both produced a double
 indicator; the scoped exception leaves one visible border while number step
 buttons and controls without an existing focus border keep the new outline.
+Core token inputs also omit the fallback outline: their native Discord focus
+ring and validation border already own that feedback.
 The addon-error header already owns a focus shadow; keep that single owner,
 reduce its shadow to 1 pixel and omit the fallback outline on that header.
 
