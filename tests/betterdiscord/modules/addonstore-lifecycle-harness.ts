@@ -82,9 +82,10 @@ mock.module("@stores/settings", () => ({"default": {
 mock.module("@data/web", () => ({"default": {API_VERSION: "test", store: {addons: "https://api.example.test/addons"}}}));
 mock.module(modulePath("addonmanager.ts"), () => ({"default": class {}}));
 mock.module("@stores/base", () => ({"default": class {emitChange() {}}}));
-mock.module(modulePath("net.ts"), () => ({fetch: (_url: string, options: {signal: AbortSignal; timeout: number}) => (
+const fetchMock = (_url: string, options: {signal: AbortSignal; timeout: number}) => (
     new Promise<Response>((resolve, reject) => requests.push({resolve, reject, ...options}))
-)}));
+);
+mock.module(modulePath("net.ts"), () => ({fetch: fetchMock, fetchAddonUpdate: fetchMock}));
 
 Object.assign(globalThis, {window: {
     navigator,

@@ -10,6 +10,7 @@ import Store from "./base";
 import type {ComponentType} from "react";
 import type AddonManager from "@modules/addonmanager";
 import {PaletteIcon, PlugIcon, type LucideIcon} from "lucide-react";
+import {configureProviderTokens} from "@common/provider-auth";
 
 export interface SettingsCollection {
     type: "collection";
@@ -206,7 +207,10 @@ class SettingsManager extends Store {
 
     loadCollection(id: string) {
         const previousState = JsonStore.get(id as "settings") as Partial<State>;
-        if (!previousState) return this.saveCollection(id);
+        if (!previousState) {
+            if (id === "settings") this.syncProviderTokens();
+            return this.saveCollection(id);
+        }
         for (const category in this.state[id]) {
             if (!previousState[category]) Object.assign(previousState, {[category]: this.state[id][category]});
             for (const setting in this.state[id][category]) {
@@ -226,6 +230,7 @@ class SettingsManager extends Store {
             }
         }
 
+        if (id === "settings") this.syncProviderTokens();
         this.saveCollection(id); // in case new things were added
     }
 
@@ -242,13 +247,20 @@ class SettingsManager extends Store {
                 this.set(collection.id, category.id, setting.id, setting.defaultValue);
             }
         }
+        if (id === "settings") Events.dispatch("provider-tokens-reset");
     }
 
     onSettingChange(collection: string, category: string, id: string, value: unknown) {
         this.state[collection][category][id] = value;
+        if (collection === "settings" && category === "accessTokens" && (id === "github" || id === "gitlab")) this.syncProviderTokens();
         Events.dispatch("setting-updated", collection, category, id, value);
         this.emitChange();
         this.saveCollection(collection);
+    }
+
+    private syncProviderTokens() {
+        const tokens = this.state.settings?.accessTokens ?? {};
+        configureProviderTokens({github: tokens.github, gitlab: tokens.gitlab});
     }
 
     getSetting(collection: string, category: string, id?: string) {

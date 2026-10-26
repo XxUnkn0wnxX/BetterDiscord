@@ -42,6 +42,11 @@ export interface DriedRequest {
     maxResponseBytes?: number;
     httpsOnly?: boolean;
     rejectUnauthorized: boolean;
+    providerAuthorization?: import("./provider-auth").ProviderAuthorization;
+    providerTokenUsage?: {
+        purpose: import("./provider-auth").ProviderAuthorizationPurpose;
+        report(event: import("./provider-auth").ProviderTokenUse): void;
+    };
 }
 
 export interface DriedResponse {

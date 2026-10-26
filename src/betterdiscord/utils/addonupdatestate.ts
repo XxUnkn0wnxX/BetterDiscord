@@ -38,10 +38,15 @@ export interface AddonUpdateUrlState {
     metadata?: CachedAddonUpdateMetadata;
 }
 
-export interface AddonUpdateOriginState {
+export interface AddonUpdateRateLimitState {
     blockedUntil?: number;
     /** Number of consecutive provider throttles used by fallback backoff. */
     failureCount?: number;
+}
+
+export interface AddonUpdateOriginState extends AddonUpdateRateLimitState {
+    /** One current credential bucket; only its SHA-256 fingerprint is persisted. */
+    authenticated?: AddonUpdateRateLimitState & {credentialFingerprint: string;};
 }
 
 export interface AddonUpdateState {
@@ -190,6 +195,17 @@ function normalizeOriginRecord(value: unknown): AddonUpdateOriginState | undefin
     const failureCount = nonNegativeInteger(value.failureCount);
     if (blockedUntil !== undefined) result.blockedUntil = blockedUntil;
     if (failureCount !== undefined) result.failureCount = failureCount;
+    if (isRecord(value.authenticated) && typeof value.authenticated.credentialFingerprint === "string"
+        && SHA256_PATTERN.test(value.authenticated.credentialFingerprint)) {
+        const authenticated: NonNullable<AddonUpdateOriginState["authenticated"]> = {
+            credentialFingerprint: value.authenticated.credentialFingerprint.toLowerCase()
+        };
+        const authenticatedBlockedUntil = finiteNonNegative(value.authenticated.blockedUntil);
+        const authenticatedFailureCount = nonNegativeInteger(value.authenticated.failureCount);
+        if (authenticatedBlockedUntil !== undefined) authenticated.blockedUntil = authenticatedBlockedUntil;
+        if (authenticatedFailureCount !== undefined) authenticated.failureCount = authenticatedFailureCount;
+        result.authenticated = authenticated;
+    }
     return Object.keys(result).length ? result : undefined;
 }
 

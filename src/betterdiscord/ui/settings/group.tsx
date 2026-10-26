@@ -17,6 +17,7 @@ import {SettingsContext} from "@ui/contexts";
 import {useStateFromStores} from "@ui/hooks";
 import SettingsStore from "@stores/settings";
 import type {Setting, BaseSettingItem} from "@data/settings";
+import ProviderToken from "./components/providertoken";
 
 const {useCallback} = React;
 
@@ -86,6 +87,12 @@ export default function Group(props: GroupProps) {
             };
             const settingWithCallback = {...setting, onChange: callback};
             const settingToRender = collection ? withoutCollectionDisabled(settingWithCallback) : settingWithCallback;
+            if (collection === "settings" && id === "accessTokens" && (setting.id === "github" || setting.id === "gitlab")) {
+                const token = <ProviderToken id={setting.id} value={settingToRender.value} onChange={settingToRender.onChange} />;
+                return <SettingsProvider collection={collection} category={id} id={setting.id} key={setting.id}>
+                    <Item id={setting.id} name={settingToRender.name} note={settingToRender.note}>{token}</Item>
+                </SettingsProvider>;
+            }
             const settingItem = buildSetting(settingToRender);
             if (!collection) return settingItem;
             return <SettingsProvider collection={collection} category={id} id={setting.id}>{settingItem}</SettingsProvider>;

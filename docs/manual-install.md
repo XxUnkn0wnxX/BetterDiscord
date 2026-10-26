@@ -15,6 +15,10 @@ The local Zsh wrappers are the recommended user-facing workflow. The underlying
 Bun commands remain documented for development, troubleshooting, and precise
 control over individual build or injection steps.
 
+After installation, [optional addon update tokens](provider-tokens.md) can
+authorize supported GitHub/GitLab plugin and theme update requests. That guide
+includes token creation steps and the **Access Tokens** settings controls.
+
 ## Prerequisites
 
 - A standard local macOS Discord install. Portable builds and the web app are

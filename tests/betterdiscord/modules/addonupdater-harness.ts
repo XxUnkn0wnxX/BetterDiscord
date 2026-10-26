@@ -82,7 +82,7 @@ mock.module(modulePath("react.ts"), () => ({"default": {createElement: () => nul
 mock.module(modulePath("emitter.ts"), () => ({"default": {on: () => {}, emit: () => {}}}));
 mock.module(modulePath("pluginmanager.ts"), () => ({"default": pluginManager}));
 mock.module(modulePath("thememanager.ts"), () => ({"default": themeManager}));
-mock.module(modulePath("net.ts"), () => ({fetch: (url: string, init?: any) => fetchImplementation(url, init)}));
+mock.module(modulePath("net.ts"), () => ({fetchAddonUpdate: (url: string, init?: any) => fetchImplementation(url, init)}));
 mock.module(modulePath("addonstore.ts"), () => ({"default": addonStoreMock}));
 
 Object.assign(globalThis, {

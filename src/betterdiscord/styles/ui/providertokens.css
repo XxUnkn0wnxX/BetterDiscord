@@ -1,0 +1,21 @@
+.bd-provider-token-control {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.bd-provider-token-control > :first-child {
+    min-width: 0;
+    flex: 1;
+}
+
+.bd-provider-token-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+
+.bd-provider-token-toggle {
+    flex: 0 0 auto;
+}

@@ -174,7 +174,7 @@ mock.module(modulePath("emitter.ts"), () => ({"default": {
 }}));
 mock.module(modulePath("pluginmanager.ts"), () => ({"default": pluginManager}));
 mock.module(modulePath("thememanager.ts"), () => ({"default": themeManager}));
-mock.module(modulePath("net.ts"), () => ({fetch: async () => {
+mock.module(modulePath("net.ts"), () => ({fetchAddonUpdate: async () => {
     networkCalls++;
     throw new Error("Restart hydration unexpectedly used the network.");
 }}));

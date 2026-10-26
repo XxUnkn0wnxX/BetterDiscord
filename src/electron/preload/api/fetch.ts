@@ -2,20 +2,25 @@ import https from "https";
 import http from "http";
 import {hydrateReadableStream, dryReadableStream, type DriedRequest, type DriedResponse} from "@common/native-fetch";
 import {isWebhookUrl} from "./webhook";
+import {providerHeadersForHop, providerTokenUseForHop, sanitizeProviderError} from "@common/provider-auth";
 
 const DEFAULT_TIMEOUT = 8_000;
 
 const redirectCodes = new Set([301, 302, 307, 308]);
 const bodylessStatusCodes = new Set([101, 204, 205, 304]);
 
-export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init}: DriedRequest) {
-    const {promise, resolve, reject} = Promise.withResolvers<DriedResponse>();
+export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, providerAuthorization, providerTokenUsage, ...init}: DriedRequest) {
+    const {promise, resolve, reject: rejectRequest} = Promise.withResolvers<DriedResponse>();
+    const capturedTokens = providerAuthorization ? [providerAuthorization.token] : [];
+    const sanitize = <T>(error: T) => sanitizeProviderError(error, capturedTokens);
+    const reject = (error: unknown) => rejectRequest(sanitize(error));
 
     const maxRedirects = init.maxRedirects ?? 20;
 
     const body = dryBody ? hydrateReadableStream(dryBody) : null;
 
     let redirectCount = 0;
+    let usageReported = false;
 
     function out(uri: string, res: http.IncomingMessage): DriedResponse {
         const status = res.statusCode ?? 0;
@@ -31,8 +36,8 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
                     const fail = (error: Error) => {
                         if (settled) return;
                         settled = true;
-                        controller.error(error);
-                        res.destroy(error);
+                        controller.error(sanitize(error));
+                        res.destroy(sanitize(error));
                     };
 
                     // Register before the Content-Length fast-fail so destroying the response
@@ -40,7 +45,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
                     res.on("error", (error) => {
                         if (settled) return;
                         settled = true;
-                        controller.error(error);
+                        controller.error(sanitize(error));
                     });
 
                     const contentLength = Number(res.headers["content-length"]);
@@ -96,6 +101,11 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
     const timeout = ((t) => init.timeout === null || !isFinite(t) ? undefined : t)(init.timeout ?? DEFAULT_TIMEOUT);
 
     async function execute(uri: string) {
+        try {await executeHop(uri);}
+        catch (error) {reject(error);}
+    }
+
+    async function executeHop(uri: string) {
         let parsedUri: URL;
         try {
             parsedUri = new URL(uri);
@@ -129,67 +139,85 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
             return;
         }
 
+        const headers = providerHeadersForHop(url, uri, init, providerAuthorization);
+        const usedToken = providerTokenUseForHop(url, uri, {...init, headers}, providerTokenUsage?.purpose ?? providerAuthorization?.purpose ?? "recognized-self-update", providerAuthorization);
+        if (usedToken && !capturedTokens.includes(usedToken.token)) capturedTokens.push(usedToken.token);
         const request = httpModule.request(uri, {
-            headers: init.headers,
+            headers,
             method: init.method,
             timeout,
             rejectUnauthorized: init.rejectUnauthorized
         }, (res) => {
-            if (redirectCodes.has(res.statusCode!)) {
-                if (init.redirect === "error") {
-                    res.destroy();
-                    request.destroy(new Error("Failed to fetch"));
-                    return;
-                }
-                if (init.redirect === "manual") {
-                    resolve(out(uri, res));
-                    return;
-                }
-                if (redirectCount >= maxRedirects) {
-                    res.destroy();
-                    reject(new Error(`Maximum amount of redirects reached (${maxRedirects})`));
-                    return;
-                }
-
-                if (res.headers.location) {
-                    let final;
-                    try {
-                        // Fork review: upstream 44e21745 omits the base URL, so ordinary
-                        // relative Location values throw instead of following the redirect.
-                        final = new URL(res.headers.location, uri);
-                    }
-                    catch (error) {
+            try {
+                if (redirectCodes.has(res.statusCode!)) {
+                    if (init.redirect === "error") {
                         res.destroy();
-                        reject(error);
+                        request.destroy(new Error("Failed to fetch"));
+                        return;
+                    }
+                    if (init.redirect === "manual") {
+                        resolve(out(uri, res));
+                        return;
+                    }
+                    if (redirectCount >= maxRedirects) {
+                        res.destroy();
+                        reject(new Error(`Maximum amount of redirects reached (${maxRedirects})`));
                         return;
                     }
 
-                    const current = new URL(uri);
-                    // Upstream preserves the current query across redirects. In the updater's
-                    // HTTPS-only mode, never copy a token-bearing query onto another origin.
-                    if (!init.httpsOnly || current.origin === final.origin) {
-                        for (const [key, value] of current.searchParams) {
-                            final.searchParams.set(key, value);
+                    if (res.headers.location) {
+                        let final;
+                        try {
+                            // Fork review: upstream 44e21745 omits the base URL, so ordinary
+                            // relative Location values throw instead of following the redirect.
+                            final = new URL(res.headers.location, uri);
                         }
+                        catch (error) {
+                            res.destroy();
+                            reject(error);
+                            return;
+                        }
+
+                        const current = new URL(uri);
+                        // Upstream preserves the current query across redirects. In the updater's
+                        // HTTPS-only mode, never copy a token-bearing query onto another origin.
+                        if (!init.httpsOnly || current.origin === final.origin) {
+                            for (const [key, value] of current.searchParams) {
+                                final.searchParams.set(key, value);
+                            }
+                        }
+
+                        redirectCount++;
+                        // A redirect body is irrelevant and may itself be unbounded. Close this hop
+                        // after reading Location instead of draining bytes outside maxResponseBytes.
+                        res.destroy();
+
+                        return execute(final.href);
                     }
-
-                    redirectCount++;
-                    // A redirect body is irrelevant and may itself be unbounded. Close this hop
-                    // after reading Location instead of draining bytes outside maxResponseBytes.
-                    res.destroy();
-
-                    return execute(final.href);
                 }
-            }
 
-            resolve(out(uri, res));
+                resolve(out(uri, res));
+            }
+            catch (error) {
+                res.destroy();
+                reject(error);
+            }
         });
 
         request.shouldKeepAlive = init.keepalive;
 
+        if (providerTokenUsage && usedToken) {
+            request.once("finish", () => {
+                if (usageReported || request.destroyed) return;
+                usageReported = true;
+                try {providerTokenUsage.report(usedToken.event);}
+                catch {/* A renderer reporter must never interrupt the request. */}
+            });
+        }
+
         if (dryAbortSignal) {
             const undo = dryAbortSignal.addListener(() => {
-                request.destroy(dryAbortSignal.reason() || new Error("Request was aborted"));
+                request.destroy(sanitize(dryAbortSignal.reason() || new Error("Request was aborted")));
             });
 
             request.once("close", () => undo());
@@ -208,7 +236,7 @@ export function nativeFetch({url, signal: dryAbortSignal, body: dryBody, ...init
                 request.end();
             }
             catch (error) {
-                request.destroy(error as Error);
+                request.destroy(sanitize(error) as Error);
             }
         }
         else {request.end();}

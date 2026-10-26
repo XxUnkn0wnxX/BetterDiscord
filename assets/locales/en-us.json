@@ -5,6 +5,20 @@
         "customcss": "Custom CSS",
         "updates": "Updates"
     },
+    "ProviderTokens": {
+        "show": "Show token",
+        "hide": "Hide token",
+        "checking": "Checking token access…",
+        "invalid": "This token is invalid or does not have the required access.",
+        "retry": "Retry",
+        "inputUnavailable": "The native token input is unavailable in this Discord build.",
+        "unavailable": {
+            "permission": "The provider could not confirm the required token access.",
+            "rate-limit": "Token validation is temporarily rate limited.",
+            "network": "Token validation could not reach the provider.",
+            "response": "The provider returned an unexpected validation response."
+        }
+    },
     "Collections": {
         "settings": {
             "name": "Settings",
@@ -136,6 +150,17 @@
                 "updateInterval": {
                     "name": "Update Check Interval",
                     "note": "How often to check for plugin and theme updates"
+                }
+            },
+            "accessTokens": {
+                "name": "Access Tokens",
+                "github": {
+                    "name": "GitHub Token",
+                    "note": "Optional fine-grained or classic token for GitHub addon updates. Public repository read access is enough. Saved in plaintext in BetterDiscord settings. A replacement takes effect only after validation; the current token remains active while checking."
+                },
+                "gitlab": {
+                    "name": "GitLab Token",
+                    "note": "Optional token for GitLab addon updates. Use a token with read_api access only. Saved in plaintext in BetterDiscord settings. A replacement takes effect only after validation; the current token remains active while checking."
                 }
             },
             "customcss": {

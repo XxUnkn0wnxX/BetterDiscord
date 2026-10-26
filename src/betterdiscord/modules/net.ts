@@ -1,5 +1,6 @@
 import {dryReadableStream, hydrateReadableStream, type DriedAbortSignal, type DriedResponse, type NativeRequestInit, type NativeRequestMethod} from "@common/native-fetch";
 import Remote from "../polyfill/remote";
+import {hasProviderTokenUseReporter, providerTokenUseForHop, reportProviderTokenUse, sanitizeProviderError, selectProviderAuthorization, type ProviderAuthorizationPurpose} from "@common/provider-auth";
 
 const MAX_DEFAULT_REDIRECTS = 20;
 
@@ -49,6 +50,15 @@ class HydratingResponse extends Response {
 }
 
 export async function fetch(input: string | URL | Request, init?: NativeRequestInit) {
+    return fetchWithPurpose(input, init, "recognized-self-update");
+}
+
+/** Internal managed updater lane; this is deliberately absent from BdApi.Net. */
+export async function fetchAddonUpdate(input: string | URL | Request, init?: NativeRequestInit) {
+    return fetchWithPurpose(input, init, "managed-addon-update");
+}
+
+async function fetchWithPurpose(input: string | URL | Request, init: NativeRequestInit | undefined, purpose: ProviderAuthorizationPurpose) {
     let request: Request;
     if (input instanceof URL) {
         request = new Request(input.href, init);
@@ -62,12 +72,21 @@ export async function fetch(input: string | URL | Request, init?: NativeRequestI
         headers = new Headers(init.headers);
     }
 
+    const requestHeaders = Object.fromEntries(headers);
+    const policy = {
+        method: request.method,
+        headers: requestHeaders,
+        rejectUnauthorized: init?.rejectUnauthorized
+    };
+    const providerAuthorization = selectProviderAuthorization(request.url, policy, purpose);
+    const callerToken = providerTokenUseForHop(request.url, request.url, policy, purpose)?.token;
+    const capturedTokens = providerAuthorization ? [providerAuthorization.token] : callerToken ? [callerToken] : [];
     const driedResponse = await Remote.nativeFetch({
         url: request.url,
 
         body: request.body ? dryReadableStream(request.body) : null,
 
-        headers: Object.fromEntries(headers),
+        headers: requestHeaders,
 
         keepalive: request.keepalive,
         method: methods.has(request.method) ? request.method as NativeRequestMethod : "GET",
@@ -78,8 +97,10 @@ export async function fetch(input: string | URL | Request, init?: NativeRequestI
         maxRedirects: init?.maxRedirects ?? MAX_DEFAULT_REDIRECTS,
         maxResponseBytes: init?.maxResponseBytes,
         httpsOnly: init?.httpsOnly,
-        rejectUnauthorized: init?.rejectUnauthorized ?? true
-    });
+        rejectUnauthorized: init?.rejectUnauthorized ?? true,
+        providerAuthorization,
+        providerTokenUsage: hasProviderTokenUseReporter() ? {purpose, report: reportProviderTokenUse} : undefined
+    }).catch(error => {throw sanitizeProviderError(error, capturedTokens);});
 
     return new HydratingResponse(driedResponse);
 }

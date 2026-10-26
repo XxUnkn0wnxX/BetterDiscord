@@ -11,6 +11,59 @@ bundle to the older machine or upgrades to a newer machine. Historical Bun
 versions in validation records remain evidence of those checks, not permanent
 toolchain requirements.
 
+## Optional provider tokens for addon updates
+
+The collapsed core **Access Tokens** category stores optional GitHub/GitLab.com
+credentials in ordinary channel settings, with empty defaults. GitHub classic
+and fine-grained PATs share one opaque field. Private native Discord text inputs
+provide password masking, eye reveal, and native error styling; ordinary plugin
+text-setting contracts remain unchanged. Drafts validate through bounded read-only
+provider probes before autosaving. Editing, clearing, reset, disable and unmount
+invalidate obsolete results; reset notification also covers already-empty saved
+values. See [token setup and coverage](provider-tokens.md).
+
+Preserve the common request policy and the private managed-update transport lane.
+Existing `BdApi.Net.fetch` calls receive fallback only for recognized update API
+shapes; managed gist/snippet metadata has explicit private purpose. Meaningful
+caller credentials win, followed by the matching BD token, then anonymous.
+Generated headers require valid HTTPS/TLS, read methods, exact provider origins,
+and eligible original/current paths. Each redirect gets fresh headers; a token
+must not follow raw/CDN, different-origin, or unrelated API redirects. GitHub's
+required User-Agent is supplied only when generating its authentication and the
+caller has no meaningful User-Agent. Public `NativeRequestInit` is unchanged.
+
+Private native request-finish events report only provider, source and a masked
+suffix. The renderer reporter follows DebugLogs' actual capture lifecycle,
+including delayed enable/disable guards, so safe lines reach console and saved
+log together. Anonymous/validation/debug-off requests stay silent. Configured
+values and captured request failures are redacted; no raw token or URL enters
+the usage event. Shared policy code has no store/logger/runtime imports.
+
+Managed updates keep anonymous origin state plus one authenticated bucket keyed
+by a SHA-256 credential fingerprint. Matching authenticated limits survive
+restart, while GitLab raw traffic remains independent from authenticated API
+traffic. Capture request generations after queue admission and reject stale
+network/body/descriptor/target completions. Lazy reconciliation clears only
+affected target retry, negative, freshness and resolution state; normal manual
+cooldowns, the existing three-global/two-per-origin concurrency limits, enabled
+state equality, identity checks and core-updater policy stay intact. Never
+persist raw credentials in updater state or introduce a fork-only plugin API.
+
+Focused source/isolated renderer-native seams cover these contracts, including
+real core-store and native-input wrapper behavior. Native input discovery and
+visual styling, actual authenticated provider responses and injected-client
+logging remain separate user-owned runtime checks; source evidence is not a
+native pass. Preserve that boundary during future overlapping merges.
+
+The accumulated full source run passed 568 cases with 24 existing legacy-Intl
+skips; two lifecycle fixtures initially lacked the new private fetch export.
+After correcting that test-only mock, both cases passed. Type-only corrections
+passed 18 affected cases and the full TypeScript gate; full JavaScript/TypeScript
+lint has no errors. Dedicated Astra Max integration review found no blocking
+production issue and independently matched all 32 source/test hashes to the
+validation receipt. This is accumulated validation, rather than a second fresh
+uninterrupted full-suite run.
+
 ## Translation refresh through 1894f011
 
 The reviewed upstream range is `47a3396f..1894f011`, pinned to
@@ -2476,6 +2529,13 @@ required named export. This concrete adaptation is recorded in
 [`6154a7eb`](https://github.com/XxUnkn0wnxX/BetterDiscord/commit/6154a7eb1385b3313f5c339ff78b91875d69c1f6).
 
 ## Required checks after an overlapping upstream change
+
+For optional provider tokens, run policy/native transport, real settings and
+draft/reset UI, validator, DebugLogs lifecycle and managed-updater auth-state
+tests. Verify no new public request option, no token in unsafe redirect headers,
+anonymous/authenticated backoff separation, preserved restart limits and stale
+generation rejection. On an injected supported client, check native masked/error
+inputs and one authenticated update's masked console/file line separately.
 
 - ContextMenu: exercise real NodePatcher/dispatcher direct, lazy, and render-prop
   discovery; null children; depth ten; exception isolation; repeated renders;

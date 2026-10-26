@@ -30,6 +30,16 @@ const DefaultSettings = [
     },
     {
         type: "category",
+        id: "accessTokens",
+        collapsible: true,
+        shown: false,
+        settings: [
+            {type: "text", id: "github", value: "", maxLength: 1024},
+            {type: "text", id: "gitlab", value: "", maxLength: 1024}
+        ]
+    },
+    {
+        type: "category",
         id: "store",
         collapsible: true,
         shown: false,

@@ -6,6 +6,8 @@ import Config from "@stores/config";
 import {t} from "@common/i18n";
 
 import Modals from "@ui/modals";
+import {redactProviderTokens, setProviderTokenUseReporter} from "@common/provider-auth";
+import Logger from "@common/logger";
 
 
 const timestamp = () => new Date().toISOString().replace("T", " ").replace("Z", "");
@@ -33,10 +35,13 @@ export default new class DebugLogs extends Builtin {
 
     logFile?: string;
     stream?: fs.WriteStream;
+    private captureRevision = 0;
 
     async enabled() {
+        const revision = ++this.captureRevision;
         this.logFile = path.join(Config.get("channelPath"), "debug.log");
         await this.checkFilesize();
+        if (revision !== this.captureRevision || !this.get<boolean>("debugLogs")) return;
         this.stream = fs.createWriteStream(this.logFile, {flags: "a"});
         this.stream.write(`\n\n================= Starting Debug Log (${timestamp()}) =================\n`);
         for (const level of levels) {
@@ -45,11 +50,20 @@ export default new class DebugLogs extends Builtin {
                 this.stream?.write(`[${timestamp()}][CONSOLE:${level.toUpperCase()}] ${data}\n`);
             });
         }
+        setProviderTokenUseReporter(event => {
+            if (revision !== this.captureRevision || !this.get<boolean>("debugLogs")) return;
+            const provider = event.provider === "github" ? "GitHub" : "GitLab";
+            const source = event.source === "betterdiscord" ? "BetterDiscord token" : "a supplied token";
+            Logger.debug("ProviderTokens", `${provider} addon update used ${source} ${event.maskedToken}.`);
+        });
     }
 
     async disabled() {
+        this.captureRevision++;
+        setProviderTokenUseReporter();
         this.unpatchAll();
         if (this.stream) this.stream.end(`\n\n================= Ending Debug Log (${timestamp()}) =================`);
+        this.stream = undefined;
     }
 
     sanitize(...args: any[]) {
@@ -67,7 +81,7 @@ export default new class DebugLogs extends Builtin {
             else if (typeof (arg) === "object") sanitized.push(JSON.stringify(arg, getCircularReplacer()));
             if (typeof (arg) === "function" || typeof (arg) === "boolean" || typeof (arg) === "number") sanitized.push(arg.toString());
         }
-        return sanitized.join(" ");
+        return redactProviderTokens(sanitized.join(" "));
     }
 
     async checkFilesize() {

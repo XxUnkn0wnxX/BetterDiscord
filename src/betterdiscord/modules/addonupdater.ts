@@ -2,6 +2,7 @@ import path from "path";
 
 import Logger from "@common/logger";
 import {t} from "@common/i18n";
+import {getProviderForUpdateRequest, getProviderTokenGeneration, providerHeadersForHop, selectProviderAuthorization, type ProviderAuthorization, type ProviderRequestPolicy, type TokenProvider} from "@common/provider-auth";
 
 import SettingsStore from "@stores/settings";
 import JsonStore from "@stores/json";
@@ -19,7 +20,7 @@ import Events from "./emitter";
 import PluginManager from "./pluginmanager";
 import ThemeManager from "./thememanager";
 import AddonStore, {type Addon as StoreAddon} from "./addonstore";
-import {fetch} from "./net";
+import {fetchAddonUpdate} from "./net";
 
 import type AddonManager from "./addonmanager";
 import type {Addon, AddonType} from "@typed/addon";
@@ -47,6 +48,7 @@ import {
     isNegativeLookupActive,
     normalizeAddonUpdateState,
     type AddonUpdateState,
+    type AddonUpdateRateLimitState,
     type CachedAddonUpdateMetadata
 } from "@utils/addonupdatestate";
 import {
@@ -148,6 +150,60 @@ class AddonUpdateError extends Error {
         this.retryable = options.retryable ?? (code === "rate-limit" || code === "timeout" || code === "unknown");
         if (Number.isFinite(options.retryAt)) this.retryAt = options.retryAt;
     }
+}
+
+interface ProviderGeneration {
+    provider: TokenProvider;
+    generation: number;
+}
+
+interface ProviderRequestContext {
+    url: string;
+    policy: ProviderRequestPolicy;
+    generation?: ProviderGeneration;
+    authorization?: ProviderAuthorization;
+    credentialFingerprint?: string;
+}
+
+class SupersededProviderRequest extends Error {
+    constructor() {super("The provider token changed during the update check.");}
+}
+
+function assertCurrentGeneration(context?: ProviderGeneration, response?: Response) {
+    if (!context || context.generation === getProviderTokenGeneration(context.provider)) return;
+    void response?.body?.cancel().catch(() => {});
+    throw new SupersededProviderRequest();
+}
+
+function generationKey(context?: ProviderGeneration): string {
+    return context ? `${context.provider}:${context.generation}` : "anonymous";
+}
+
+function captureProviderContext(url: string, init: Parameters<typeof fetchAddonUpdate>[1] = {}): ProviderRequestContext {
+    const policy = {method: init.method ?? "GET", headers: Object.fromEntries(new Headers(init.headers)), rejectUnauthorized: init.rejectUnauthorized};
+    const provider = getProviderForUpdateRequest(url, policy, "managed-addon-update");
+    const authorization = selectProviderAuthorization(url, policy, "managed-addon-update");
+    return {
+        url,
+        policy,
+        generation: provider ? {provider, generation: getProviderTokenGeneration(provider)} : undefined,
+        authorization,
+        credentialFingerprint: authorization ? getAddonUpdateContentHash(new TextEncoder().encode(authorization.token)) : undefined
+    };
+}
+
+function declaredProviderContext(addon: Addon): ProviderRequestContext | undefined {
+    const url = getInstalledUpdateUrl(addon);
+    if (!url) return;
+    const normalized = normalizeAddonUpdateUrl(url, {expectedFilename: addon.filename});
+    if (!normalized.valid) return;
+    const requestUrl = normalized.descriptor?.apiUrl ?? normalized.fetchUrl;
+    return requestUrl ? captureProviderContext(requestUrl) : undefined;
+}
+
+const responseContexts = new WeakMap<Response, ProviderRequestContext>();
+function assertCurrentResponse(response: Response) {
+    assertCurrentGeneration(responseContexts.get(response)?.generation, response);
 }
 
 function asError(error: unknown): Error {
@@ -302,7 +358,7 @@ class RequestLimiter {
 }
 
 const requestLimiter = new RequestLimiter();
-const activeRawRequests = new Map<string, Promise<RawFetchResult>>();
+const activeRawRequests = new Map<string, {generation: string; promise: Promise<RawFetchResult>}>();
 const memoryBodies = new Map<string, CachedBody>();
 let memoryBodyBytes = 0;
 const resolvedUpdateUrls = new Map<string, NormalizedAddonUpdateUrl>();
@@ -367,11 +423,43 @@ function isNavigatorOffline() {
     return window.navigator?.onLine === false;
 }
 
-function assertProviderOriginAvailable(origin: string) {
+interface OriginBucket {
+    origin: string;
+    credentialFingerprint?: string;
+}
+
+function requestBucket(context: ProviderRequestContext, input = context.url): OriginBucket {
+    const url = input || context.url;
+    const origin = getAddonUpdateOrigin(url) ?? getAddonUpdateOrigin(context.url)!;
+    const authorization = context.authorization;
+    const headers = providerHeadersForHop(context.url, url, context.policy, authorization);
+    const generated = authorization && (authorization.provider === "github"
+        ? headers.Authorization === `Bearer ${authorization.token}`
+        : headers["PRIVATE-TOKEN"] === authorization.token);
+    return {origin, credentialFingerprint: generated ? context.credentialFingerprint : undefined};
+}
+
+function originBucket(bucket: OriginBucket, create = false): AddonUpdateRateLimitState | undefined {
+    let origin = state.origins[bucket.origin];
+    if (!origin && create) origin = state.origins[bucket.origin] = {};
+    if (!bucket.credentialFingerprint) return origin;
+    if (origin?.authenticated?.credentialFingerprint === bucket.credentialFingerprint) return origin.authenticated;
+    if (!create) return;
+    origin!.authenticated = {credentialFingerprint: bucket.credentialFingerprint};
+    return origin!.authenticated;
+}
+
+function responseBuckets(response: Response, context: ProviderRequestContext): OriginBucket[] {
+    const buckets = [requestBucket(context), requestBucket(context, response.url)];
+    return buckets.filter((bucket, index) => !buckets.slice(0, index).some(previous => previous.origin === bucket.origin && previous.credentialFingerprint === bucket.credentialFingerprint));
+}
+
+function assertProviderOriginAvailable(bucket: OriginBucket) {
     const now = Date.now();
-    const originState = state.origins[origin];
+    const {origin} = bucket;
+    const originState = originBucket(bucket);
     if (originState?.blockedUntil && originState.blockedUntil > now) {
-        const warningKey = `${origin}:${originState.blockedUntil}`;
+        const warningKey = `${origin}:${bucket.credentialFingerprint ?? "anonymous"}:${originState.blockedUntil}`;
         if (!rateLimitWarnings.has(warningKey)) {
             rateLimitWarnings.add(warningKey);
             Logger.warn("AddonUpdater", `Update checks for ${origin} are paused until the provider's rate limit resets.`);
@@ -389,45 +477,45 @@ function assertProviderOriginAvailable(origin: string) {
     }
 }
 
-async function recordProviderRateLimit(response: Response, initialOrigin: string): Promise<never> {
-    const responseOrigin = getAddonUpdateOrigin(response.url) ?? initialOrigin;
-    const origins = [...new Set([initialOrigin, responseOrigin])];
+async function recordProviderRateLimit(response: Response, context: ProviderRequestContext): Promise<never> {
+    assertCurrentGeneration(context.generation);
+    const responseOrigin = getAddonUpdateOrigin(response.url) ?? getAddonUpdateOrigin(context.url)!;
+    const buckets = responseBuckets(response, context);
     const now = Date.now();
-    const inheritedBlockedUntil = Math.max(...origins.map(origin => state.origins[origin]?.blockedUntil ?? 0));
+    const inheritedBlockedUntil = Math.max(...buckets.map(bucket => originBucket(bucket)?.blockedUntil ?? 0));
     if (inheritedBlockedUntil > now) {
-        const inheritedFailureCount = Math.max(...origins.map(origin => state.origins[origin]?.failureCount ?? 0));
+        const inheritedFailureCount = Math.max(...buckets.map(bucket => originBucket(bucket)?.failureCount ?? 0));
         let changed = false;
-        for (const origin of origins) {
-            if ((state.origins[origin]?.blockedUntil ?? 0) >= inheritedBlockedUntil
-                && (state.origins[origin]?.failureCount ?? 0) >= inheritedFailureCount) continue;
-            state.origins[origin] = {
-                blockedUntil: inheritedBlockedUntil,
-                failureCount: inheritedFailureCount
-            };
+        for (const bucket of buckets) {
+            const selected = originBucket(bucket, true)!;
+            if ((selected.blockedUntil ?? 0) >= inheritedBlockedUntil && (selected.failureCount ?? 0) >= inheritedFailureCount) continue;
+            selected.blockedUntil = inheritedBlockedUntil;
+            selected.failureCount = inheritedFailureCount;
             changed = true;
         }
         if (changed) saveStateImmediately();
         await response.body?.cancel().catch(() => {});
+        assertCurrentGeneration(context.generation);
         throw new AddonUpdateError("rate-limit", "The update provider is temporarily rate limited.", {
             silent: true,
             retryAt: inheritedBlockedUntil
         });
     }
-    const failureCount = Math.max(...origins.map(origin => state.origins[origin]?.failureCount ?? 0));
+    const failureCount = Math.max(...buckets.map(bucket => originBucket(bucket)?.failureCount ?? 0));
     const rateLimit = getAddonUpdateRateLimitDelay(response.headers, {
         now,
         failureCount,
         jitter: base => Math.min(5_000, Math.max(250, Math.round(base * 0.02 * Math.random())))
     });
 
-    for (const origin of origins) {
-        state.origins[origin] = {
-            blockedUntil: rateLimit.blockedUntil,
-            failureCount: rateLimit.nextFailureCount
-        };
+    for (const bucket of buckets) {
+        const selected = originBucket(bucket, true)!;
+        selected.blockedUntil = rateLimit.blockedUntil;
+        selected.failureCount = rateLimit.nextFailureCount;
     }
     saveStateImmediately();
     await response.body?.cancel().catch(() => {});
+    assertCurrentGeneration(context.generation);
 
     const warningKey = `${responseOrigin}:${rateLimit.blockedUntil}`;
     if (!rateLimitWarnings.has(warningKey)) {
@@ -440,30 +528,35 @@ async function recordProviderRateLimit(response: Response, initialOrigin: string
     });
 }
 
-async function providerFetch(url: string, init: Parameters<typeof fetch>[1] = {}): Promise<Response> {
+async function providerFetch(url: string, init: Parameters<typeof fetchAddonUpdate>[1] = {}): Promise<Response> {
     const initialOrigin = getAddonUpdateOrigin(url);
     if (!initialOrigin) throw new AddonUpdateError("unsafe", "The update source is not a safe HTTPS URL.");
 
-    assertProviderOriginAvailable(initialOrigin);
+    let context = captureProviderContext(url, init);
+    assertProviderOriginAvailable(requestBucket(context));
 
     let response: Response;
     try {
         response = await requestLimiter.run(url, async () => {
             // Recheck after waiting in the queue so a 429 from an earlier request cancels the
             // remaining burst before another network slot is released.
-            assertProviderOriginAvailable(initialOrigin);
-            const result = await fetch(url, {
+            context = captureProviderContext(url, init);
+            assertProviderOriginAvailable(requestBucket(context));
+            const result = await fetchAddonUpdate(url, {
                 ...init,
                 headers: init.headers,
                 timeout: init.timeout ?? ADDON_DOWNLOAD_TIMEOUT_MS,
                 maxRedirects: init.maxRedirects ?? MAX_ADDON_REDIRECTS,
                 httpsOnly: true
             });
-            if (isAddonUpdateRateLimitResponse(result.status, result.headers)) return recordProviderRateLimit(result, initialOrigin);
+            assertCurrentGeneration(context.generation, result);
+            responseContexts.set(result, context);
+            if (isAddonUpdateRateLimitResponse(result.status, result.headers)) return recordProviderRateLimit(result, context);
             return result;
         });
     }
     catch (error) {
+        assertCurrentGeneration(context.generation);
         const failure = asError(error);
         if (failure.name === "UnsafeRedirectError") throw new AddonUpdateError("unsafe", "The update source redirected to an unsafe URL.", {cause: failure});
         if (failure.name === "ResponseSizeError") throw new AddonUpdateError("invalid", `The addon exceeded the ${ADDON_DOWNLOAD_LIMIT_BYTES / 1024 / 1024} MiB safety limit.`, {cause: failure});
@@ -471,12 +564,16 @@ async function providerFetch(url: string, init: Parameters<typeof fetch>[1] = {}
         throw failure;
     }
 
-    const responseOrigin = getAddonUpdateOrigin(response.url) ?? initialOrigin;
     let clearedRateLimit = false;
-    for (const origin of new Set([initialOrigin, responseOrigin])) {
-        if (!state.origins[origin]?.failureCount) continue;
+    assertCurrentGeneration(context.generation, response);
+    for (const bucket of responseBuckets(response, context)) {
+        const selected = originBucket(bucket);
+        if (!selected?.failureCount) continue;
+        const {origin} = bucket;
         Logger.info("AddonUpdater", `Update requests to ${origin} are succeeding again.`);
-        delete state.origins[origin];
+        delete selected.blockedUntil;
+        delete selected.failureCount;
+        if (!Object.keys(state.origins[origin]).length) delete state.origins[origin];
         clearedRateLimit = true;
     }
     if (clearedRateLimit) saveState();
@@ -575,6 +672,7 @@ async function fetchDescriptorJson(url: string): Promise<unknown> {
         },
         maxResponseBytes: DESCRIPTOR_LIMIT_BYTES
     });
+    assertCurrentResponse(response);
     if (response.status === 404 || response.status === 410) throw new AddonUpdateError("not-found", "The declared update source does not exist.", {silent: true});
     if (!response.ok) {
         throw new AddonUpdateError("http", `The provider API returned HTTP ${response.status}.`, {
@@ -582,9 +680,12 @@ async function fetchDescriptorJson(url: string): Promise<unknown> {
         });
     }
     try {
-        return await response.json();
+        const json: unknown = await response.json();
+        assertCurrentResponse(response);
+        return json;
     }
     catch (error) {
+        assertCurrentResponse(response);
         throw new AddonUpdateError("invalid", "The provider API returned invalid metadata.", {cause: error});
     }
 }
@@ -630,7 +731,10 @@ async function resolveUpdateUrl(input: string, filename: string): Promise<Normal
     return normalized;
 }
 
-async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useValidators: boolean;}): Promise<RawFetchResult> {
+async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useValidators: boolean; generation?: ProviderGeneration;}): Promise<RawFetchResult> {
+    const generation = options.generation ?? captureProviderContext(fetchUrl).generation;
+    assertCurrentGeneration(generation);
+    const requestGeneration = generationKey(generation);
     const fingerprint = getAddonUpdateUrlFingerprint(fetchUrl);
     if (options.useMemory) {
         const cached = memoryBodies.get(fingerprint);
@@ -643,7 +747,7 @@ async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useV
     }
 
     const active = activeRawRequests.get(fingerprint);
-    if (active) return active;
+    if (active?.generation === requestGeneration) return active.promise;
 
     const request = (async (): Promise<RawFetchResult> => {
         const urlState = state.urls[fingerprint] ??= {};
@@ -664,6 +768,7 @@ async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useV
             headers,
             maxResponseBytes: ADDON_DOWNLOAD_LIMIT_BYTES
         });
+        assertCurrentGeneration(generation, response);
 
         if (response.status === 404 || response.status === 410) {
             urlState.lastCheckedAt = now;
@@ -692,12 +797,16 @@ async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useV
             bytes = new Uint8Array(await response.arrayBuffer());
         }
         catch (error) {
+            assertCurrentGeneration(generation);
+            assertCurrentResponse(response);
             const failure = asError(error);
             if (failure.name === "ResponseSizeError" || /byte limit/i.test(failure.message)) {
                 throw new AddonUpdateError("invalid", `The addon exceeded the ${ADDON_DOWNLOAD_LIMIT_BYTES / 1024 / 1024} MiB safety limit.`, {cause: failure});
             }
             throw failure;
         }
+        assertCurrentGeneration(generation);
+        assertCurrentResponse(response);
 
         let text: string;
         try {
@@ -722,8 +831,10 @@ async function fetchRawBody(fetchUrl: string, options: {useMemory: boolean; useV
         return {kind: "body", fingerprint, bytes, text, hash};
     })();
 
-    activeRawRequests.set(fingerprint, request);
-    void request.finally(() => activeRawRequests.delete(fingerprint)).catch(() => {});
+    activeRawRequests.set(fingerprint, {generation: requestGeneration, promise: request});
+    void request.finally(() => {
+        if (activeRawRequests.get(fingerprint)?.promise === request) activeRawRequests.delete(fingerprint);
+    }).catch(() => {});
     return request;
 }
 
@@ -878,6 +989,7 @@ async function inspectDeclaredUrl(
     updateUrl: string,
     options: {forceNetwork: boolean; intervalMs: number;}
 ): Promise<{candidate: Candidate | null; settled: boolean; retryAt?: number;}> {
+    const generation = declaredProviderContext(addon)?.generation;
     const addonKey = getAddonUpdateKey(addon.filename.endsWith(".plugin.js") ? "plugin" : "theme", addon.filename);
     const addonState = state.addons[addonKey] ??= {};
     const declaredFingerprint = getAddonUpdateUrlFingerprint(updateUrl.trim());
@@ -918,6 +1030,7 @@ async function inspectDeclaredUrl(
         }
 
         const normalized = await resolveUpdateUrl(updateUrl, addon.filename);
+        assertCurrentGeneration(generation);
         resolvedUpdateUrls.set(resolutionCacheKey, normalized);
         const normalizedFingerprint = getAddonUpdateUrlFingerprint(normalized.fetchUrl!);
         if (!options.forceNetwork && !isAddonCheckStale(state.urls[normalizedFingerprint]?.lastCheckedAt, options.intervalMs, Date.now())) {
@@ -928,7 +1041,8 @@ async function inspectDeclaredUrl(
             };
         }
 
-        const raw = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: true});
+        const raw = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: true, generation});
+        assertCurrentGeneration(generation);
         if (raw.kind === "not-found") {
             addonState.negativeLookupUntil = getNegativeLookupUntil(Date.now(), MISSING_SOURCE_COOLDOWN_MS);
             rejectCachedBody(raw.fingerprint);
@@ -944,7 +1058,8 @@ async function inspectDeclaredUrl(
                 return {candidate: cached, settled: true};
             }
 
-            const refreshed = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: false});
+            const refreshed = await fetchRawBody(normalized.fetchUrl!, {useMemory: false, useValidators: false, generation});
+            assertCurrentGeneration(generation);
             if (refreshed.kind !== "body") return {candidate: null, settled: refreshed.kind === "not-found"};
             delete addonState.negativeLookupUntil;
             const candidate = validateBodyForCandidate(addon, normalized, refreshed, "update-url");
@@ -957,6 +1072,8 @@ async function inspectDeclaredUrl(
         return {candidate, settled: true};
     }
     catch (error) {
+        assertCurrentGeneration(generation);
+        if (error instanceof SupersededProviderRequest) throw error;
         const failure = asError(error);
         if (failure instanceof AddonUpdateError && failure.code === "not-found") {
             addonState.negativeLookupUntil = getNegativeLookupUntil(Date.now(), MISSING_SOURCE_COOLDOWN_MS);
@@ -1045,15 +1162,18 @@ function sameCandidates(left: readonly Candidate[] | undefined, right: readonly 
 }
 
 async function materializeCandidate(addon: Addon, candidate: Candidate): Promise<Candidate & {data: UpdateSourceDetails & {bytes: Uint8Array;};}> {
+    const generation = candidate.source === "update-url" ? declaredProviderContext(addon)?.generation : undefined;
     const normalized = candidate.source === "update-url" && candidate.data?.resolveDeclared
         ? await resolveUpdateUrl(getInstalledUpdateUrl(addon) ?? "", addon.filename)
         : normalizeAddonUpdateUrl(candidate.data!.fetchUrl, {expectedFilename: addon.filename});
     if (!normalized.valid || normalized.resolution !== "direct" || !normalized.fetchUrl) {
         throw new AddonUpdateError("unsafe", "The selected update source is no longer a safe direct URL.");
     }
+    assertCurrentGeneration(generation);
 
-    let raw = await fetchRawBody(normalized.fetchUrl, {useMemory: true, useValidators: true});
-    if (raw.kind === "not-modified") raw = await fetchRawBody(normalized.fetchUrl, {useMemory: false, useValidators: false});
+    let raw = await fetchRawBody(normalized.fetchUrl, {useMemory: true, useValidators: true, generation});
+    if (raw.kind === "not-modified") raw = await fetchRawBody(normalized.fetchUrl, {useMemory: false, useValidators: false, generation});
+    assertCurrentGeneration(generation);
     if (raw.kind === "not-found") throw new AddonUpdateError("not-found", "The selected update source no longer exists.", {silent: true});
     if (raw.kind !== "body") throw new AddonUpdateError("invalid", "The selected update source returned no addon body.");
 
@@ -1405,7 +1525,8 @@ export class AddonUpdateCoordinator {
     static #timer: number | null = null;
     static #manualCheck: Promise<boolean> | null = null;
     static #eventTimers = new Map<string, number>();
-    static #targetChecks = new Map<string, Promise<void>>();
+    static #targetChecks = new Map<string, {generation: string; promise: Promise<void>}>();
+    static #providerGenerations: Partial<Record<TokenProvider, number>> = {};
     static #retryAt = new Map<string, number>();
     static #offlineDeferrals = new Map<string, number>();
     static #waitingForOnline = false;
@@ -1434,6 +1555,7 @@ export class AddonUpdateCoordinator {
         if (this.#initialized) return;
         this.#initialized = true;
         state = normalizeAddonUpdateState(JsonStore.get("addon-updater"));
+        this.#reconcileProviderConfiguration();
         this.pruneMissingAddons();
         this.#hydrateCachedCandidates();
         if (SettingsStore.get("addons", "checkForUpdates")) {
@@ -1643,6 +1765,49 @@ export class AddonUpdateCoordinator {
         ];
     }
 
+    static #reconcileProviderConfiguration() {
+        const current = {github: getProviderTokenGeneration("github"), gitlab: getProviderTokenGeneration("gitlab")};
+        const changed = new Set<TokenProvider>();
+        for (const provider of ["github", "gitlab"] as const) {
+            if (this.#providerGenerations[provider] !== undefined && this.#providerGenerations[provider] !== current[provider]) changed.add(provider);
+        }
+        for (const {updater, addon} of this.#installedTargets()) {
+            const context = declaredProviderContext(addon);
+            if (!context?.generation) continue;
+            const {provider} = context.generation;
+            const bucket = requestBucket(context);
+            const previous = state.origins[bucket.origin]?.authenticated;
+            if (previous?.credentialFingerprint !== context.credentialFingerprint) {
+                changed.add(provider);
+                if (context.credentialFingerprint) originBucket(bucket, true);
+                else if (state.origins[bucket.origin]) delete state.origins[bucket.origin].authenticated;
+            }
+            if (!changed.has(provider)) continue;
+
+            const key = getAddonUpdateKey(updater.type, addon.filename);
+            const addonState = state.addons[key];
+            if (addonState) {
+                delete addonState.lastCheckedAt;
+                delete addonState.negativeLookupUntil;
+                delete addonState.resolvedUrlFingerprint;
+            }
+            const declared = getInstalledUpdateUrl(addon)!;
+            resolvedUpdateUrls.delete(`${key}:${getAddonUpdateUrlFingerprint(declared.trim())}`);
+            const normalized = normalizeAddonUpdateUrl(declared, {expectedFilename: addon.filename});
+            if (normalized.valid && normalized.resolution === "direct") {
+                const fingerprint = getAddonUpdateUrlFingerprint(context.url);
+                delete state.urls[fingerprint];
+                deleteMemoryBody(fingerprint);
+            }
+            this.#retryAt.delete(key);
+            this.#offlineDeferrals.delete(key);
+            const store = inspectStore(addon, updater.getStoreAddon(addon.filename));
+            updater.setCandidates(addon.filename, addon.version, store ? [store] : []);
+            saveState();
+        }
+        this.#providerGenerations = current;
+    }
+
     static #hydrateCachedCandidates() {
         for (const {updater, addon} of this.#installedTargets()) {
             const candidates = [
@@ -1668,6 +1833,7 @@ export class AddonUpdateCoordinator {
     }
 
     static async #checkTargets(targets: Array<{updater: AddonUpdater; addon: Addon;}>, options: CheckOptions) {
+        this.#reconcileProviderConfiguration();
         const now = Date.now();
         const intervalMs = SettingsStore.get<number>("addons", "updateInterval") * 60 * 60 * 1000;
         const dueTargets = options.force ? targets : targets.filter(({updater, addon}) => {
@@ -1694,17 +1860,19 @@ export class AddonUpdateCoordinator {
         }
         await Promise.all(dueTargets.map(({updater, addon}) => {
             const key = getAddonUpdateKey(updater.type, addon.filename);
+            const generation = generationKey(declaredProviderContext(addon)?.generation);
             const active = this.#targetChecks.get(key);
-            if (active) return active;
+            if (active?.generation === generation) return active.promise;
 
             const check = this.#checkTarget(updater, addon, catalogueFresh, options, intervalMs).catch((error) => {
+                if (error instanceof SupersededProviderRequest) return;
                 this.#retryAt.set(key, Date.now() + TRANSIENT_RETRY_MS);
                 Logger.stacktrace("AddonUpdater", `Unexpected failure while checking '${addon.filename}'`, safeErrorForLog(error));
             });
-            this.#targetChecks.set(key, check);
+            this.#targetChecks.set(key, {generation, promise: check});
             void check.then(
-                () => {if (this.#targetChecks.get(key) === check) this.#targetChecks.delete(key);},
-                () => {if (this.#targetChecks.get(key) === check) this.#targetChecks.delete(key);}
+                () => {if (this.#targetChecks.get(key)?.promise === check) this.#targetChecks.delete(key);},
+                () => {if (this.#targetChecks.get(key)?.promise === check) this.#targetChecks.delete(key);}
             );
             return check;
         }));
@@ -1739,6 +1907,7 @@ export class AddonUpdateCoordinator {
         intervalMs: number
     ) {
         const key = getAddonUpdateKey(updater.type, addon.filename);
+        const generation = declaredProviderContext(addon)?.generation;
         const updateUrl = getInstalledUpdateUrl(addon);
         if (!updateUrl && state.addons[key]?.urlFingerprint) {
             resolvedUpdateUrls.delete(`${key}:${state.addons[key].urlFingerprint}`);
@@ -1750,6 +1919,7 @@ export class AddonUpdateCoordinator {
         const urlResult = updateUrl
             ? await inspectDeclaredUrl(addon, updateUrl, {forceNetwork: options.force, intervalMs})
             : {candidate: null, settled: true};
+        assertCurrentGeneration(generation);
 
         // A file watcher may unload, replace, or edit an addon while its request is in flight. Never
         // apply the old object's version/identity result; queue the current object for a forced,

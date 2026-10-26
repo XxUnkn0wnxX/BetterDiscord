@@ -141,6 +141,31 @@ describe("addon updater persisted state", () => {
         });
         expect(JSON.stringify(normalized)).not.toContain("token");
     });
+
+    test("preserves one validated authenticated bucket beside anonymous limits", () => {
+        const state = normalizeAddonUpdateState({
+            version: 1,
+            origins: {
+                "https://api.github.com": {
+                    blockedUntil: 100,
+                    failureCount: 2,
+                    authenticated: {credentialFingerprint: CONTENT_HASH, blockedUntil: 200, failureCount: 1, token: "never-store-this"}
+                },
+                "https://gitlab.com": {
+                    blockedUntil: 300,
+                    authenticated: {credentialFingerprint: "raw-secret", blockedUntil: 400}
+                }
+            }
+        });
+        expect(state.origins["https://api.github.com"]).toEqual({
+            blockedUntil: 100,
+            failureCount: 2,
+            authenticated: {credentialFingerprint: CONTENT_HASH.toLowerCase(), blockedUntil: 200, failureCount: 1}
+        });
+        expect(state.origins["https://gitlab.com"]).toEqual({blockedUntil: 300});
+        expect(JSON.stringify(state)).not.toContain("never-store-this");
+        expect(JSON.stringify(state)).not.toContain("raw-secret");
+    });
 });
 
 describe("addon updater keys and freshness", () => {
