@@ -27,6 +27,7 @@ test("recovery labels live outside the retired switch in every locale", () => {
                 suspect: "Suspected Addon",
                 report: "Report on GitHub",
                 reportForgejo: "Report on git.slowb.ro",
+                reportGitlab: "Report on GitLab",
                 manualReport: "Manual report",
                 manualReportCopied: "Report copied to clipboard.",
                 manualReportCopyFailed: "Could not copy report.",

@@ -18,6 +18,7 @@ import SimpleMarkdownExt from "@structs/markdown";
 import Flex from "@ui/base/flex";
 import {Check, ChevronDown, ChevronRightIcon, Copy, GithubIcon, MessageCircleWarningIcon, Server} from "lucide-react";
 import ForgejoIcon from "@ui/forgejoicon";
+import GitLabIcon from "@ui/gitlabicon";
 import {getRecoveryReportSource, type RecoveryReportSource} from "@utils/recoveryreport";
 import getDebugInfo from "@utils/debug";
 
@@ -171,7 +172,10 @@ function ErrorDetails({instance, pluginInfo, stack}: {instance: RecoveryBoundary
     const openReport = React.useCallback(() => {
         if (!reportSource) return;
         const report = createReportPayload(instance, pluginInfo);
-        window.open(`${reportSource.repoUrl}/issues/new?title=${encodeURIComponent(report.title)}&body=${encodeURIComponent(report.body)}`, "_blank", "noopener,noreferrer");
+        const isGitLab = reportSource.provider === "gitlab";
+        const issueUrl = isGitLab ? `${reportSource.repoUrl}/-/work_items/new?issue[title]=${encodeURIComponent(report.title)}&issue[description]=${encodeURIComponent(report.body)}`
+            : `${reportSource.repoUrl}/issues/new?title=${encodeURIComponent(report.title)}&body=${encodeURIComponent(report.body)}`;
+        window.open(issueUrl, "_blank", "noopener,noreferrer");
     }, [reportSource, pluginInfo, instance]);
 
     const copyManualReport = React.useCallback(async () => {
@@ -221,8 +225,8 @@ function ErrorDetails({instance, pluginInfo, stack}: {instance: RecoveryBoundary
 
     const native = getNativeRecoveryComponents();
     const TooltipComponent = native && isReactComponentType(DiscordModules.Tooltip) ? DiscordModules.Tooltip : null;
-    const reportLabel = reportSource?.provider === "forgejo" ? t("Recovery.reportForgejo") : reportSource ? t("Recovery.report") : t("Recovery.manualReport");
-    const reportIcon = reportSource?.provider === "forgejo" ? <ForgejoIcon size={24}/> : reportSource ? <GithubIcon size={24}/> : null;
+    const reportLabel = reportSource?.provider === "forgejo" ? t("Recovery.reportForgejo") : reportSource?.provider === "gitlab" ? t("Recovery.reportGitlab") : reportSource ? t("Recovery.report") : t("Recovery.manualReport");
+    const reportIcon = reportSource?.provider === "forgejo" ? <ForgejoIcon size={24}/> : reportSource?.provider === "gitlab" ? <GitLabIcon size={24}/> : reportSource ? <GithubIcon size={24}/> : null;
     const links = (
         <div className="bd-recovery-links">
             {TooltipComponent && reportSource

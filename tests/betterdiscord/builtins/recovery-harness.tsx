@@ -367,13 +367,18 @@ test("copy waits for clipboard success and leaves the button unchanged on reject
 });
 
 test("accepts only the supported report hosts and canonicalizes their repository URLs", () => {
-    const positive: Array<[string, "github" | "forgejo", string]> = [
+    const positive: Array<[string, "github" | "forgejo" | "gitlab", string]> = [
         ["https://github.com/BetterDiscord/BetterDiscord", "github", "https://github.com/BetterDiscord/BetterDiscord"],
         ["http://www.github.com/Owner/Repo.git/blob/main/file.js?raw=1#L4", "github", "https://github.com/Owner/Repo"],
         ["git://github.com/Owner/Repo.git", "github", "https://github.com/Owner/Repo"],
         ["https://raw.githubusercontent.com/XxUnkn0wnxX/MessageLoggerV2-Remake/refs/heads/main/MessageLoggerV2.plugin.js", "github", "https://github.com/XxUnkn0wnxX/MessageLoggerV2-Remake"],
         ["https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/src/branch/main/MessageLoggerV2.plugin.js", "forgejo", "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake"],
-        ["git+https://git.slowb.ro/Owner/Repo.git/src/branch/main/file.js", "forgejo", "https://git.slowb.ro/Owner/Repo"]
+        ["git+https://git.slowb.ro/Owner/Repo.git/src/branch/main/file.js", "forgejo", "https://git.slowb.ro/Owner/Repo"],
+        ["https://gitlab.com/gitlab-org/gitlab", "gitlab", "https://gitlab.com/gitlab-org/gitlab"],
+        ["https://gitlab.com/team/sub-team/project.git", "gitlab", "https://gitlab.com/team/sub-team/project"],
+        ["https://gitlab.com/team/sub-team/project.git/-/blob/main/plugin.js", "gitlab", "https://gitlab.com/team/sub-team/project"],
+        ["https://gitlab.com/team/sub%2Dteam/project/-/raw/main/plugin.js", "gitlab", "https://gitlab.com/team/sub-team/project"],
+        ["https://gitlab.com/team/project/%2D/raw/main/plugin.js", "gitlab", "https://gitlab.com/team/project"]
     ];
     for (const [source, provider, repoUrl] of positive) expect(getRecoveryReportSource(source)).toEqual({provider, repoUrl});
 
@@ -391,15 +396,24 @@ test("accepts only the supported report hosts and canonicalizes their repository
         "https://github.com/ow\nner/repo",
         "https://github.com/owner%2frepo/repo",
         "https://github.com/owner/repo/../other",
-        "https://example.com/owner/repo"
+        "https://example.com/owner/repo",
+        "https://gitlab.com/-/profile",
+        "https://gitlab.com/team/-/blob/main/file.js",
+        "https://gitlab.com/team/%2D/raw/main/file.js",
+        "https://gitlab.com/team/invalid%3Fgroup/project",
+        "https://gitlab.com/team/sub-team/.git",
+        "https://gitlab.com/team/project%2Frepo",
+        "https://gitlab.com.evil.example/team/repo",
+        "https://gitlab.com:8443/team/repo"
     ];
     for (const source of negative) expect(getRecoveryReportSource(source), source).toBeNull();
 });
 
-test("GitHub and Forgejo report buttons open encoded issue forms on click only", async () => {
+test("GitHub, Forgejo and GitLab report buttons open encoded issue forms on click only", async () => {
     const sources = [
-        {source: "https://raw.githubusercontent.com/Owner/Repo/refs/heads/main/plugin.js", label: "Recovery.report", repo: "https://github.com/Owner/Repo", icon: "[data-github-icon='true']"},
-        {source: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/src/branch/main/plugin.js", label: "Recovery.reportForgejo", repo: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake", icon: "[data-forgejo-icon='true']"}
+        {source: "https://raw.githubusercontent.com/Owner/Repo/refs/heads/main/plugin.js", label: "Recovery.report", repo: "https://github.com/Owner/Repo", icon: "[data-github-icon='true']", formPath: "/issues/new", titleKey: "title", bodyKey: "body"},
+        {source: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake/src/branch/main/plugin.js", label: "Recovery.reportForgejo", repo: "https://git.slowb.ro/XxUnkn0wnxX/MessageLoggerV2-Remake", icon: "[data-forgejo-icon='true']", formPath: "/issues/new", titleKey: "title", bodyKey: "body"},
+        {source: "https://gitlab.com/group/sub-group/project/-/blob/main/plugin.js", label: "Recovery.reportGitlab", repo: "https://gitlab.com/group/sub-group/project", icon: "[data-gitlab-icon='true']", formPath: "/-/work_items/new", titleKey: "issue[title]", bodyKey: "issue[description]"}
     ];
     const stack = "Error: bad [state]? & #value\n    at betterdiscord://plugins/Example.plugin.js";
     const name = "Example & [Audit]?";
@@ -427,9 +441,10 @@ test("GitHub and Forgejo report buttons open encoded issue forms on click only",
                     expect(debugInfoCalls).toBe(debugCallsBeforeRender + 1);
                     const openedReport = opened.at(-1)!;
                     const url = new URL(openedReport.url);
-                    expect(`${url.origin}${url.pathname}`).toBe(`${entry.repo}/issues/new`);
-                    expect(url.searchParams.get("title")).toBe(`[Bug Report] Plugin Crash - ${name} v1.0.0`);
-                    const body = url.searchParams.get("body")!;
+                    expect(`${url.origin}${url.pathname}`).toBe(`${entry.repo}${entry.formPath}`);
+                    expect(Array.from(url.searchParams.keys()).sort()).toEqual([entry.bodyKey, entry.titleKey].sort());
+                    expect(url.searchParams.get(entry.titleKey)).toBe(`[Bug Report] Plugin Crash - ${name} v1.0.0`);
+                    const body = url.searchParams.get(entry.bodyKey)!;
                     expect(body).toContain(`### Error Details\n\`\`\`js\n${stack}\n\`\`\``);
                     expect(body).not.toContain("### Component Stack");
                     expect(body).not.toContain("example component stack");

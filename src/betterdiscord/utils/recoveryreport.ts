@@ -1,5 +1,5 @@
 export type RecoveryReportSource = {
-    provider: "github" | "forgejo";
+    provider: "github" | "forgejo" | "gitlab";
     repoUrl: string;
 };
 
@@ -7,7 +7,8 @@ const REPORT_HOSTS = new Map<string, RecoveryReportSource["provider"]>([
     ["github.com", "github"],
     ["www.github.com", "github"],
     ["raw.githubusercontent.com", "github"],
-    ["git.slowb.ro", "forgejo"]
+    ["git.slowb.ro", "forgejo"],
+    ["gitlab.com", "gitlab"]
 ]);
 
 // eslint-disable-next-line no-control-regex -- Source URLs must reject control characters before parsing.
@@ -42,6 +43,22 @@ export function getRecoveryReportSource(source: unknown): RecoveryReportSource |
 
         const provider = REPORT_HOSTS.get(url.hostname.toLowerCase());
         if (!provider) return null;
+
+        if (provider === "gitlab") {
+            // GitLab supports arbitrarily nested groups. Its `/-/` delimiter
+            // separates project source routes from the repository path.
+            const pathParts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+            const sourceRoute = pathParts.indexOf("-");
+            const repositoryParts = sourceRoute === -1 ? pathParts : pathParts.slice(0, sourceRoute);
+            if (sourceRoute === 0 || repositoryParts.length < 2) return null;
+
+            const projectIndex = repositoryParts.length - 1;
+            const project = repositoryParts[projectIndex].replace(/\.git$/i, "");
+            repositoryParts[projectIndex] = project;
+            if (repositoryParts.some(part => !part || !SAFE_PATH_PART.test(part) || part === "." || part === "..")) return null;
+
+            return {provider, repoUrl: `https://gitlab.com/${repositoryParts.join("/")}`};
+        }
 
         const [rawOwner, rawRepo] = url.pathname.split("/").filter(Boolean);
         if (!rawOwner || !rawRepo) return null;

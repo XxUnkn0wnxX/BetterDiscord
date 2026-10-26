@@ -503,12 +503,16 @@ recovery/injection change.
 ### Report targets and manual fallback
 
 Read the suspected plugin's existing `@source` metadata. Accept well-formed
-GitHub repository/source-file URLs (including `raw.githubusercontent.com`) and
-`git.slowb.ro` repository/source-file URLs. Canonicalize to the repository's
-HTTPS `/issues/new` page with the crash title and details prefilled. Validate
-the original protocol, credentials, port and owner/repository path before
-constructing the target; reject unrelated or lookalike hosts. Reporting opens
-a draft only after a click and never submits an issue automatically.
+GitHub repository/source-file URLs (including `raw.githubusercontent.com`),
+`git.slowb.ro` repository/source-file URLs, and GitLab.com repository/source-file
+URLs. Preserve every nested GitLab group before the project name; recognize its
+`/-/` source route delimiter and canonicalize to the repository. GitHub and
+Forgejo use the HTTPS `/issues/new` page with `title` and `body` fields. GitLab
+uses its documented `/-/work_items/new` page with `issue[title]` and
+`issue[description]` fields. Validate the original protocol, credentials, port
+and repository path before constructing the target; reject unrelated or
+lookalike hosts. Reporting opens a draft only after a click and never submits
+an issue automatically.
 
 For an attributed plugin with no usable supported source, show an enabled,
 logo-free **Manual report** button with larger, readable text and comfortable
@@ -522,7 +526,7 @@ unattributed crash keeps the existing absence of a suspected-addon row. URL
 acceptance proves supported syntax, not repository existence, tracker settings,
 authentication or browser-side form behavior.
 
-Both report drafts reuse the client and BetterDiscord details
+All three report drafts reuse the client and BetterDiscord details
 from Settings' click-to-copy helper in one collapsed Markdown block labelled
 **Client Info**: Discord
 client build/hash, host version/architecture, OS, and BetterDiscord channel,
@@ -537,7 +541,7 @@ Remove leading blank lines from the copied component stack while preserving
 frame indentation; Manual report uses the same formatting. Keep the full
 on-screen details. Website report payloads retain upstream's normal error stack,
 attribution and reproduction placeholders, with only Client Info added. Omit
-component stacks from both website report-button payloads to reduce the issue
+component stacks from website report-button payloads to reduce the issue
 URL size. Manual report may include the full component stack because it copies
 to clipboard and opens no URL.
 Use a short unavailable notice if debug generation fails. This report context
@@ -548,8 +552,8 @@ The Canary **Re-enable** warning action enables the manager-resolved plugin
 and then dismisses that notice through the shared notification action handler.
 Do not retain upstream's `dontClose` flag on this action.
 
-Keep GitHub's bundled Lucide icon and use a bundled Forgejo logo for
-`git.slowb.ro`, which runs Forgejo. Both render locally without fetching an
+Keep GitHub's bundled Lucide icon, a bundled Forgejo logo for `git.slowb.ro`,
+and GitLab's official bundled logomark. They render locally without fetching an
 image. The Forgejo logo is by [Caesar Schinas](https://caesarschinas.com/),
 licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/),
 as documented in the [official branding guide](https://codeberg.org/forgejo/governance/src/branch/main/branding#logo).
@@ -559,6 +563,12 @@ adapts styles to local SVG attributes, and includes attribution in SVG metadata.
 Keep that notice when updating the asset; avoid global SVG style rules and
 runtime network requests. Forgejo documents the
 [title/body issue-form parameters](https://forgejo.org/docs/latest/user/repository/issue-pull-request-templates/).
+GitLab's [official press kit](https://about.gitlab.com/press/press-kit/) supplies
+the logomark SVG; its
+[issue creation guide](https://docs.gitlab.com/user/project/issues/create_issues/#using-a-url-with-prefilled-values)
+documents the issue form route and title/description parameters. The component
+preserves the SVG path geometry and brand colours and trims only empty viewBox
+padding; keep it local and avoid global SVG styles or runtime network requests.
 
 ### Enhanced testing for recovery
 
@@ -573,7 +583,7 @@ test suite may replace this coverage only when it supplies equivalent proof.
 | Relaunch in Safe Mode | Persists disabling all plugins before relaunch IPC. |
 | Show/Hide Error Details | Expands the stack and collapses it again with matching accessible state. |
 | Copy | Preserves upstream's error/component content in separate Error Details and Component Stack details blocks, each with a `js` code fence, and bold suspected-addon name/version above them. No Client Info or debug generation; native and browser clipboard success is awaited, while rejection does not claim success. |
-| GitHub and git.slowb.ro reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. Debug-generation failure still opens a crash report. |
+| GitHub, git.slowb.ro and GitLab reports | Render the correct bundled icon; remain idle until clicked; open the correct repository draft with the error stack and Client Info but no component stack or inventories, plus safe window options with native tooltips and the capability fallback. GitLab preserves nested groups and uses its current prefilled work-item URL fields. Debug-generation failure still opens a crash report. |
 | Manual report | Missing, local-only and invalid sources produce an enabled text control without an icon; native/browser clipboard content combines the full Copy sections with report title, Client Info and placeholders. Success feedback waits for fulfillment, failures do not claim success, and no page opens. |
 | Join Support Server | Opens the invite only after successful recovery, and stays closed when recovery fails. |
 | Re-enable | Canary-only notification action enables the manager-resolved plugin name and allows the shared notification handler to dismiss the warning. |
@@ -582,11 +592,13 @@ test suite may replace this coverage only when it supplies equivalent proof.
 The isolated React harness also retains initialization retry/cleanup, canonical
 plugin stack attribution and missing/invalid native-layer coverage. Mocks prove
 source behavior, not native Discord compatibility or external issue-form
-prefill. Keep those live checks explicit. The local click-only RecoveryAudit
-is retained at the user's request, with the active source taken from EmbedCopy's
-GitHub repository and alternate Forgejo/no-source backing files for the same
-runtime filename. The no-source fixture checks Manual report. Install only one
-variant and never trigger a crash automatically.
+prefill. Keep those live checks explicit. The local click-only RecoveryAudit is
+retained at the user's request, with GitHub, Forgejo, no-source and GitLab source
+variants for the same runtime filename. The GitLab variant opens a draft on
+`gitlab-org/gitlab` for checking the form prefill. Install only one variant and
+never trigger a crash automatically. Opening a draft does not verify website
+prefill until checked in a browser, and the source-level harness cannot prove
+live tracker settings or permissions.
 
 ## Recovery revamp through 3e70353a
 
