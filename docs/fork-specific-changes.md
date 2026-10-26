@@ -36,9 +36,11 @@ Dutch, Swedish and Finnish placeholder defects remain outside this integration.
 The actual resolver suite passes 116 tests with 24 existing legacy-Intl skips,
 zero failures and 200 assertions on Bun 1.1.20. Real catalogue JSON and
 placeholder integrity are audited separately from those mock-translation tests.
-Scoped ESLint and whitespace checks pass. Accumulated source validation, ancestry
-and release preparation are recorded separately as integration proceeds; no
-native translated-label result is inferred from the source checks.
+Scoped ESLint and whitespace checks pass. The accumulated local suite passes
+556 tests with 24 existing Intl skips, zero failures and 1,693 assertions across
+78 files. Full source ESLint, TypeScript and whitespace checks pass on the
+combined adaptation. These checks do not establish native translated-label or
+remote Crowdin behavior.
 
 The obsolete POEditor download script, its package command and its only
 `dotenv` dependency are removed. The Bun pins, remaining lockfile entries and
@@ -64,6 +66,15 @@ disabled type-publication convention. No active `locale-check.yml` is present.
 Keep this unused automation disabled unless explicitly requested otherwise;
 review its upstream-specific message before enabling it. Release CI and type
 publication are unchanged by this integration.
+
+Source/data commit `68d7c242` and maintenance commit `47db144d` implement the
+reviewed groups. The source-neutral two-parent merge records the exact pinned
+upstream target after those adaptations; its first-parent tree change is only
+this fork record. Preserve the accepted runtime/data behavior and the selected
+workflow hunks above in future merges, including disabled new automation. Final
+release preparation uses `./local-build.zsh dist -mrts 45` at the committed HEAD
+and checks all eight packed and unpacked checksum inputs separately. Native
+label/fallback smoke testing and publication remain separate handoffs.
 
 No injection, recovery/OpenAsar, updater transport, addon lifecycle/state,
 Store routing/search, modal/editor focus, Webpack API or keyboard-focus behavior
