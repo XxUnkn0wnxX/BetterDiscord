@@ -11,6 +11,40 @@ bundle to the older machine or upgrades to a newer machine. Historical Bun
 versions in validation records remain evidence of those checks, not permanent
 toolchain requirements.
 
+## Translation refresh through 1894f011
+
+The reviewed upstream range is `47a3396f..1894f011`, pinned to
+`1894f011b2b450b14a96f1fc94a1c195112955ef` after the 2026-10-26 04:28:22 UTC
+implementation fetch. Starting fork commit: `8fece694`. A separate remote-head
+check confirmed the same cutoff, with no additional upstream commits.
+
+The common translation resolver adopts upstream's empty-string handling:
+untranslated strings and entirely empty plural objects use the English fallback,
+and individual plural fallback branches skip empty forms. This preserves the
+upstream translation contract without adding a plugin API or changing locale
+selection. Keep the existing LF source format and Bun 1.1.20/Big Sur Intl test
+guards when taking later upstream test changes.
+
+All 35 refreshed locale files match the pinned upstream catalogue. The fork's
+English source, including recovery reporting and addon-update failure strings,
+is preserved. Arabic, Hebrew and Indonesian files are included as upstream data
+but remain absent from the locale registry; their presence does not add client
+language choices. Removed catalogue entries are redundant English copies or old
+Polish scalar forms already bypassed by contextual lookup. Three pre-existing
+Dutch, Swedish and Finnish placeholder defects remain outside this integration.
+
+The actual resolver suite passes 116 tests with 24 existing legacy-Intl skips,
+zero failures and 200 assertions on Bun 1.1.20. Real catalogue JSON and
+placeholder integrity are audited separately from those mock-translation tests.
+Scoped ESLint and whitespace checks pass. Accumulated source validation, ancestry
+and release preparation are recorded separately as integration proceeds; no
+native translated-label result is inferred from the source checks.
+
+No injection, recovery/OpenAsar, updater transport, addon lifecycle/state,
+Store routing/search, modal/editor focus, Webpack API or keyboard-focus behavior
+is changed by this source/data group. Existing optional fork fixes remain
+required; this range supplies no replacement for them.
+
 ## Optional keyboard-focus indicator
 
 This is an optional, replaceable fork fix requested after native testing of the
