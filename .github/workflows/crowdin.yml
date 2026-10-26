@@ -11,6 +11,9 @@ on:
 
 jobs:
   synchronize-with-crowdin:
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
 
     steps:
@@ -20,6 +23,7 @@ jobs:
       - name: crowdin action
         uses: crowdin/github-action@v2
         with:
+          config: crowdin.yml
           upload_sources: true
           upload_translations: false
           download_translations: true
@@ -29,7 +33,6 @@ jobs:
           pull_request_body: 'New Crowdin translations by [Crowdin GH Action](https://github.com/crowdin/github-action)'
           pull_request_base_branch_name: 'develop'
         env:
-          # A classic GitHub Personal Access Token with the 'repo' scope selected (the user should have write access to the repository).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # A numeric ID, found at https://crowdin.com/project/<projectName>/tools/api

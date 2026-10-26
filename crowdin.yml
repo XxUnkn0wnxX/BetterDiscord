@@ -4,3 +4,42 @@ preserve_hierarchy: true
 files:
   - source: /assets/locales/en-us.json
     translation: /assets/locales/%locale%.json
+    skip_untranslated_strings: true
+    languages_mapping:
+      locale:
+        en-GB: en-gb
+        zh-CN: zh-cn
+        zh-TW: zh-tw
+        cs: cs
+        da: da
+        nl: nl
+        fr: fr
+        de: de
+        el: el
+        hu: hu
+        it: it
+        ja: ja
+        ko: ko
+        pl: pl
+        pt-PT: pt-pt
+        pt-BR: pt-br
+        ru: ru
+        sk: sk
+        es-ES: es-es
+        es-419: es-419
+        sv-SE: sv-se
+        tr: tr
+        bg: bg
+        uk: uk
+        fi: fi
+        "no": "no"
+        hr: hr
+        ro: ro
+        lt: lt
+        th: th
+        vi: vi
+        hi: hi
+        # Not selectable in Discord yet, intentionally left out of index.ts
+        ar: ar
+        he: he
+        id: id

@@ -40,6 +40,31 @@ Scoped ESLint and whitespace checks pass. Accumulated source validation, ancestr
 and release preparation are recorded separately as integration proceeds; no
 native translated-label result is inferred from the source checks.
 
+The obsolete POEditor download script, its package command and its only
+`dotenv` dependency are removed. The Bun pins, remaining lockfile entries and
+fork build commands stay unchanged. Contribution guidance directs shared
+translations to upstream Crowdin while preserving fork-only English source
+strings; it does not claim that a live sync has been verified.
+
+Crowdin adopts upstream locale filename mappings and omits untranslated strings
+on export. Preserve this fork's `preserve_hierarchy: true`, source/output paths,
+credential names and existing source-update policy. The upstream switch to a
+different remote hierarchy and optional commit-message/source-update policy
+changes are deliberately not imported. The active workflow keeps its `develop`
+push and pull-request targets, dispatch/schedule, checkout/action versions and
+existing sync behavior. Only explicit config selection and job-scoped
+`contents: write` / `pull-requests: write` permissions are added for that existing
+commit/PR flow. Remote Crowdin credentials, repository PR policy and actual
+scheduled execution remain unverified; local configuration checks are not a
+live sync result.
+
+The new upstream locale-comment workflow is retained verbatim as
+`.github/workflows/locale-check.yml.disabled`, following the fork's existing
+disabled type-publication convention. No active `locale-check.yml` is present.
+Keep this unused automation disabled unless explicitly requested otherwise;
+review its upstream-specific message before enabling it. Release CI and type
+publication are unchanged by this integration.
+
 No injection, recovery/OpenAsar, updater transport, addon lifecycle/state,
 Store routing/search, modal/editor focus, Webpack API or keyboard-focus behavior
 is changed by this source/data group. Existing optional fork fixes remain

@@ -108,6 +108,16 @@ until the conflict has been reviewed and runtime-tested. Compatibility adapters
 must preserve upstream inputs, outputs, ordering, errors, and plugin-visible
 calls unless a separately reviewed upstream bug fix intentionally changes them.
 
+## Translations
+
+Shared language translations belong in
+[upstream Crowdin](https://translate.betterdiscord.app). Submit changes there;
+direct edits to imported locale files may be overwritten by later upstream or
+Crowdin refreshes.
+
+`assets/locales/en-us.json` supplies source strings. Add shared strings upstream
+and preserve fork-only English keys when refreshing this fork's catalogue.
+
 ## Reporting bugs
 
 Before opening a fork issue:
