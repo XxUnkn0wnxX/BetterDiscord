@@ -2,6 +2,9 @@
 
 Thanks for helping improve this macOS-focused BetterDiscord fork.
 
+This guide covers macOS development, including Big Sur and pinned older
+Discord releases. Use the local Zsh wrappers for building and injection.
+
 **Guide:** [Fork changes](docs/fork-specific-changes.md) · [Build and inject](docs/manual-install.md) · [Build and test](#build-and-test) · [Runtime verification](#runtime-verification-on-macos) · [Report a bug](#reporting-bugs)
 
 Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Before changing a
@@ -38,10 +41,14 @@ cd BetterDiscord
 bun install
 ```
 
+BetterDiscord is a single TypeScript project built and tested with Bun. Its
+code is split by where it runs inside Discord:
+
 | Area | Contents |
 | --- | --- |
 | `src/betterdiscord/` | Renderer UI, settings, addons, APIs, and runtime logic |
-| `src/electron/` | Electron main/preload integration and macOS recovery |
+| `src/electron/main/` | Electron main process, windows, IPC, and macOS recovery |
+| `src/electron/preload/` | Preload scripts and cross-context APIs |
 | `src/common/` | Code shared across process boundaries |
 | `scripts/` | Build, pack, inject, uninject, and resource-discovery tooling |
 | `tests/` | Bun tests for shared, renderer, Electron, and wrapper behavior |
@@ -52,6 +59,7 @@ bun install
 Run the checks relevant to the files you changed. The normal complete gate is:
 
 ```sh
+bun ./node_modules/eslint/bin/eslint.js
 bun ./node_modules/typescript/bin/tsc --noEmit
 bun test --timeout 10000 tests/
 zsh local-build.zsh -mrts 45
@@ -78,6 +86,11 @@ For quick renderer iteration:
 zsh local-build.zsh build --module=betterdiscord
 zsh local-inject.zsh stable dev
 ```
+
+After renderer changes, rebuild before reloading Discord. To rebuild
+automatically, run `bun scripts/build.ts --watch --module=betterdiscord` in
+another terminal. Main-process and preload changes require a full Discord
+relaunch.
 
 Before calling an injected change complete, use the release ASAR:
 

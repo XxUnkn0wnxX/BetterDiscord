@@ -26,6 +26,27 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Contribution guide refresh through 3e0b1da8
+
+Reviewed upstream `1894f011..3e0b1da8` contains only the Bun/TypeScript
+contribution-guide update in `cf52e285` and its PR #2292 merge. The integration
+retains the fork guide and records both upstream commits in ancestry.
+
+The guide adopts the single-project architecture explanation, separate
+main/preload source paths, full ESLint check, and renderer rebuild/watch versus
+process-relaunch guidance. Development and injection instructions remain macOS
+focused, with Big Sur and pinned older Discord clients, the `develop` branch,
+local Zsh wrappers, the pinned Bun toolchain, and release-ASAR verification.
+Upstream's `development` PR target and generic injection command are omitted;
+the latter currently points at a missing `scripts/inject.js` in the manifest,
+while the actual script is `scripts/inject.ts`.
+
+This range changes no application source, plugin API, dependencies, workflows,
+or build/injection behavior. Verification is limited to the documentation diff,
+local links, referenced paths/commands, and ancestry. No runtime or release
+build result is claimed. Future merges should keep this macOS contribution
+workflow while adopting applicable upstream documentation improvements.
+
 ## Optional provider tokens for addon updates
 
 **Maintenance note for future agents:** Using a token is optional for the user;
