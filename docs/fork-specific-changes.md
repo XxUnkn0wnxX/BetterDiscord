@@ -100,10 +100,27 @@ literal exclusions for wholly untracked `.tmp/`, `mergedocs/` and `.venv/`
 artifacts, retaining the same tracked project/configuration scope as a clean
 checkout. The source suite takes 50.46 seconds; the complete source gate is not
 repeated for documentation-only ancestry records. Ancestry and release receipts
-are recorded at their separate checkpoints. Native discovery, exact
-table availability and a controlled real React error/recovery consumer remain
-separate pending gates; source tests do not establish supported-client runtime
-compatibility.
+are recorded at their separate checkpoints; source tests remain distinct from
+native execution.
+
+Native Stable verification passed on release `f24959d3` with React `19.2.3`.
+The exact-version table returned HTTP 200 and a real React invalid-child error
+reached the boundary with the exact expected decoded `#31` message. Separate
+normal-stack and stackless-patch runs verified suspected-plugin attribution,
+self-disable, the report control and one new warning. The user confirmed all
+three test modes recovered to a usable client. PTB/Canary were not exercised,
+at the user's direction; similar versions are not separate native proof.
+
+The decoder-only fixture did not attribute the plugin or publish a warning;
+keep those raw flags distinct from its successful decoder result. It returns
+invalid content from an unpatched child beneath a patched wrapper. React
+`19.2.3` source supports a synthetic Throw-fiber path that places that wrapper
+beyond the fork's protected source/immediate-parent owner scope. This explains
+the fixture limitation by source inference, not a captured native fiber trace.
+The dedicated stackless run supplies actual capture/attribution proof; do not
+broaden production ancestor traversal to satisfy the artificial decoder case.
+The current build's finalization changes documentation only, so the passing
+source and native evidence applies to the unchanged production source.
 
 The renderer adaptation is committed as `3cdc10e5`. A reviewed two-parent,
 source-neutral history merge records the exact `0279c3f9` target after that
