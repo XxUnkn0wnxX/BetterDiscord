@@ -105,6 +105,15 @@ table availability and a controlled real React error/recovery consumer remain
 separate pending gates; source tests do not establish supported-client runtime
 compatibility.
 
+The renderer adaptation is committed as `3cdc10e5`. A reviewed two-parent,
+source-neutral history merge records the exact `0279c3f9` target after that
+adaptation; its only first-parent tree change is this fork-contract record.
+This preserves all nine reviewed commits in ancestry, including superseded
+intermediate implementations and the app-name behavior already covered for the
+examined OpenAsar packages. It imports no additional upstream source or workflow
+files. Future merges must retain the recovery safeguards above and re-evaluate
+name normalization only against a demonstrably different payload contract.
+
 ## Contribution guide refresh through 3e0b1da8
 
 Reviewed upstream `1894f011..3e0b1da8` contains only the Bun/TypeScript
