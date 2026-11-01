@@ -2,6 +2,7 @@ import {memoize} from "@common/utils";
 import type {RemoteModule, UserAgentInfo, Dispatcher, InviteActions, SimpleMarkdown, ReactSpring, MessageUtils, PromptToUpload, DiscordTooltip, SimpleMarkdownWrapper} from "@typed/discord/modules";
 import {Filters, getBulkKeyed, getByKeys, getBySource, getByStrings, getModule} from "@webpack";
 import type React from "react";
+import type {Fiber} from "react-reconciler";
 
 interface Modules {
     React: typeof React;
@@ -16,6 +17,10 @@ interface Modules {
         AppLayer: React.ElementType<{children?: React.ReactNode;}>;
     };
     ChannelActions: {selectPrivateChannel(id: string): void; selectVoiceChannel(a: any, b: any): void;};
+    ReactConciler?: {
+        stack?: (value: unknown, fiber: Fiber) => {value: unknown; source: Fiber; stack: unknown;};
+        errorStack?: (code: string | number, ...values: unknown[]) => string;
+    };
 }
 
 const SyncModules = getBulkKeyed<Modules>({
@@ -68,6 +73,15 @@ const SyncModules = getBulkKeyed<Modules>({
         filter: Filters.byKeys(["selectPrivateChannel"]),
         firstId: 287734,
         cacheId: "core-ChannelActions"
+    },
+    ReactConciler: {
+        filter: Filters.bySource(".errorRecoveryDisabledLanes|="),
+        cacheId: "core-ReactConciler",
+        map: {
+            stack: Filters.byStrings("value:", ".set"),
+            errorStack: Filters.byStrings("react.dev/errors/")
+        },
+        mapDeclarations: true
     }
 });
 

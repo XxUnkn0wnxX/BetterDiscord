@@ -26,6 +26,85 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## React error decoding through 0279c3f9
+
+The reviewed upstream range is `3e0b1da8..0279c3f9`, pinned to
+`0279c3f946a5817416bc06903a86030e17385a0c`. A fresh implementation fetch on
+2026-11-01 confirms the same upstream head. The nine commits contain PR #2295's
+renderer error decoding and PR #2293's application-name correction.
+
+### Renderer adaptation and retained recovery behavior
+
+Adopt the shared internal `ReactConciler` declaration mapping and Recovery-owned
+decoder. The captured-value and production-formatter slots have independent
+capability checks and registration-failure isolation. Missing or throwing
+optional discovery must leave the required boundary hooks working. The mapping
+replaces only the old inline captured-value selector; it does not replace the
+existing callback's exact-error WeakMap, bounded primitive capture, consume-once
+lifetime, parent/own ownership order, or per-boundary attribution.
+
+The decoder requests the error-code table for the actual host `React.version`.
+Known templates substitute `%s` using upstream's `String(value ?? "")` behavior
+and append ` (#<code>)`. Until the table is available, or for unknown codes, keep
+the original React formatter result. Optional fetch work stays off required
+recovery initialization; failed HTTP, JSON and invalid table values leave the
+original message usable. Do not substitute another React release, add a retry
+scheduler, or introduce a standalone decoder builtin or setting. Upstream
+removed its temporary builtin, switch and locale additions before merge.
+
+All existing recovery controls remain: Reload, Attempt Recovery, Safe Mode,
+detail expansion, Copy, GitHub/Forgejo/GitLab reporting, Manual report, Client
+Info, ordered Support opening, Canary Re-enable/dismissal and tooltip fallback.
+Keep initialization rollback/retry, canonical plugin URLs, side-effect-free
+render fallback, cleanup/navigation order and failed-recovery state. No existing
+report enhancement or attribution safeguard is superseded by this range.
+Tooltip fallback, LayerProvider compatibility, ChannelActions and guarded
+mapping/declaration access also remain. There is no new public BdApi API or
+plugin migration requirement.
+
+### Application name and protected update recovery
+
+Retain the fork's startup, injection/reinjection, ASAR layout and packaging,
+update recovery, local wrappers and OpenAsar handoff code unchanged. The incoming
+name assignment is ordinary startup behavior, not an implementation of update
+reinjection. Its goal is to select the original payload's application name for
+consistent saved-login storage.
+
+Read-only installed metadata on 2026-11-01 verifies that Stable, PTB and Canary
+all select `discord` in both the outer wrapper and nested OpenAsar package,
+without a `productName` override. The three nested artifacts are identical:
+159532 bytes, SHA-256
+`f17176ed4f100011fad9c0f5cba37b2bcd2017bd9f5e1287795a8beef38f2f75`.
+For these packages the upstream assignment selects the existing initial name;
+record the app-name commit in reviewed ancestry without importing that hunk.
+This is installed-metadata evidence, not proof of native login continuity or
+future stock-payload equivalence.
+
+Reassess a future differently named payload separately. The migrator initializes
+helper assets before OpenAsar sets its channel-specific data directory, and
+quit-time recovery reads that directory again. Any future name correction must
+preserve these phase-specific paths and ownership. It must not restore the
+historical upstream `setAppPath`/`require.main.filename` block or replace the
+fork's recovery plumbing without an explicit, separately reviewed requirement.
+
+### Verification boundary
+
+Focused recovery tests cover every retained control and attribution behavior,
+independent optional-hook failure, exact-version fetch/failure handling, unknown
+codes and upstream substitutions. A real declaration-mapping/Patcher consumer
+checks that the Recovery decoder patches the invoked declaration and unpatch
+restores the original function. Full source validation on pinned Bun 1.1.20
+passes 574 tests with 24 existing Intl skips and no failures (598 selections
+across 85 files), full TypeScript, and project-wide ESLint. Local ESLint uses
+literal exclusions for wholly untracked `.tmp/`, `mergedocs/` and `.venv/`
+artifacts, retaining the same tracked project/configuration scope as a clean
+checkout. The source suite takes 50.46 seconds; the complete source gate is not
+repeated for documentation-only ancestry records. Ancestry and release receipts
+are recorded at their separate checkpoints. Native discovery, exact
+table availability and a controlled real React error/recovery consumer remain
+separate pending gates; source tests do not establish supported-client runtime
+compatibility.
+
 ## Contribution guide refresh through 3e0b1da8
 
 Reviewed upstream `1894f011..3e0b1da8` contains only the Bun/TypeScript

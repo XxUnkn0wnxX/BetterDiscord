@@ -8,7 +8,7 @@ import Toasts from "@stores/toasts";
 import pluginmanager from "@modules/pluginmanager";
 import IPC from "@modules/ipc";
 import Modals from "@ui/modals";
-import {Filters, getByPrototypes, getBySource, getProxy} from "@webpack";
+import {Filters, getByPrototypes, getProxy} from "@webpack";
 import Patcher from "@modules/patcher";
 import Notifications from "@stores/notifications";
 import config from "@stores/config";
@@ -282,6 +282,7 @@ export default new class Recovery extends Builtin {
         try {
             this.patchErrorBoundry();
             this.patchReactReconcilerCapturedStacks();
+            this.patchErrorCodes();
         }
         catch (error) {
             this.unpatchAll();
@@ -292,21 +293,16 @@ export default new class Recovery extends Builtin {
 
     private capturedTypes = new WeakMap<object, CapturedTypes>();
     private primitiveCapture: {value: unknown; types: CapturedTypes;} | null = null;
+    private errors = new Map<string, string>();
 
     patchReactReconcilerCapturedStacks() {
         // This lookup is optional on older Discord clients. Required boundary hooks
         // remain installed if discovery or registration is unavailable.
         try {
-            const target = getBySource<unknown>([".errorRecoveryDisabledLanes|="], {
-                declarationFilter: Filters.byStrings("value:", ".set"),
-                withKey: true
-            });
-            if (!Array.isArray(target) || target.length !== 2) return;
-            const [declarations, key] = target;
-            if (!declarations || (typeof declarations !== "object" && typeof declarations !== "function")
-                || typeof key !== "string" || typeof declarations[key] !== "function") return;
+            const declarations = DiscordModules.ReactConciler;
+            if (!declarations || typeof declarations.stack !== "function") return;
 
-            this.after(declarations, key, (_, __, result: unknown) => {
+            this.after(declarations, "stack", (_, __, result: unknown) => {
                 try {
                     if (!result || typeof result !== "object" || !("value" in result) || !("source" in result)) return;
                     const {value, source} = result;
@@ -323,6 +319,38 @@ export default new class Recovery extends Builtin {
         }
         catch {
             // Optional discovery must not roll back the required hooks.
+        }
+    }
+
+    private patchErrorCodes() {
+        try {
+            const declarations = DiscordModules.ReactConciler;
+            if (!declarations || typeof declarations.errorStack !== "function") return;
+            this.after(declarations, "errorStack", (_, [code, ...values], result: string) => {
+                const template = this.errors.get(String(code));
+                if (!template) return result;
+                let i = 0;
+                return `${template.replace(/%s/g, () => String(values[i++] ?? ""))} (#${code})`;
+            });
+            void this.fetchErrorCodes();
+        }
+        catch {
+            // Optional decoder discovery or registration must not affect recovery.
+        }
+    }
+
+    private async fetchErrorCodes() {
+        try {
+            const version = DiscordModules.React?.version;
+            if (typeof version !== "string" || !version) return;
+            const response = await fetch(`https://raw.githubusercontent.com/facebook/react/v${version}/scripts/error-codes/codes.json`);
+            if (!response.ok) return;
+            const json: unknown = await response.json();
+            if (!json || typeof json !== "object" || Array.isArray(json)) return;
+            this.errors = new Map(Object.entries(json).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+        }
+        catch {
+            // Keep React's original message if the exact-version table is unavailable.
         }
     }
 

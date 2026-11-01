@@ -6,7 +6,7 @@ import {getRecoveryReportSource} from "../../../src/betterdiscord/utils/recovery
 
 Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true});
 const settingReads: string[] = [];
-const patches: Array<{owner: string; method: string; callback: (...args: any[]) => void; active: boolean;}> = [];
+const patches: Array<{owner: string; method: string; callback: (...args: any[]) => any; active: boolean;}> = [];
 const disabled: string[] = [];
 const enabled: string[] = [];
 const notifications: any[] = [];
@@ -19,9 +19,13 @@ const opened: Array<{url: string; target: string; features: string;}> = [];
 let failRegistrationMethod: string | null = null;
 let failTransition = false;
 let failAddonResolution = false;
-let discovery: unknown;
+let discovery: any;
 let failDiscovery = false;
-const capturedDeclaration = {capture: () => ({})};
+const capturedDeclaration = {stack: () => ({})};
+let fetchResponse: () => Promise<any> = async () => ({ok: false});
+const fetchUrls: string[] = [];
+const originalFetch = globalThis.fetch;
+globalThis.fetch = ((url: string) => {fetchUrls.push(url); return fetchResponse();}) as typeof fetch;
 const componentPatches = new Map<unknown, {children: Array<{pluginSource: string | null; caller: string;}>}>();
 let resolvedAddonName = "Example";
 let resolvedAddonSource: string | null = "https://github.com/example/plugin";
@@ -48,30 +52,31 @@ mock.module("@stores/settings", () => ({"default": {
     get: (_collection: string, _category: string, id: string) => {settingReads.push(id); return false;}
 }}));
 mock.module("@modules/commandmanager", () => ({"default": {}}));
-mock.module("@modules/patcher", () => ({"default": {
-    after: (owner: string, _object: object, method: string, callback: (...args: any[]) => void) => {
-        if (failRegistrationMethod === method) throw new Error(`registration failed: ${method}`);
-        patches.push({owner, method, callback, active: true});
-    },
-    getPatches: (type: unknown) => componentPatches.get(type),
-    unpatchAll: (owner: string) => {for (const patch of patches) if (patch.owner === owner) patch.active = false;}
-}}));
 mock.module("@webpack", () => ({
-    getBySource: (sources: unknown, options: any) => {
-        expect(sources).toEqual([".errorRecoveryDisabledLanes|="]);
-        expect(options.withKey).toBe(true);
-        if (failDiscovery) throw new Error("discovery failed");
-        return discovery;
-    },
+    getByKeys: () => undefined,
     getByPrototypes: () => class {render() {} componentDidCatch() {}},
     getProxy: () => (route: string) => {actions.push(`route:${route}`); if (failTransition) throw new Error("transition unavailable");},
     Filters: {byStrings: () => ({})}
 }));
 mock.module("@modules/discordmodules", () => ({"default": {
+    React: {version: "18.3.1"},
+    get ReactConciler() {if (failDiscovery) throw new Error("discovery failed"); return discovery;},
     Dispatcher: {dispatch: ({type}: {type: string}) => {actions.push(type);}},
     get LayerProvider() {return nativeLayers;},
     get AccessibilityContext() {return nativeLayers?.accessibility;},
     get Tooltip() {return tooltip;}
+}}));
+const {default: RealPatcher} = await import("../../../src/betterdiscord/modules/patcher");
+const {mapObject} = await import("../../../src/betterdiscord/utils/object");
+let useRealPatcher = false;
+mock.module("@modules/patcher", () => ({"default": {
+    after: (owner: string, _object: object, method: string, callback: (...args: any[]) => void) => {
+        if (useRealPatcher) return RealPatcher.after(owner, _object, method as never, callback);
+        if (failRegistrationMethod === method) throw new Error(`registration failed: ${method}`);
+        patches.push({owner, method, callback, active: true});
+    },
+    getPatches: (type: unknown) => useRealPatcher ? RealPatcher.getPatches(type) : componentPatches.get(type),
+    unpatchAll: (owner: string) => {if (useRealPatcher) return RealPatcher.unpatchAll(owner); for (const patch of patches) if (patch.owner === owner) patch.active = false;}
 }}));
 mock.module("@utils/debug", () => ({"default": (options: {collapsible?: boolean;}) => {
     debugInfoCalls++;
@@ -133,7 +138,7 @@ window.open = ((url: string | URL, target?: string, features?: string) => {
     opened.push({url: String(url), target: target ?? "", features: features ?? ""});
     return null;
 }) as typeof window.open;
-afterAll(() => {window.open = originalWindowOpen;});
+afterAll(() => {window.open = originalWindowOpen; globalThis.fetch = originalFetch;});
 
 function activePatches(method?: string) {
     return patches.filter(patch => patch.active && (!method || patch.method === method));
@@ -696,7 +701,7 @@ async function reinstallRecovery() {
 }
 
 function capture(value: unknown, parentType?: unknown, ownType?: unknown) {
-    runPatch("capture", {}, [], {value, source: {"return": {elementType: parentType}, "elementType": ownType}});
+    runPatch("stack", {}, [], {value, source: {"return": {elementType: parentType}, "elementType": ownType}});
 }
 
 function catchError(error: unknown) {
@@ -707,7 +712,7 @@ function catchError(error: unknown) {
 }
 
 test("optional capture discovery and registration failures preserve required hooks", async () => {
-    const malformed = [undefined, null, {}, [], [null, "capture"], [{capture: 1}, "capture"], [capturedDeclaration, null], [capturedDeclaration, "capture", "extra"], [Object.defineProperty({}, "capture", {get() {throw new Error("getter failed");}}), "capture"]];
+    const malformed = [undefined, null, {}, {stack: 1}, Object.defineProperty({}, "stack", {get() {throw new Error("getter failed");}})];
     try {
         for (const target of malformed) {
             discovery = target;
@@ -718,20 +723,113 @@ test("optional capture discovery and registration failures preserve required hoo
         await reinstallRecovery();
         expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render"]);
         failDiscovery = false;
-        discovery = [capturedDeclaration, "capture"];
-        failRegistrationMethod = "capture";
+        discovery = capturedDeclaration;
+        failRegistrationMethod = "stack";
         await reinstallRecovery();
         expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render"]);
     }
     finally {
         failDiscovery = false;
         failRegistrationMethod = null;
-        discovery = [capturedDeclaration, "capture"];
+        discovery = capturedDeclaration;
         await reinstallRecovery();
     }
-    expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "capture"]);
+    expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "stack"]);
     const instance = catchError({stack: "betterdiscord://plugins/Example.plugin.js"});
     expect(instance.state.pluginInfo.name).toBe("Example");
+});
+
+test("capture and decoder hooks fail independently", async () => {
+    const decoder = () => "original";
+    try {
+        for (const stack of [undefined, 1, () => {throw new Error("capture invocation");}]) {
+            discovery = {stack, errorStack: decoder};
+            failRegistrationMethod = typeof stack === "function" ? "stack" : null;
+            await reinstallRecovery();
+            expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "errorStack"]);
+        }
+        discovery = {get stack() {throw new Error("capture getter");}, errorStack: decoder};
+        failRegistrationMethod = null;
+        await reinstallRecovery();
+        expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "errorStack"]);
+        for (const errorStack of [undefined, 1, () => "original"]) {
+            discovery = {stack: capturedDeclaration.stack, errorStack};
+            failRegistrationMethod = typeof errorStack === "function" ? "errorStack" : null;
+            await reinstallRecovery();
+            expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "stack"]);
+        }
+        discovery = {stack: capturedDeclaration.stack, get errorStack() {throw new Error("decoder getter");}};
+        failRegistrationMethod = null;
+        await reinstallRecovery();
+        expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "stack"]);
+    }
+    finally {failRegistrationMethod = null; discovery = capturedDeclaration; await reinstallRecovery();}
+});
+
+test("decoder uses the exact host version, preserves originals until ready, and applies upstream substitutions", async () => {
+    let resolveFetch!: (response: any) => void;
+    fetchResponse = () => new Promise(resolve => {resolveFetch = resolve;});
+    discovery = {stack: capturedDeclaration.stack, errorStack: () => "original"};
+    try {
+        await reinstallRecovery();
+        expect(fetchUrls.at(-1)).toBe("https://raw.githubusercontent.com/facebook/react/v18.3.1/scripts/error-codes/codes.json");
+        const callback = activePatches("errorStack")[0].callback;
+        expect(callback({}, [42, "a"], "original")).toBe("original");
+        resolveFetch({ok: true, json: async () => ({42: "A %s B %s C %s D %s", 43: 123})});
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(callback({}, [42, "one", null, undefined, 0], "original")).toBe("A one B  C  D 0 (#42)");
+        expect(callback({}, [999], "original")).toBe("original");
+        expect(callback({}, [43], "original")).toBe("original");
+    }
+    finally {fetchResponse = async () => ({ok: false}); discovery = capturedDeclaration; await reinstallRecovery();}
+});
+
+test("failed or invalid decoder responses leave original messages usable", async () => {
+    const responses = [
+        () => Promise.reject(new Error("offline")),
+        async () => ({ok: false}),
+        async () => ({ok: true, json: async () => {throw new Error("invalid JSON");}}),
+        async () => ({ok: true, json: async () => null}),
+        async () => ({ok: true, json: async () => []})
+    ];
+    try {
+        for (const response of responses) {
+            fetchResponse = response;
+            discovery = {stack: capturedDeclaration.stack, errorStack: () => "original"};
+            await reinstallRecovery();
+            await new Promise(resolve => setTimeout(resolve, 0));
+            expect(activePatches("errorStack")[0].callback({}, [999], "original")).toBe("original");
+            expect(activePatches().map(patch => patch.method)).toEqual(["componentDidCatch", "render", "stack", "errorStack"]);
+        }
+    }
+    finally {fetchResponse = async () => ({ok: false}); discovery = capturedDeclaration; await reinstallRecovery();}
+});
+
+test("real declaration mapping forwards the decoder patch and restores the original", async () => {
+    const original = (code: number, ..._values: unknown[]) => `minified ${code}`;
+    const declarations = {formatter: original};
+    discovery = mapObject(declarations, {errorStack: value => value === original});
+    fetchResponse = async () => ({ok: true, json: async () => ({765: "decoded %s"})});
+    Recovery.unpatchAll();
+    Events.removeAllListeners("setting-updated");
+    Recovery.initialized = false;
+    useRealPatcher = true;
+    try {
+        await Recovery.initialize();
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(declarations.formatter(765, "value")).toBe("decoded value (#765)");
+        expect(declarations.formatter(766, "value")).toBe("minified 766");
+        Recovery.unpatchAll();
+        expect(declarations.formatter).toBe(original);
+        expect(declarations.formatter(765, "value")).toBe("minified 765");
+    }
+    finally {
+        Recovery.unpatchAll();
+        useRealPatcher = false;
+        discovery = capturedDeclaration;
+        fetchResponse = async () => ({ok: false});
+        await reinstallRecovery();
+    }
 });
 
 test("attribution chooses direct stack, then immediate parent, then own type in registration order", async () => {
@@ -809,7 +907,7 @@ test("primitive capture uses one bounded slot with exact Object.is matching", ()
 });
 
 test("malformed captures are ignored and capture callbacks never replace React results", () => {
-    const callback = activePatches("capture")[0].callback;
+    const callback = activePatches("stack")[0].callback;
     const malformed = [null, undefined, 1, {}, {value: {}}, {value: {}, source: null}, {value: {}, source: 1}, Object.defineProperty({value: {}}, "source", {get() {throw new Error("source getter");}})];
     for (const result of malformed) expect(callback({}, [], result)).toBeUndefined();
     const component = () => {};
