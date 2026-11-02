@@ -26,6 +26,61 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Rspack loader compatibility through 445163d6
+
+The reviewed upstream range is `0279c3f9..445163d6`, pinned to
+`445163d6839ba59d60896c2fab81a5ff5e7fab4c`. Crowdin commit `e4fa638a` was
+integrated separately first. The remaining loader change from `1388b355` and
+its merge ancestry are adopted around the protections below.
+
+The early loader and renderer require capture share one private queue selector.
+It follows upstream's Rspack-first selection, reuses the existing array and its
+installed `push`, and keeps later lazy chunks on that same path. It does not
+combine or discard two distinct preexisting queues. Rspack-only and legacy
+Webpack initialization use the same supported public discovery methods; actual
+client ownership remains unverified if two distinct queues appear natively.
+
+Adopt upstream's module-ID assignment before factory execution, new getter/value
+export forms, own-property checks and getter-first precedence. The third values
+argument remains optional for legacy two-argument calls. Keep getters lazy and
+preserve their property-read receiver. A private mutable getter slot makes
+assignment replace the exported value; immediate value exports are writable.
+These internal corrections preserve supported Patcher installation, repatching
+and restoration. Upstream's new setter otherwise leaves the original getter
+installed, while its value descriptor rejects patch assignment.
+
+The inherited per-export exception handler follows upstream's removal:
+definition errors propagate and stop subsequent definitions. Preserve the
+separate third-party bundle bypass, safe function-body detection and original
+factory fallback; upstream provides no equivalent for those fork protections.
+The refactor also preserves declarations, original factory source and source
+URLs, class aliases, cached-module exclusion, proxy handling, listener delivery
+in `finally`, and renderer scheduling.
+
+Public `BdApi.Webpack`, `BdApi.Utils.loadEntry` and `BdApi.Patcher` inputs,
+defaults, result shapes, callbacks and lifecycle remain unchanged apart from
+upstream's adopted module-ID normalization. No new plugin helper or version gate
+is introduced. Injection, recovery, OpenAsar handoff, local wrappers, updater
+policy, workflows and dependency pins are outside this adaptation.
+
+The source-backed fixture covers supported queue states, an already-installed
+Rspack `push`, later chunk delivery, cached module/source-filter identity,
+getter/value patching, parsing fallbacks, class aliases, failure cleanup and
+renderer scheduling. The full Bun 1.1.20 suite passes 575 tests with 24 existing
+legacy-Intl skips, zero failures and 1,916 assertions across 86 files. Source
+ESLint, TypeScript and whitespace checks pass. The recovery fixture shortens
+only its stubbed retry waits while preserving all attempts and fallback
+assertions; production recovery and its timing remain unchanged.
+
+Native startup and representative plugin behavior remain pending after final
+release injection. The prepared local probe uses its own controlled factory
+through the installed host loader to verify export definition and Patcher
+round trips, without invoking Discord business functions. This proves the
+installed correction when run, rather than compatibility with future generated
+Rspack modules. A Webpack-only pinned client cannot establish native Rspack
+startup compatibility. Keep source-fixture, controlled-host and actual plugin
+evidence distinct in later reviews.
+
 ## Crowdin translation refresh from e4fa638a
 
 This integration accepts all 35 translated catalogues from upstream

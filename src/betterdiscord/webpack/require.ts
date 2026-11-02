@@ -1,5 +1,6 @@
 import type {Webpack} from "@typed/discord";
 import Logger from "@common/logger";
+import getDiscordChunkGlobal from "@common/getDiscordChunkGlobal";
 import type {RawModule} from "../types/discord/webpack";
 import Patcher from "@modules/patcher";
 import {getModule} from "./searching";
@@ -8,15 +9,16 @@ export let webpackRequire: Webpack.Require;
 
 export const lazyListeners = new Set<Webpack.ModuleFilter>();
 
-let __ORIGINAL_PUSH__ = (window.webpackChunkdiscord_app ??= []).push;
+const discordChunks = getDiscordChunkGlobal();
+let __ORIGINAL_PUSH__ = discordChunks.push;
 
-Object.defineProperty(window.webpackChunkdiscord_app, "push", {
+Object.defineProperty(discordChunks, "push", {
     configurable: true,
     get: () => handlePush,
     set: (newPush) => {
         __ORIGINAL_PUSH__ = newPush;
 
-        Object.defineProperty(window.webpackChunkdiscord_app, "push", {
+        Object.defineProperty(discordChunks, "push", {
             value: handlePush,
             configurable: true,
             writable: true
@@ -111,10 +113,10 @@ function patchModuleLoading(require: Webpack.Require) {
 function handlePush(chunk: Webpack.ModuleWithoutEffect | Webpack.ModuleWithEffect) {
     const [, modules] = chunk;
     listenToModules(modules);
-    return Reflect.apply(__ORIGINAL_PUSH__, window.webpackChunkdiscord_app, [chunk]);
+    return Reflect.apply(__ORIGINAL_PUSH__, discordChunks, [chunk]);
 }
 
-window.webpackChunkdiscord_app.push([
+discordChunks.push([
     [Symbol("BetterDiscord")],
     {},
     (__webpack_require__: any) => {

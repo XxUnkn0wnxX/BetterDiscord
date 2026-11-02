@@ -199,6 +199,10 @@ print -r -- "$((count + 1))" > "$root/registration-attempts"
                     `local lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"`,
                     `local lsregister=${JSON.stringify(registrationStubPath)}`,
                 );
+            // These stubs settle immediately; keep all three attempts without real retry delays.
+            const retryBackoff = "        /bin/sleep 1\n";
+            expect(helperSource).toContain(retryBackoff);
+            helperSource = helperSource.replace(retryBackoff, "        /bin/sleep 0.01\n");
         }
         fs.writeFileSync(helperPath, helperSource);
         fs.chmodSync(helperPath, 0o700);
