@@ -114,8 +114,8 @@ test("prefers connected green tokens and resolves legacy connect fallbacks", () 
     }
 });
 
-test("retains the shared modal root padding and removes invalid duplicate layout declarations", () => {
-    expect(declarationsFor(".bd-modal-root", modalCss).padding).toBe("10px");
+test("keeps the shared modal root unpadded and removes invalid duplicate layout declarations", () => {
+    expect(declarationsFor(".bd-modal-root", modalCss).padding).toBeUndefined();
     expect(modalCss).not.toMatch(/display:\s*(?:box|flexbox)\s*;/);
 
     const transforms = [...modalCss.matchAll(/transform:\s*translateZ\(0\)\s*;/g)];

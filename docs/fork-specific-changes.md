@@ -26,6 +26,28 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Shared modal padding through 1a5e1a5d
+
+The reviewed increment is `445163d6..1a5e1a5d`, pinned to
+`1a5e1a5dd762ce8561fe8cbaa8ed2c2a3aa6d017`: one padding fix from
+`7c65c7cf` plus its merge ancestry. Take the three CSS hunks unchanged: remove
+the shared root's `10px` padding and apply `var(--space-10)` to the header and
+content. Content retains its later left/right overrides; the footer keeps its
+own padding. This replaces previously adopted upstream spacing, not a separate
+fork requirement. Keep the existing invalid/duplicate CSS cleanup and valid
+notice-margin fallback; upstream supplies no replacements for them.
+
+Shared dialogs and Addon Store direct children receive the intended presentation
+change. Public Modal props, callbacks, focus ownership and plugin lifecycle are
+unchanged; no plugin migration is needed. Loader, injection/recovery/OpenAsar,
+updater policy, dependencies and workflows are outside this increment.
+
+The existing root-padding test follows the new upstream intent while retaining
+its duplicate-layout checks. Per user direction, no extra local tests are run
+for this small fix; normal CI and final-HEAD release packaging remain in place.
+Native appearance and the pinned client's `--space-10` value are unverified;
+source checks and packaging do not establish that visual result.
+
 ## Rspack loader compatibility through 445163d6
 
 The reviewed upstream range is `0279c3f9..445163d6`, pinned to
@@ -1567,8 +1589,9 @@ and PR #2258's reusable Modal component. This integration takes both features:
   Preserve the Modal's public props, action settlement, and callback lifecycle.
   Its private mapping helper also recognizes the existing empty-string dynamic
   size/custom color constants, and action failures log the original error.
-- Accept the shared modal presentation, including upstream's `10px` root
-  padding, content color, notices, and footer/checkbox layout. Omit invalid
+- Accept the shared modal presentation, content color, notices and footer/checkbox
+  layout. The original `10px` root padding is superseded by the inner-section
+  spacing in [the later padding integration](#shared-modal-padding-through-1a5e1a5d). Omit invalid
   `display` values and duplicate declarations introduced by the upstream CSS
   conversion; give the notice margin a valid `16px` fallback. Green buttons use
   upstream's `--control-connected-*` variables first, with the previous
