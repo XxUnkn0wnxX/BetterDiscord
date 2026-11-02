@@ -26,6 +26,35 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Crowdin translation refresh from e4fa638a
+
+This integration accepts all 35 translated catalogues from upstream
+[`e4fa638a`](https://github.com/BetterDiscord/BetterDiscord/commit/e4fa638a41ceb3e6cf600053becbf132d0bae5fb)
+unchanged. Its parent is the already integrated `0279c3f9`; the normal merge
+records the translation commit's ancestry without importing the Rspack loader
+change from the separately reviewed `0279c3f9..445163d6` range. That loader
+adoption remains pending.
+
+Crowdin owns these translations. Take future reviewed Crowdin catalogues
+wholesale rather than maintaining local translated strings. Preserve the
+fork's English source in `assets/locales/en-us.json`; it is outside this
+upstream change and retains the fork's recovery and addon-update messages.
+Do not replace the entire locale directory from upstream when its English
+source differs from the fork.
+
+The locale registry and translation resolver are unchanged, including the
+English fallback for missing or empty translations. The Arabic, Hebrew and
+Indonesian data files remain outside the selectable locale registry.
+
+All 35 JSON files parse and match the upstream commit byte-for-byte in both
+the working tree and index. English source, renderer/preload/main code,
+injection and recovery, OpenAsar handoff, local wrappers, updater policy,
+dependencies and workflows remain unchanged. Bun 1.1.20 local validation passes
+574 tests with 24 existing legacy-Intl skips, zero failures and 1,909 assertions
+across 85 files. Full source ESLint, TypeScript and whitespace checks pass.
+These checks do not establish native translated-label behavior.
+No plugin API or plugin-maintenance change follows from this catalogue refresh.
+
 ## React error decoding through 0279c3f9
 
 The reviewed upstream range is `3e0b1da8..0279c3f9`, pinned to
