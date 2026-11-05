@@ -27,7 +27,7 @@ jobs:
       - name: Prepare Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Prepare Node
         uses: actions/setup-node@v6 # v7 is available but just released yesterday and may have issues with the npm registry

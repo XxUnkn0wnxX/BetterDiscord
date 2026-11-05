@@ -74,6 +74,45 @@ five-state loader selection also passes independently. Project-wide ESLint
 (excluding wholly ignored private artifacts), TypeScript and whitespace checks
 pass; no additional test matrix or runtime probe is introduced.
 
+### CI test-isolation follow-up
+
+Run `41958034951` exposed a test-isolation failure: the `loadEntry` tests define
+`webpackRequire.u`, but the combined Linux suite reached the real helper with
+that method missing. Controlled replacement of the shared mocked module
+reproduces the same failures and leaves the completion-order test pending. The
+exact preceding CI test that supplied the incompatible object is unconfirmed.
+The isolated suite passes; no production loader or `loadEntry` change is needed.
+
+Move all eleven existing cases unchanged into a dedicated child harness, using
+the same process-isolation convention as the other Webpack consumer tests. An
+explicit JavaScript watchdog kills and reaps a stalled child after ten seconds;
+its failure path is tested. Bun 1.1.20 ignores the newer synchronous-spawn timeout
+option, so that option cannot provide this bound. Preserve the upstream parity,
+cache, ordering and error assertions rather than adding a runtime fallback for
+a contaminated test object. Parent test totals now count the wrapper/watchdog;
+the eleven inner cases and their 41 assertions are verified separately.
+
+The required combined local run also exposed an aggregate timeout in the existing
+settings-defaults wrapper: six isolated launches shared one five-second test
+deadline. Register each existing scenario as its own test, retaining the same six
+processes and assertions and the existing per-test deadline. This changes failure
+reporting and prevents their accumulated startup cost from timing out the whole
+group; it adds no scenarios or runtime behavior.
+
+The cancelled CI run and local machine both report Bun
+`1.1.20+ae1948925`. Active CI already reads `package.json`'s version pin. The
+disabled types-publishing workflow now reads that same pin instead of `latest`;
+it remains disabled. The other workflows do not invoke Bun. These changes affect
+test infrastructure and dormant workflow configuration, not production source,
+public plugin contracts, supported client behavior or required release gates.
+
+Final combined local validation passes 571 parent tests with 24 existing Intl
+skips, no failures and 1,879 parent assertions across 86 files in 72.11 seconds.
+The relocated child suite separately passes all eleven cases and 41 assertions;
+its unchanged coverage is represented by the parent wrapper. The watchdog test
+and six individually reported settings scenarios account for the other count
+changes. Project-wide ESLint, TypeScript and whitespace checks pass.
+
 ## Shared modal padding through 1a5e1a5d
 
 The reviewed increment is `445163d6..1a5e1a5d`, pinned to

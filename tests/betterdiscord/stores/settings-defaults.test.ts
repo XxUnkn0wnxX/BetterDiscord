@@ -6,8 +6,8 @@ const cwd = path.join(import.meta.dir, "../../..");
 const scenarios = ["missing", "missing-setting", "saved-false", "saved-true", "legacy-store-disabled", "reset"] as const;
 
 describe("settings defaults", () => {
-    test("keeps the Addon Store always-enable default and persisted values", () => {
-        for (const scenario of scenarios) {
+    for (const scenario of scenarios) {
+        test(`keeps the Addon Store always-enable default and persisted values (${scenario})`, () => {
             const harness = path.join(import.meta.dir, "settings-defaults-harness.ts");
             const result = Bun.spawnSync({
                 cmd: [process.execPath, "test", harness],
@@ -20,6 +20,6 @@ describe("settings defaults", () => {
             const stdout = new TextDecoder().decode(result.stdout).trim();
             const stderr = new TextDecoder().decode(result.stderr).trim();
             expect(result.exitCode, `${scenario}\n${[stdout, stderr].filter(Boolean).join("\n")}`).toBe(0);
-        }
-    });
+        });
+    }
 });
