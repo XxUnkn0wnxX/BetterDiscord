@@ -26,6 +26,54 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Release 1.14.5 through a89825d5
+
+The reviewed range is `1a5e1a5d..a89825d5`, pinned to
+`a89825d55b54516a4d1b19734244165e261f7131`: `a7c70f24` fixes the upstream
+export descriptors and bumps the version; `a89825d5` records PR #2306 ancestry.
+Adopt `package.json` version `1.14.5`, retaining the fork's Bun pin, scripts and
+dependencies. Adapt the release notes around the existing fork highlights;
+correct upstream's repeated `1.14.4` Markdown heading to `1.14.5`.
+
+Upstream now fixes the original export-assignment and non-writable-value bugs
+covered by the prior fork adaptation. At the user's explicit direction, adopt
+upstream's getter/setter implementation and retire the private mutable getter
+slot. Reads call the current `getters[key]()`; assignments replace that entry
+with a constant getter. This also adopts upstream's getter-map receiver and
+caller-map mutation semantics. Do not retain the former property-read receiver
+or caller-map isolation as separate fork requirements. Immediate exports already
+have the identical `writable: true` descriptor. The parser fallback, third-party
+bypass and shared private queue selection remain required and receive no
+replacement in this increment.
+
+The frontend release summary includes Rspack compatibility, translations and
+already-integrated decoder/modal improvements, while retaining fork compatibility
+and reinjection notes. Upstream's macOS secure-storage release note refers to the
+earlier application-name change, whose [existing disposition](#application-name-and-protected-update-recovery)
+remains unchanged. This bump adds no new native login evidence or application-name
+mutation. There is no new plugin API, callback, lifecycle change or migration.
+
+Future merges should follow upstream's export descriptor behavior while
+preserving getter patch/unpatch and writable values. Reassess later loader changes
+against actual generated calls and Patcher consumers. Injection/recovery,
+OpenAsar, wrappers, updater policy, workflows and dependencies are unchanged.
+
+The existing source-backed loader fixture covers five queue states, getter
+liveness, upstream receiver/map behavior, Patcher round trips, writable values and
+failure propagation. Its former fork-specific receiver expectation is replaced
+with the upstream getter contract and ordinary generated getter shape. Required
+local validation and final-HEAD packaging receipts belong to this integration's
+ignored merge checklist. The changed getter requires fresh source checks; earlier
+controlled-host checks apply only to their recorded implementation. Source
+validation does not establish native generated-Rspack startup, fresh visual
+results or login continuity.
+
+Final Bun 1.1.20 source validation passes 575 tests with 24 existing Intl skips,
+zero failures and 1,916 assertions across 86 files in 45.35 seconds. The existing
+five-state loader selection also passes independently. Project-wide ESLint
+(excluding wholly ignored private artifacts), TypeScript and whitespace checks
+pass; no additional test matrix or runtime probe is introduced.
+
 ## Shared modal padding through 1a5e1a5d
 
 The reviewed increment is `445163d6..1a5e1a5d`, pinned to
@@ -64,12 +112,13 @@ client ownership remains unverified if two distinct queues appear natively.
 
 Adopt upstream's module-ID assignment before factory execution, new getter/value
 export forms, own-property checks and getter-first precedence. The third values
-argument remains optional for legacy two-argument calls. Keep getters lazy and
-preserve their property-read receiver. A private mutable getter slot makes
-assignment replace the exported value; immediate value exports are writable.
-These internal corrections preserve supported Patcher installation, repatching
-and restoration. Upstream's new setter otherwise leaves the original getter
-installed, while its value descriptor rejects patch assignment.
+argument remains optional for legacy two-argument calls. At this checkpoint,
+getters stayed lazy and preserved their property-read receiver through a private
+mutable slot; immediate value exports became writable. These internal corrections
+restored Patcher installation, repatching and restoration while upstream's setter
+still left the original getter installed and its value descriptor rejected
+assignment. The getter-specific divergence is retired by the user-approved
+[1.14.5 adoption](#release-1145-through-a89825d5) above; writable values remain.
 
 The inherited per-export exception handler follows upstream's removal:
 definition errors propagate and stop subsequent definitions. Preserve the

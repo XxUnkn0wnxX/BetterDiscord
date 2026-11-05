@@ -24,12 +24,13 @@ const effect = (require: Webpack.Require) => {
     require.d = function (exports, getters, values) {
         for (const key in getters) {
             if (Object.hasOwn(getters, key) && !Object.hasOwn(exports, key)) {
-                let getter = getters[key];
                 Object.defineProperty(exports, key, {
                     enumerable: true,
                     configurable: true,
-                    get() {return getter.call(this);},
-                    set(value) {getter = () => value;}
+                    get: () => getters[key](),
+                    set: (v) => {
+                        getters[key] = () => v;
+                    }
                 });
             }
         }

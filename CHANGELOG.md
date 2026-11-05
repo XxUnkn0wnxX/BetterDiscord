@@ -7,9 +7,9 @@ fork additions are listed first.
 [Current fork highlights](#fork-highlights) · [Feature guides](docs/README.md) ·
 [Integration record](docs/fork-specific-changes.md)
 
-## Fork (1.14.4)
+## Fork (1.14.5)
 
-This fork now reports BetterDiscord `1.14.4` after integrating the upstream
+This fork now reports BetterDiscord `1.14.5` after integrating the upstream
 release metadata below; fork highlights remain additional fork-specific behavior.
 
 ### Fork highlights
@@ -33,6 +33,26 @@ release metadata below; fork highlights remain additional fork-specific behavior
 
 See [Fork-Specific Behavior](docs/fork-specific-changes.md) for the complete
 behavior inventory, upstream comparison, source map, and future merge rules.
+
+### 1.14.5
+
+### Added
+
+- Upstream's React error decoder is already integrated, alongside the fork's recovery report and attribution safeguards.
+
+### Fixed
+
+- Adopts upstream's Rspack 2.3.x getter-assignment fix, replacing the fork's earlier equivalent correction; immediate exports remain writable.
+- The shared modal sizing and padding correction is already integrated.
+
+### Changed
+
+- Release metadata now reports `1.14.5`; the previously integrated Crowdin translations remain current through this reviewed upstream cutoff.
+
+### Retained fork behavior
+
+- Preserves the loader's parser safeguards and shared runtime queue selection while using upstream's getter/setter implementation.
+- Keeps the existing macOS application-name disposition and custom reinjection, recovery and OpenAsar handoff. Upstream's secure-storage release note does not establish fresh native login verification for this fork; see the [integration record](docs/fork-specific-changes.md#application-name-and-protected-update-recovery).
 
 ### 1.14.4
 

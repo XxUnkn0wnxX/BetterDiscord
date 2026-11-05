@@ -132,9 +132,14 @@ if (scenario === "empty") {
     });
 
     test("live getters, patching, values and definition errors", () => {
-        const exports: any = {receiver: 4};
-        let current = function(this: any) {return this.receiver;};
-        const getters = {fn: function(this: any) {return current.bind(this);}};
+        const receiverGetters = {receiver: function(this: any) {return this;}};
+        const receiverExports: any = {};
+        req.d(receiverExports, receiverGetters);
+        expect(receiverExports.receiver).toBe(receiverGetters);
+        const exports: any = {};
+        let current = () => 4;
+        const getters = {fn: () => current};
+        const originalGetter = getters.fn;
         req.d(exports, getters, {value: 9, immediate: () => 3, fn: "ignored"});
         const unpatchImmediate = Patcher.after("test", exports, "immediate", (_: any, __: any, value: number) => value + 1);
         expect(exports.immediate()).toBe(4);
@@ -142,7 +147,7 @@ if (scenario === "empty") {
         unpatchImmediate();
         expect(exports.immediate()).toBe(3);
         expect(exports.fn()).toBe(4);
-        current = function(this: any) {return this.receiver + 1;};
+        current = () => 5;
         expect(exports.fn()).toBe(5);
         const unpatch = Patcher.after("test", exports, "fn", (_: any, __: any, value: number) => value + 10);
         expect(exports.fn()).toBe(15);
@@ -154,7 +159,8 @@ if (scenario === "empty") {
         if (!unpatchAgain) throw new Error("Second patch was not installed");
         unpatchAgain();
         expect(exports.fn()).toBe(5);
-        expect(getters.fn.call(exports)()).toBe(5);
+        expect(getters.fn).not.toBe(originalGetter);
+        expect(getters.fn()()).toBe(5);
         expect(Object.getOwnPropertyDescriptor(exports, "value")).toEqual({value: 9, enumerable: true, configurable: true, writable: true});
         const inherited = Object.create({inherited: () => 1}); inherited.own = () => 2;
         const target: any = {own: 3}; req.d(target, inherited); expect(target).toEqual({own: 3});

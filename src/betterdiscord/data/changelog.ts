@@ -8,21 +8,21 @@ export default {
     // https://youtu.be/BZq1eb9d0HI?si=67V2eArlF4atnGnz
     video: "https://www.youtube.com/embed/Qv1HUqqUgkg?si=67V2eArlF4atnGnz&vq=hd720p&hd=1&rel=0&showinfo=0&mute=0&loop=1&autohide=1",
     // banner: "https://i.imgur.com/wuh5yMK.png",
-    blurb: "Upstream 1.14.4 focus improvements with older-runtime support and this fork's custom reinjection retained.",
+    blurb: "BetterDiscord 1.14.5 with Rspack compatibility and this fork's older-runtime safeguards.",
     changes: [
         {
             type: "fixed",
-            title: "Modal and Floating Editor Focus",
+            title: "Rspack Compatibility",
             items: [
-                "Adds modal accessibility attributes while preserving older-client focus fallbacks",
-                "Coordinates floating editor focus with Discord's native focus locks where available"
+                "Includes upstream's fix for the new Rspack export format",
+                "Uses upstream's getter/setter fix with writable exports and getter patch/unpatch support"
             ]
         },
         {
             type: "improved",
-            title: "Recovery Page",
+            title: "Recovery and Modal Improvements",
             items: [
-                "Includes upstream's revamped crash screen and patch-assisted suspected-plugin detection",
+                "Includes the previously integrated React error decoder and shared modal padding fix",
                 "Retains this fork's extra report targets, Manual report and recovery safeguards"
             ]
         },
@@ -43,12 +43,11 @@ export default {
             ]
         },
         {
-            type: "added",
-            title: "For Developers",
+            type: "improved",
+            title: "Updated Translations",
             items: [
-                "Adds generic typing to the existing BdApi.Webpack.getById module lookup",
-                "BdApi.Utils.loadEntry retains its older-runtime compatibility fallback",
-                "Optional helper examples and limitations are documented in docs/plugin-api-notes.md"
+                "Includes the previously integrated Crowdin translation refresh",
+                "Translations are maintained at https://translate.betterdiscord.app/"
             ]
         }
     ]
