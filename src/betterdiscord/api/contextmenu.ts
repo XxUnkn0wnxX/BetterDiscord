@@ -204,7 +204,7 @@ const MenuComponents = {
 startupComplete = Object.values(MenuComponents).every(v => v);
 
 if (!startupComplete) {
-    const REGEX = /(function .{1,3}\(.{1,3}\){return null}){5}/;
+    const REGEX = /(?:(?:function .{1,3}|[\w$]+:function)\(.{0,3}\){return null},?){5}/;
     const EXTRACT_REGEX = /\.type===.{1,3}\.(.{1,3})\)return .{1,3}\.push\((?:null!=.{1,3}\.props\..+?)?{type:"(.+?)",/g;
     const EXTRACT_GROUP_REGEX = /\.type===.{1,3}\.(.{1,3})\){.+{type:"groupstart"/;
     const EXTRACT_GROUP_ITEM_REGEX = /\.type===.{1,3}\.(.{1,3})\){.+{type:"(groupstart|customitem)".+\.type===.{1,3}\.(.{1,3})\){.+?{type:"(groupstart|customitem)"/;
@@ -220,40 +220,42 @@ if (!startupComplete) {
         }
     }
 
-    for (const key in webpackRequire.m) {
-        if (Object.prototype.hasOwnProperty.call(webpackRequire.m, key)) {
-            const string = webpackRequire.m[key].toString();
+    if (menuItemsId) {
+        for (const key in webpackRequire.m) {
+            if (Object.prototype.hasOwnProperty.call(webpackRequire.m, key)) {
+                const string = webpackRequire.m[key].toString();
 
-            if (string.includes(menuItemsId!) && string.includes("Menu API only allows Items and groups of Items as children")) {
-                menuParser = string;
-                break;
+                if (string.includes(menuItemsId) && string.includes("Menu API only allows Items and groups of Items as children")) {
+                    menuParser = string;
+                    break;
+                }
             }
         }
-    }
 
-    const contextMenuComponents = webpackRequire(menuItemsId!);
+        const contextMenuComponents = webpackRequire(menuItemsId);
 
-    for (const [, key, type] of menuParser.matchAll(EXTRACT_REGEX)) {
-        switch (type) {
-            case "separator": MenuComponents.Separator ??= contextMenuComponents[key]; break;
-            case "radio": MenuComponents.RadioItem ??= contextMenuComponents[key]; break;
-            case "checkbox": MenuComponents.CheckboxItem ??= contextMenuComponents[key]; break;
-            case "compositecontrol":
-            case "control": MenuComponents.ControlItem ??= contextMenuComponents[key]; break;
-            case "customitem":
-            case "item": MenuComponents.Item ??= contextMenuComponents[key]; break;
+        for (const [, key, type] of menuParser.matchAll(EXTRACT_REGEX)) {
+            switch (type) {
+                case "separator": MenuComponents.Separator ??= contextMenuComponents[key]; break;
+                case "radio": MenuComponents.RadioItem ??= contextMenuComponents[key]; break;
+                case "checkbox": MenuComponents.CheckboxItem ??= contextMenuComponents[key]; break;
+                case "compositecontrol":
+                case "control": MenuComponents.ControlItem ??= contextMenuComponents[key]; break;
+                case "customitem":
+                case "item": MenuComponents.Item ??= contextMenuComponents[key]; break;
+            }
         }
-    }
 
-    const matchA = menuParser.match(EXTRACT_GROUP_REGEX);
-    if (matchA) {
-        MenuComponents.Group ??= contextMenuComponents[matchA[1]];
-    }
+        const matchA = menuParser.match(EXTRACT_GROUP_REGEX);
+        if (matchA) {
+            MenuComponents.Group ??= contextMenuComponents[matchA[1]];
+        }
 
-    const matchB = menuParser.match(EXTRACT_GROUP_ITEM_REGEX);
-    if (matchB) {
-        MenuComponents.Group ??= contextMenuComponents[matchB[matchB[2] === "groupstart" ? 1 : 3]];
-        MenuComponents.Item ??= contextMenuComponents[matchB[matchB[2] === "customitem" ? 1 : 3]];
+        const matchB = menuParser.match(EXTRACT_GROUP_ITEM_REGEX);
+        if (matchB) {
+            MenuComponents.Group ??= contextMenuComponents[matchB[matchB[2] === "groupstart" ? 1 : 3]];
+            MenuComponents.Item ??= contextMenuComponents[matchB[matchB[2] === "customitem" ? 1 : 3]];
+        }
     }
 
     MenuComponents.Menu ??= getModule(Filters.byStrings("getContainerProps()", ".keyboardModeEnabled&&null!="), {

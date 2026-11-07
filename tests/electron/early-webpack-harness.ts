@@ -41,7 +41,7 @@ if (scenario !== "rspack") selected[0][2](req);
 selected.push = runtimePush;
 const renderer = await import("../../src/betterdiscord/webpack/require");
 const Patcher = (await import("../../src/betterdiscord/modules/patcher")).default;
-const {bySource} = await import("../../src/betterdiscord/webpack/filter");
+const {byKeys, bySource} = await import("../../src/betterdiscord/webpack/filter");
 
 test("queue lifecycle and lazy module delivery", () => {
     if (scenario === "rspack") expect(earlyThroughInstalledPush).toBe(true);
@@ -98,12 +98,30 @@ if (scenario === "empty") {
         expect(req.m[789].__raw_module__()).toBe(thirdParty);
 
         // eslint-disable-next-line no-eval
-        const classFactory = (0, eval)("({123(a,b,c){a.exports={root:'root_abc'}}})[123]");
-        selected.push([[5], {901: classFactory}]);
-        const classModule: any = {exports: {}};
-        req.m[901](classModule, classModule.exports, req);
-        expect(classModule.exports.root).toBe("root_abc");
-        expect(classModule.exports[Symbol.for("BetterDiscord.Polyfilled.class")]).toBe(true);
+        const oneArgumentClassFactory = (0, eval)("({83978(e){e.exports={kL:'container_pog62O',Pl:'guilds_pog62O',E3:'base_pog62O'}}})[83978]");
+        selected.push([[5], {83978: oneArgumentClassFactory}]);
+        const guildStyles: any = {exports: {}};
+        req.m[83978](guildStyles, guildStyles.exports, req);
+        expect(guildStyles.exports.kL).toBe("container_pog62O");
+        expect(guildStyles.exports.Pl).toBe("guilds_pog62O");
+        expect(guildStyles.exports.E3).toBe("base_pog62O");
+        expect(byKeys(["guilds", "base"])(guildStyles.exports)).toBe(true);
+        expect(Object.getOwnPropertyDescriptor(guildStyles.exports, "guilds")).toEqual({value: "guilds_pog62O", enumerable: true, configurable: false, writable: false});
+        expect(Object.getOwnPropertyDescriptor(guildStyles.exports, "Pl")).toEqual({value: "guilds_pog62O", enumerable: false, configurable: true, writable: true});
+        expect(guildStyles.exports[Symbol.for("BetterDiscord.Polyfilled.class")]).toBe(true);
+        expect(Object.getOwnPropertyDescriptor(guildStyles.exports, Symbol.for("BetterDiscord.Polyfilled.class"))?.enumerable).toBe(false);
+
+        // eslint-disable-next-line no-eval
+        const threeArgumentClassFactory = (0, eval)("({964306(n,t,r){n.exports={Xs:'iconItem_Wx6SnQ iconBase_Wx6SnQ',gE:'actionIcon_Wx6SnQ'}}})[964306]");
+        selected.push([[8], {964306: threeArgumentClassFactory}]);
+        const contextMenuStyles: any = {exports: {}};
+        req.m[964306](contextMenuStyles, contextMenuStyles.exports, req);
+        expect(contextMenuStyles.exports.Xs).toBe("iconItem_Wx6SnQ iconBase_Wx6SnQ");
+        expect(contextMenuStyles.exports.gE).toBe("actionIcon_Wx6SnQ");
+        expect(byKeys(["iconItem", "actionIcon"])(contextMenuStyles.exports)).toBe(true);
+        expect(Object.getOwnPropertyDescriptor(contextMenuStyles.exports, "iconItem")?.enumerable).toBe(true);
+        expect(Object.getOwnPropertyDescriptor(contextMenuStyles.exports, "Xs")).toEqual({value: "iconItem_Wx6SnQ iconBase_Wx6SnQ", enumerable: false, configurable: true, writable: true});
+        expect(contextMenuStyles.exports[Symbol.for("BetterDiscord.Polyfilled.class")]).toBe(true);
 
         const beforeReactDiscovery = idleCallbacks.length;
         selected.push([[7], {903: function(reactFactoryModule: any) {reactFactoryModule.exports.createElement = () => null;}}]);

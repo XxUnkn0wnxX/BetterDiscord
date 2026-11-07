@@ -26,6 +26,57 @@ toolchain requirements.
 Integration sections retain their original evidence and revision context.
 [Documentation index](README.md) · [Project overview](../README.md)
 
+## Context-menu discovery after Rspack value exports
+
+Discord's `web.72656029554c0370.js` emits the menu marker components as
+anonymous functions in the immediate-values argument to its export helper,
+including a separator with no parameter. The legacy discovery expression
+expected consecutive named function declarations and found no module. During
+renderer initialization, the subsequent `webpackRequire(undefined)` aborted
+BetterDiscord before its normal logger started.
+
+Recognize both the legacy declarations and the observed inline value exports.
+Only require and inspect the component module when discovery returns an ID;
+otherwise retain the existing incomplete ContextMenu state without aborting
+unrelated initialization. Preserve the existing parser, component identities,
+public menu types, callbacks and patching behavior. Discord's additional native
+menu types do not introduce new fork APIs.
+
+Static inspection of that exact client asset finds one matching component
+module and confirms the existing separator, item, checkbox, radio, control and
+group mappings and Menu discovery tokens. This is source evidence, not a native
+startup or plugin-menu pass. Focused regression coverage exercises the old and
+new factory shapes and missing discovery through the real ContextMenu module.
+Fresh release/runtime validation remains a separate gate.
+
+This is a temporary internal compatibility adaptation. Retire it when upstream
+supports the same generated forms and missing-discovery behavior. It changes
+neither the installed wrapper nor macOS recovery, OpenAsar coordination,
+updater policy or plugin contracts.
+
+## Classname recovery for shortened CSS module factories
+
+The same Discord build also emits one-argument CSS factories, while the early
+preload's classname-module detector expected three arguments. The exported
+class maps still contain semantic class names in their string values, but the
+detector skips the existing alias recovery. Plugins searching by those names
+therefore receive no module.
+
+Recognize the observed one-argument form while preserving the legacy factory
+form, semantic aliases, original mangled exports and their enumeration behavior.
+This adapts the existing internal recovery; it adds no plugin API or replacement
+class names. Exact client assets confirm this failure for BetterFolders'
+`guilds`/`base` lookup and ShowHiddenChannels' `iconItem`/`actionIcon` lookup.
+The early-loader regression fixture exercises those lookup shapes through the
+real wrapper. After release injection and a full Stable relaunch, native logs
+confirm ShowHiddenChannels finds all required variables and BetterFolders
+enables, installs its folder patch and rerenders the guild list. This evidence
+does not establish every plugin feature's behavior.
+
+Retire this adaptation when upstream's classname detector supports the same
+factory forms. Independent plugin selectors for other Discord modules remain
+separate compatibility questions.
+
 ## Release 1.14.5 through a89825d5
 
 The reviewed range is `1a5e1a5d..a89825d5`, pinned to
