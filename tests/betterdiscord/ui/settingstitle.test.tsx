@@ -2,14 +2,14 @@ import {afterEach, beforeEach, describe, expect, mock, test} from "bun:test";
 import React, {act, useState} from "react";
 import {createRoot, type Root} from "react-dom/client";
 
-import SettingsTitle, {createSettingsTitleStore, SettingsTitlePublisher, type SettingsTitleStore} from "@ui/settings/title";
-
 // Keep retained-header assertions independent of Discord's accessibility module.
 mock.module("@ui/spinner", () => ({
     "default": () => null,
     "SpinnerType": {PULSING_ELLIPSIS: "pulsing-ellipsis"}
 }));
 
+const {default: SettingsTitle, createSettingsTitleStore, SettingsTitlePublisher} = await import("@ui/settings/title");
+type SettingsTitleStore = ReturnType<typeof createSettingsTitleStore>;
 const {default: Search} = await import("@ui/settings/components/search");
 
 
